@@ -366,9 +366,7 @@ class GridQuery:
         if group is not None:
             pieces.append(_ORDER_GROUP.format(column=_quoted(group)))
         if declared is not None and declared.sortable:
-            pieces.append(
-                _ORDER_COLUMN.format(column=_quoted(declared), direction=direction)
-            )
+            pieces.append(_ORDER_COLUMN.format(column=_quoted(declared), direction=direction))
             return ", ".join(pieces), declared.name, direction
         pieces.append(self._default_order)
         return ", ".join(pieces), "", direction
@@ -405,9 +403,7 @@ def table_source(table: str) -> str:
 
 
 def _sum_selection(columns: Sequence[GridColumn]) -> str:
-    return "".join(
-        _SUM_PROJECTION.format(column=_quoted(c), name=c.name) for c in columns
-    )
+    return "".join(_SUM_PROJECTION.format(column=_quoted(c), name=c.name) for c in columns)
 
 
 def aggregate_rows(

@@ -91,7 +91,7 @@ def _parse_branches(body: str) -> dict[str, str]:
         closing = _find_matching_brace(body, opening)
         if closing == -1:
             break
-        branches[match.group(1)] = body[opening + 1:closing]
+        branches[match.group(1)] = body[opening + 1 : closing]
         position = closing + 1
     return branches
 
@@ -123,18 +123,18 @@ def format_message(message: str, params: Mapping[str, Any], locale: str = "en") 
             output.append(message[index:])
             break
 
-        inner = message[index + 1:closing]
+        inner = message[index + 1 : closing]
         parsed = _ARG_RE.match(inner)
 
         if not parsed:
-            output.append(message[index:closing + 1])
+            output.append(message[index : closing + 1])
             index = closing + 1
             continue
 
         name, kind, body = parsed.group(1), parsed.group(2), parsed.group(3)
 
         if name not in params:
-            output.append(message[index:closing + 1])
+            output.append(message[index : closing + 1])
             index = closing + 1
             continue
 

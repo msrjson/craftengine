@@ -47,7 +47,7 @@
                     <span class="text-xl font-bold tracking-tight text-orange-600 font-sans">Craft</span>
                 </a>
             </div>
-            
+
             <div class="flex items-center space-x-6 text-sm font-semibold">
                 <!-- Locale Switcher -->
                 <div class="flex items-center space-x-2 text-[10px] font-mono border-r border-slate-200 pr-4 mr-2">
@@ -59,9 +59,9 @@
                     {% endfor %}
                 </div>
 
-                <a href="/posts" class="hover:text-orange-600 transition duration-150">{{ __('discuss') }}</a>
                 <a href="/docs" class="hover:text-orange-600 transition duration-150">{{ __('learn') }}</a>
-                
+
+
                 @auth
                     <span class="text-xs text-slate-400 font-mono hidden md:inline">Profile: <strong class="text-slate-600">{{ auth().get_attribute('name') }}</strong></span>
                     {# Only offer the dashboard to someone who can actually open it.
@@ -101,7 +101,7 @@
                 <span class="text-[9px] font-bold uppercase bg-orange-500/10 text-orange-400 border border-orange-500/20 px-1.5 py-0.5 rounded font-mono opacity-0 group-hover:opacity-100 transition-opacity duration-300 delay-75 whitespace-nowrap">{{ config('app.version') }} {{ config('app.release') }}</span>
             </a>
         </div>
-        
+
         <!-- Navigation Links -->
         <div class="flex-1 flex flex-col justify-between py-6 px-3.5 overflow-hidden">
             <nav class="space-y-1.5">
@@ -109,17 +109,12 @@
                     <svg class="w-5 h-5 flex-shrink-0 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path></svg>
                     <span class="opacity-0 group-hover:opacity-100 transition-opacity duration-300 delay-75 ml-0 group-hover:ml-3 whitespace-nowrap overflow-hidden">Dashboard</span>
                 </a>
-                <a href="/posts" class="flex items-center px-2 py-2.5 text-sm font-semibold rounded-xl text-slate-400 hover:text-white hover:bg-slate-900 transition duration-150">
-                    <svg class="w-5 h-5 flex-shrink-0 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v12a2 2 0 01-2 2zM0 0h24v24H0z" stroke="none"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 22V12h6v10M8 12h8"></path></svg>
-                    <span class="opacity-0 group-hover:opacity-100 transition-opacity duration-300 delay-75 ml-0 group-hover:ml-3 whitespace-nowrap overflow-hidden">System Posts</span>
+                <a href="/panel" class="flex items-center px-2 py-2.5 text-sm font-semibold rounded-xl text-slate-400 hover:text-white hover:bg-slate-900 transition duration-150">
+                    <svg class="w-5 h-5 flex-shrink-0 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+                    <span class="opacity-0 group-hover:opacity-100 transition-opacity duration-300 delay-75 ml-0 group-hover:ml-3 whitespace-nowrap overflow-hidden">Control Panel</span>
                 </a>
-                @auth
-                    <a href="/posts/create" class="flex items-center px-2 py-2.5 text-sm font-semibold rounded-xl text-slate-400 hover:text-white hover:bg-slate-900 transition duration-150">
-                        <svg class="w-5 h-5 flex-shrink-0 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
-                        <span class="opacity-0 group-hover:opacity-100 transition-opacity duration-300 delay-75 ml-0 group-hover:ml-3 whitespace-nowrap overflow-hidden">Create Post</span>
-                    </a>
-                @endauth
             </nav>
+
 
             <!-- Authentication Panel (Bottom of Sidebar) -->
             <div class="border-t border-slate-900 pt-6">

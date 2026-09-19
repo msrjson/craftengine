@@ -15,7 +15,7 @@ import uuid as uuid_module
 from craft.facades import DB
 from craft.migrations import Migration, Schema
 
-TABLES = ["users", "posts", "roles", "permissions", "modules"]
+TABLES = ["users", "roles", "permissions", "modules"]
 
 
 def up():
@@ -27,9 +27,7 @@ def up():
 
     # Backfill, or the column is useless for every row created before now.
     for table in TABLES:
-        rows = DB.statement(
-            f"SELECT id FROM {table} WHERE uuid IS NULL", read=True
-        ).fetchall()
+        rows = DB.statement(f"SELECT id FROM {table} WHERE uuid IS NULL", read=True).fetchall()
         for row in rows:
             DB.statement(
                 f"UPDATE {table} SET uuid = ? WHERE id = ?",
@@ -37,9 +35,7 @@ def up():
             )
 
     for table in TABLES:
-        DB.statement(
-            f'CREATE UNIQUE INDEX IF NOT EXISTS "uniq_{table}_uuid" ON "{table}" ("uuid")'
-        )
+        DB.statement(f'CREATE UNIQUE INDEX IF NOT EXISTS "uniq_{table}_uuid" ON "{table}" ("uuid")')
 
 
 def down():

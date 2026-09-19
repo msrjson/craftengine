@@ -1,5 +1,5 @@
-# CRAFT ENGINE ARCHITECTURAL CONSTITUTION & AI CODING DIRECTIVES
-Target: Craft Engine Framework (`craftengines/framework`) & Ecosystem Applications (e.g., Softpax)
+# Craft Engine Framework Constitution (MSR Standard)
+Target: Craft Engine Framework (`msrjson/craftengine`) & Ecosystem Applications (e.g., Softpax)
 
 When writing, scaffolding, or refactoring code, AI agents and developers are strictly prohibited from generating monolithic files, mixed-language identifiers, or procedural scripts. You MUST enforce the native architectural primitives of Craft Engine: **Business Modules**, **Capability Plugins**, **IoC/DI Container**, and the **Native Template Engine**.
 
@@ -7,13 +7,14 @@ When writing, scaffolding, or refactoring code, AI agents and developers are str
 
 ## 1. MANDATORY ARCHITECTURAL TAXONOMY
 
-Every feature, utility, and domain within the project must strictly fit into one of three structural tiers:
+In a clean Craft Engine workspace, `app/modules/` and `app/plugins/` start **clean and empty**. AI agents build project features from scratch into these directories according to the architectural tiers below (working examples are available under `documentation/examples/`):
 
 ```text
 craft_project/
 ├── app/
-│   ├── modules/                       # TIER 2: BUSINESS DOMAINS (Stateful & Workflow-Driven)
-│   │   ├── cms/                       # CMS Business Domain
+│   ├── modules/                       # TIER 2: BUSINESS DOMAINS (Created by developer / agent)
+│   │   ├── <business_domain>/         # Example: cms, billing, clinic, inventory...
+
 │   │   │   ├── module.py              # Lifecycle: IoC bindings & route registration
 │   │   │   ├── routes.py              # HTTP endpoint definitions
 │   │   │   ├── controllers/           # Thin HTTP handlers (Max 150 lines per file)

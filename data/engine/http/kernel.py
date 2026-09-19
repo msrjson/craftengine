@@ -16,14 +16,18 @@ import inspect
 import logging
 import os
 from typing import Any, List, Optional
+
 from starlette.applications import Starlette
 from starlette.concurrency import run_in_threadpool
 from starlette.requests import Request as StarletteRequest
-from starlette.responses import Response as StarletteResponse, HTMLResponse, JSONResponse, RedirectResponse
-from starlette.routing import Route as StarletteRoute, Mount
+from starlette.responses import HTMLResponse, JSONResponse, RedirectResponse
+from starlette.responses import Response as StarletteResponse
+from starlette.routing import Mount
+from starlette.routing import Route as StarletteRoute
 from starlette.staticfiles import StaticFiles
-from engine.http.static_files import CachedStaticFiles
+
 from engine.container.application import Container
+from engine.http.static_files import CachedStaticFiles
 
 logger = logging.getLogger("craft.http")
 
@@ -155,7 +159,7 @@ def bind_route_arguments(target: Any, request: Any) -> dict:
 
 
 class DynamicStarletteApp:
-    def __init__(self, kernel: 'Kernel'):
+    def __init__(self, kernel: "Kernel"):
         self.kernel = kernel
         self._app: Optional[Starlette] = None
         self._version: Any = None
@@ -282,9 +286,7 @@ class DynamicStarletteApp:
 
             # Multipart: a targeted scan beats parsing the whole payload, which
             # may carry file uploads we have no reason to buffer twice.
-            match = re.search(
-                rb'name="_method"\r?\n\r?\n([A-Za-z]+)', body
-            )
+            match = re.search(rb'name="_method"\r?\n\r?\n([A-Za-z]+)', body)
             return match.group(1).decode("latin-1").upper() if match else None
         except Exception:
             return None
@@ -360,7 +362,7 @@ class Kernel:
             return 0
         return max(self.MIN_THREADPOOL_SIZE, pool_size * self.THREADS_PER_CONNECTION)
 
-    def with_middleware(self, *middleware) -> 'Kernel':
+    def with_middleware(self, *middleware) -> "Kernel":
         self.middleware_classes.extend(middleware)
         self._middleware = None  # rebuild the stack on next request
         return self
@@ -392,7 +394,6 @@ class Kernel:
             "firewall": mw.FirewallMiddleware,
             "fresh": mw.RequireFreshAuth,
         }
-
 
     def alias_middleware(self, name: str, middleware_class: Any) -> "Kernel":
         """Register an extra route-middleware alias."""
@@ -446,9 +447,7 @@ class Kernel:
         routes = []
 
         for r in router.routes:
-            endpoint = self._create_endpoint(
-                r.action, r._module, r.middleware_list, route_uri=r.uri
-            )
+            endpoint = self._create_endpoint(r.action, r._module, r.middleware_list, route_uri=r.uri)
             for m in r.methods:
                 routes.append(StarletteRoute(r.uri, endpoint=endpoint, methods=[m]))
 
@@ -466,9 +465,7 @@ class Kernel:
         # Serve static files (CSS, JS, images) from the public/ directory.
         public_dir = os.path.join(self.app.base_path, "public")
         if os.path.isdir(public_dir):
-            routes.append(
-                Mount("/", app=CachedStaticFiles(directory=public_dir), name="static")
-            )
+            routes.append(Mount("/", app=CachedStaticFiles(directory=public_dir), name="static"))
 
         # Never hardcode debug - it leaks stack traces to clients in production.
         try:
@@ -485,7 +482,7 @@ class Kernel:
         """Build a middleware, passing the app and an alias parameter when accepted."""
         try:
             signature = inspect.signature(mw_cls.__init__)
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             return mw_cls()
 
         kwargs = {}
@@ -495,11 +492,7 @@ class Kernel:
         if param is not None:
             # First declared parameter after `self`/`app` receives the value
             # from the `alias:param` route middleware string.
-            positional = [
-                name
-                for name in signature.parameters
-                if name not in ("self", "app")
-            ]
+            positional = [name for name in signature.parameters if name not in ("self", "app")]
             if positional:
                 kwargs[positional[0]] = param
 
@@ -549,7 +542,9 @@ class Kernel:
             def handle_action(req):
                 if isinstance(action, list):
                     controller_cls, method_name = action[0], action[1]
-                    controller_inst = self.app.make(controller_cls) if isinstance(controller_cls, type) else controller_cls()
+                    controller_inst = (
+                        self.app.make(controller_cls) if isinstance(controller_cls, type) else controller_cls()
+                    )
                     method = getattr(controller_inst, method_name)
 
                     result = method(**bind_route_arguments(method, req))

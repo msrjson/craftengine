@@ -3,8 +3,8 @@
 # Copyright (c) 2026 Antonio Santos <snarthost@gmail.com>
 # Licensed under the MIT License. See LICENSE in the project root.
 
-from craft.providers import ServiceProvider
 from craft.facades import Event
+from craft.providers import ServiceProvider
 
 
 class EventServiceProvider(ServiceProvider):
@@ -12,6 +12,4 @@ class EventServiceProvider(ServiceProvider):
         pass
 
     def boot(self):
-        from app.Events.PostPublished import PostPublished
-        from app.Listeners.NotifySubscribers import NotifySubscribers
-        Event.listen(PostPublished, [NotifySubscribers])
+        pass

@@ -70,7 +70,7 @@ def timezone() -> tzinfo:
     """
     try:
         return ZoneInfo(timezone_name())
-    except (ZoneInfoNotFoundError, ValueError, KeyError):
+    except ZoneInfoNotFoundError, ValueError, KeyError:
         return ZoneInfo(_FALLBACK)
 
 

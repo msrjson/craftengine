@@ -8,7 +8,6 @@ the outside and quietly did something else, or nothing.
 # Licensed under the MIT License. See LICENSE in the project root.
 
 import pytest
-
 from craft.facades import DB
 from craft.migrations.schema import Blueprint, Grammar
 from craft.orm.model import Model
@@ -58,11 +57,14 @@ class TestRbacLivesOnTheRightModels:
     returned the roles of *user* 1, with no error."""
 
     def test_a_plain_model_does_not_answer_rbac_questions(self):
-        from app.Models.Post import Post
+        from craft.orm.model import Model
 
-        assert not hasattr(Post, "roles")
-        assert not hasattr(Post, "has_role")
-        assert not hasattr(Post, "has_permission")
+        class PlainItem(Model):
+            __table__ = "plain_items"
+
+        assert not hasattr(PlainItem, "roles")
+        assert not hasattr(PlainItem, "has_role")
+        assert not hasattr(PlainItem, "has_permission")
 
     def test_the_user_model_still_does(self):
         from app.Models.User import User

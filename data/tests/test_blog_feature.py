@@ -1,15 +1,53 @@
-"""Test Blog Feature & DX Accelerator Mixins (SluggableMixin, PublishableMixin)."""
+"""Test ORM Sluggable and Publishable Mixins."""
 # Craft Framework
 # Copyright (c) 2026 Antonio Santos <snarthost@gmail.com>
 # Licensed under the MIT License. See LICENSE in the project root.
 
 import pytest
-from craft.facades import Route
-from engine.orm.sluggable import slugify
-from app.Models.BlogCategory import BlogCategory
-from app.Models.BlogPost import BlogPost
-from app.Models.BlogComment import BlogComment
-from starlette.testclient import TestClient
+from craft.migrations import Schema
+from craft.orm import Model
+
+from engine.orm.publishable import PublishableMixin
+from engine.orm.sluggable import SluggableMixin, slugify
+
+
+class CategoryModel(Model, SluggableMixin):
+    __table__ = "test_categories"
+    fillable = ["name", "slug"]
+    slug_source_column = "name"
+
+
+class ArticleModel(Model, SluggableMixin, PublishableMixin):
+    __table__ = "test_articles"
+    fillable = ["title", "slug", "content", "status", "published_at"]
+    slug_source_column = "title"
+
+
+@pytest.fixture(autouse=True)
+def setup_test_tables(migrated_database):
+    if not Schema.has_table("test_categories"):
+        Schema.create(
+            "test_categories",
+            lambda t: (
+                t.increments("id"),
+                t.string("name"),
+                t.string("slug").nullable(),
+                t.timestamps(),
+            ),
+        )
+    if not Schema.has_table("test_articles"):
+        Schema.create(
+            "test_articles",
+            lambda t: (
+                t.increments("id"),
+                t.string("title"),
+                t.string("slug").nullable(),
+                t.text("content").nullable(),
+                t.string("status").default("draft"),
+                t.datetime("published_at").nullable(),
+                t.timestamps(),
+            ),
+        )
 
 
 def test_slugify_helper():
@@ -20,81 +58,41 @@ def test_slugify_helper():
     assert slugify("") == ""
 
 
-def test_sluggable_mixin_generate_slug(migrated_database):
+def test_sluggable_mixin_generate_slug():
     """Verify SluggableMixin generates unique slugs."""
-    cat1 = BlogCategory({"name": "AI & Engineering"})
+    cat1 = CategoryModel({"name": "AI & Engineering"})
     cat1.generate_slug()
     cat1.save()
     assert cat1.slug == "ai-engineering"
 
     # Duplicate title must get auto-increment suffix
-    cat2 = BlogCategory({"name": "AI & Engineering"})
+    cat2 = CategoryModel({"name": "AI & Engineering"})
     cat2.generate_slug()
     cat2.save()
     assert cat2.slug == "ai-engineering-1"
 
-    found = BlogCategory.find_by_slug("ai-engineering")
+    found = CategoryModel.find_by_slug("ai-engineering")
     assert found is not None
     assert found.id == cat1.id
 
 
-def test_publishable_mixin_scopes(migrated_database):
+def test_publishable_mixin_scopes():
     """Verify PublishableMixin handles status and query scopes."""
-    post1 = BlogPost({
-        "title": "First Craft Article",
-        "content": "Craft Engine rules.",
-        "status": "draft",
-    })
-    post1.generate_slug()
-    post1.save()
-
-    assert not post1.is_published
-    assert len(BlogPost.published().get()) == 0
-    assert len(BlogPost.drafts().get()) == 1
-
-    post1.publish()
-    assert post1.is_published
-    assert len(BlogPost.published().get()) == 1
-    assert len(BlogPost.drafts().get()) == 0
-
-
-def test_blog_accelerator_http_routes(migrated_database):
-    """Verify public blog HTTP endpoints with TestClient."""
-    from bootstrap.app import asgi_app
-
-    client = TestClient(asgi_app)
-
-    # Seed a published blog post
-    category = BlogCategory({"name": "Tutorials"})
-    category.generate_slug()
-    category.save()
-
-    post = BlogPost({
-        "category_id": category.id,
-        "title": "Getting Started with Craft Engine",
-        "content": "Full stack Python simplified.",
-        "status": "published",
-    })
-    post.generate_slug()
-    post.save()
-
-    # Test Blog Index JSON response
-    res = client.get("/api/v1/blog", headers={"Accept": "application/json"})
-    assert res.status_code == 200
-    data = res.json()
-    assert len(data["posts"]) >= 1
-    assert data["posts"][0]["title"] == "Getting Started with Craft Engine"
-
-    # Test Blog Single Post by Slug
-    res = client.get(f"/api/v1/blog/{post.slug}", headers={"Accept": "application/json"})
-    assert res.status_code == 200
-    assert res.json()["slug"] == "getting-started-with-craft-engine"
-
-    # Test Submitting Comment
-    res = client.post(
-        f"/api/v1/blog/{post.slug}/comments",
-        json={"author_name": "Dev Agent", "author_email": "agent@craft.local", "content": "Awesome architecture!"},
-        headers={"Accept": "application/json"}
+    article1 = ArticleModel(
+        {
+            "title": "First Craft Article",
+            "content": "Craft Engine rules.",
+            "status": "draft",
+        }
     )
-    assert res.status_code == 201
-    assert res.json()["message"] == "Comment submitted"
+    article1.generate_slug()
+    article1.save()
+
+    assert not article1.is_published
+    assert len(ArticleModel.published().get()) == 0
+    assert len(ArticleModel.drafts().get()) == 1
+
+    article1.publish()
+    assert article1.is_published
+    assert len(ArticleModel.published().get()) == 1
+    assert len(ArticleModel.drafts().get()) == 0

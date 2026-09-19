@@ -38,22 +38,12 @@ class PanelServiceProvider(ServiceProvider):
 
         # -- Sections, in the order they appear -----------------------------
         Nav.section("workspace", "Workspace", order=10)
-        Nav.section("content", "Content", order=20)
         Nav.section("people", "People & Access", order=30)
         Nav.section("system", "System", order=40)
 
         # -- Workspace: what every signed-in account gets --------------------
         Nav.add("workspace", "Dashboard", "/panel", icon="home", order=10)
         Nav.add("workspace", "My Profile", "/panel/profile", icon="user", order=20)
-
-        # -- Content ---------------------------------------------------------
-        # `create-post` is granted to the `user` role by the seeder, so an
-        # ordinary account sees these; an account without it does not.
-        Nav.add("content", "Posts", "/panel/posts", icon="document", order=10)
-        Nav.add(
-            "content", "Write a post", "/posts/create", icon="plus", order=20,
-            permission="create-post",
-        )
 
         # -- People & Access: administrators only ----------------------------
         # `Access audit` shows permission slugs, the path each grant arrives by

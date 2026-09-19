@@ -5,15 +5,16 @@
 
 import tempfile
 from pathlib import Path
-from starlette.testclient import TestClient
+
 from starlette.applications import Starlette
 from starlette.routing import Mount
+from starlette.testclient import TestClient
 
 from engine.http.static_files import (
-    CachedStaticFiles,
-    cache_control_for,
     IMMUTABLE_CACHE_CONTROL,
     REVALIDATED_CACHE_CONTROL,
+    CachedStaticFiles,
+    cache_control_for,
 )
 
 
@@ -36,11 +37,7 @@ def test_cached_static_files_response_headers():
         test_file = Path(temp_dir) / "app.js"
         test_file.write_text("console.log('hello');")
 
-        app = Starlette(
-            routes=[
-                Mount("/static", app=CachedStaticFiles(directory=temp_dir), name="static")
-            ]
-        )
+        app = Starlette(routes=[Mount("/static", app=CachedStaticFiles(directory=temp_dir), name="static")])
         client = TestClient(app)
 
         # 1. Bare URL test

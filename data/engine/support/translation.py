@@ -87,24 +87,22 @@ def translate(key: str, locale: Optional[str] = None, **replacements: Any) -> st
     try:
         app = Container.getInstance()
         config = app.make("config")
-        active = (
-            locale
-            or current_locale.get()
-            or config.get("app.APP_LOCALE")
-            or config.get("app.locale")
-            or "en"
-        )
+        active = locale or current_locale.get() or config.get("app.APP_LOCALE") or config.get("app.locale") or "en"
         active_locale = str(active)
         fallback = config.get("app.APP_FALLBACK_LOCALE") or config.get("app.fallback_locale") or "en"
 
         for candidate in locale_chain(active, fallback):
             # 1. Database-backed dynamic translation (Primary source of truth)
             try:
-                row = app.make("db").statement(
-                    "SELECT value FROM translations WHERE key = ? AND locale = ?",
-                    [key, candidate],
-                    read=True,
-                ).fetchone()
+                row = (
+                    app.make("db")
+                    .statement(
+                        "SELECT value FROM translations WHERE key = ? AND locale = ?",
+                        [key, candidate],
+                        read=True,
+                    )
+                    .fetchone()
+                )
             except Exception:
                 row = None  # DB offline or not yet migrated — fallback to config
 

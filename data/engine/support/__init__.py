@@ -3,11 +3,10 @@
 # Copyright (c) 2026 Antonio Santos <snarthost@gmail.com>
 # Licensed under the MIT License. See LICENSE in the project root.
 
-from engine.support.collection import Collection
-from engine.support.translation import __, translate, locale_chain, normalize_locale
+from engine.http.response import JsonResponse, Response, redirect
 from engine.support import clock, icu
-from engine.http.response import Response, JsonResponse, redirect
-
+from engine.support.collection import Collection
+from engine.support.translation import __, locale_chain, normalize_locale, translate
 
 
 def view(template_name: str, data: dict = None) -> Response:

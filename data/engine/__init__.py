@@ -17,15 +17,16 @@ import importlib.abc
 import importlib.machinery
 import os
 import sys
+from collections.abc import Sequence
 from types import ModuleType
-from typing import Optional, Sequence
+from typing import Optional
 
-__version__ = "3.21.0"
+__version__ = "3.22.0"
 #: Increments by exactly 1 on every cut release, never reset and never skipped
 #: (CONTRIBUTING.md, "Versioning and releases"). v3.11.0 was r00001, v3.12.0
 #: r00002, v3.13.0 r00003 — this counter was left at r00001 through both of
 #: those and corrected at v3.14.0 (r00004) rather than carried forward wrong.
-__release__ = "r00014"
+__release__ = "r00015"
 __author__ = "Antonio Santos"
 __email__ = "snarthost@gmail.com"
 __license__ = "MIT"
@@ -45,7 +46,7 @@ class _AliasLoader(importlib.abc.Loader):
     def __init__(self, real_name: str):
         self.real_name = real_name
 
-    def create_module(self, spec: importlib.machinery.ModuleSpec) -> Optional[ModuleType]:
+    def create_module(self, spec: importlib.machinery.ModuleSpec) -> ModuleType | None:
         return importlib.import_module(self.real_name)
 
     def exec_module(self, module: ModuleType) -> None:
@@ -59,13 +60,13 @@ class _AliasFinder(importlib.abc.MetaPathFinder):
     def find_spec(
         self,
         fullname: str,
-        path: Optional[Sequence[str]] = None,
-        target: Optional[ModuleType] = None,
-    ) -> Optional[importlib.machinery.ModuleSpec]:
+        path: Sequence[str] | None = None,
+        target: ModuleType | None = None,
+    ) -> importlib.machinery.ModuleSpec | None:
         if fullname != _ALIAS and not fullname.startswith(_ALIAS + "."):
             return None
 
-        real_name = _TARGET + fullname[len(_ALIAS):]
+        real_name = _TARGET + fullname[len(_ALIAS) :]
         try:
             importlib.import_module(real_name)
         except ImportError:

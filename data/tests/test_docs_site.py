@@ -15,7 +15,6 @@ import os
 import re
 
 import pytest
-
 from craft.support.docs import BrokenLink, DocsLibrary
 from craft.support.docs_site import DocsSiteBuilder
 
@@ -49,11 +48,7 @@ def test_titles_come_from_the_document_not_the_filename(library):
 def test_a_new_guide_is_reachable_before_it_is_filed(library):
     """Unfiled pages land under "More" rather than vanishing from the sidebar."""
     headings = [group["heading"] for group in library.navigation()]
-    filed = {
-        item["slug"]
-        for group in library.navigation()
-        for item in group["items"]
-    }
+    filed = {item["slug"] for group in library.navigation() for item in group["items"]}
     assert filed == set(library.slugs()), "a page disappeared from the navigation"
     assert headings[0] == "Getting started"
 
@@ -61,18 +56,24 @@ def test_a_new_guide_is_reachable_before_it_is_filed(library):
 # -- link rewriting ------------------------------------------------------------
 
 
-@pytest.mark.parametrize("style,expected", [
-    ("app", "/docs/postgres"),
-    ("static", "postgres.html"),
-])
+@pytest.mark.parametrize(
+    "style,expected",
+    [
+        ("app", "/docs/postgres"),
+        ("static", "postgres.html"),
+    ],
+)
 def test_a_cross_page_link_is_rewritten_per_consumer(docs_dir, style, expected):
     assert DocsLibrary(docs_dir, link_style=style).rewrite("postgres.md") == expected
 
 
-@pytest.mark.parametrize("style,expected", [
-    ("app", "/docs/orm#eager-loading"),
-    ("static", "orm.html#eager-loading"),
-])
+@pytest.mark.parametrize(
+    "style,expected",
+    [
+        ("app", "/docs/orm#eager-loading"),
+        ("static", "orm.html#eager-loading"),
+    ],
+)
 def test_an_anchor_survives_the_rewrite(docs_dir, style, expected):
     assert DocsLibrary(docs_dir, link_style=style).rewrite("orm.md#eager-loading") == expected
 
@@ -96,11 +97,7 @@ def test_a_non_markdown_relative_link_is_untouched(library):
 def test_hrefs_inside_code_blocks_are_not_rewritten(tmp_path):
     """The rewrite is a renderer rule, not a regex over finished HTML."""
     (tmp_path / "sample.md").write_text(
-        "# Sample\n\n"
-        "A real link to [the ORM](orm.md).\n\n"
-        "```html\n"
-        '<a href="orm.md">left exactly as written</a>\n'
-        "```\n",
+        '# Sample\n\nA real link to [the ORM](orm.md).\n\n```html\n<a href="orm.md">left exactly as written</a>\n```\n',
         encoding="utf-8",
     )
     html = DocsLibrary(str(tmp_path), link_style="static").render("sample")
@@ -217,7 +214,7 @@ def test_the_controller_and_the_site_share_one_implementation():
     """Two copies is how the published site and the running app drift apart."""
     import inspect
 
-    from app.Http.Controllers.Blog.DocsController import DocsController
+    from app.Http.Controllers.Docs.DocsController import DocsController
 
     source = inspect.getsource(DocsController)
     assert "DocsLibrary" in source

@@ -81,6 +81,11 @@ When an AI agent (or a human) copies this workspace to bootstrap a new app:
    volume source is pointing at the wrong directory — usually because `data/`
    was copied into a differently-named parent and the relative paths inside
    `docker-compose.yml` still resolve, silently, to the wrong host location.
+7. **Clean skeleton for AI agents.** `data/` provides a completely clean
+   framework foundation without pre-built domain models or sample blogs.
+   `app/modules/` and `app/plugins/` start empty. AI agents must build the new
+   domain from scratch, avoiding any hybrid residue or '2 in 1' domain mixing.
+   Working reference patterns are provided under `documentation/examples/`.
 
 ## 4. What breaks this contract (do not do these)
 

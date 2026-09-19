@@ -18,6 +18,8 @@ full policy (categories to use, what counts as security-relevant, how
 
 ## [Unreleased]
 
+## [3.22.0] r00015 — 2026-09-19
+
 ### Added
 
 - **RFC-compliant static files caching** (`engine/http/static_files.py`, `engine/http/kernel.py`): introduces `CachedStaticFiles` subclassing Starlette's `StaticFiles`. Emits `Cache-Control: public, max-age=31536000, immutable` for fingerprinted asset URLs (`?v=...`) and `Cache-Control: public, max-age=300, must-revalidate` for bare URLs.
@@ -30,6 +32,7 @@ full policy (categories to use, what counts as security-relevant, how
 
 ### Changed
 
+- **Clean initial workspace skeleton for developers & AI agents** (`app/`, `database/`, `resources/`, `routes/`): eliminated demo blog models, controllers, views, policies, events, seeders, and routes from the base workspace skeleton, preventing agents from building hybrid "2-in-1" applications. Reference modules (`cms`, `billing`) and plugins (`brazil_validator`, `qrcode_generator`, `seo_optimizer`) relocated to `documentation/examples/` as isolated architectural blueprints.
 - **Documentation points at the official repository** (`README.md`, `CONTRIBUTING.md`, `public/docs/`): every source link and the rebuilt static site now resolve to <https://github.com/msrjson/craftengine> — the GitHub organization was renamed from `msr-standard` to `msrjson`, and both the former `msr-standard/craftengine` and `craftengines/framework` paths redirect there. The site was regenerated with `python dev.py docs build`, which reads the URL from `engine/support/docs.py` and `engine/support/docs_site.py`.
 - **Official site at <https://craftengine.org>** (`deploy/do-app.yaml`, `deploy/docs.Dockerfile`): one DigitalOcean App Platform app with two static sites — no database, no server runtime. `/` serves the presentation site from its own private repository (`msrjson/craftengine.org`); `/docs` serves this documentation, rebuilt from `documentation/` on every push to `master`.
 - **ASCII-only comments in configuration** (`config/app.py`, `config/security.py`, `config/session.py`): em dashes in explanatory comments replaced with `--`, clearing the seven `LANG-A` violations that made `.claude/rules/lint_language.py` exit non-zero. No behavior change.

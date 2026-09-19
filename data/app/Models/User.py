@@ -37,12 +37,8 @@ class User(Model):
     def check_password(self, password: str) -> bool:
         return Hash.check(password, self.get_attribute("password"))
 
-    def posts(self):
-        from app.Models.Post import Post
-
-        return self.has_many(Post, foreign_key="user_id")
-
     # -- Authorization -----------------------------------------------------
+
     # The relations below are for reading and managing membership. The actual
     # decisions — `has_role`, `has_permission`, `can` — are delegated to the
     # framework's `AccessResolver` (`craft.auth.access`), because a permission
@@ -75,8 +71,9 @@ class User(Model):
 
     def groups(self):
         """Groups this user belongs to, through the `group_user` pivot."""
-        from app.Models.Group import Group
         from craft.orm.relationships import BelongsToMany
+
+        from app.Models.Group import Group
 
         return BelongsToMany(
             self,
@@ -116,6 +113,7 @@ class User(Model):
     def roles(self):
         """Roles assigned to this user, through the `role_user` pivot."""
         from craft.orm.relationships import BelongsToMany
+
         from app.Models.Role import Role
 
         return BelongsToMany(

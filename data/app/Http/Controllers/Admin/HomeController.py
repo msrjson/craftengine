@@ -9,27 +9,8 @@ from craft.http.response import redirect
 
 class HomeController(Controller):
     def index(self, request):
-        """The public landing page.
-
-        The recent-posts strip is decorative, so a query failure degrades to an
-        empty list rather than a 500 on the site's front door — but it is
-        logged, because "the community section is empty" and "the database is
-        unreachable" look identical to a visitor.
-        """
-        import logging
-
-        from app.Models.Post import Post
-
-        try:
-            posts = Post.query().order_by("created_at", "desc").limit(6).get()
-        except Exception:
-            logging.getLogger("craft").warning(
-                "Could not load recent posts for the landing page; rendering "
-                "the section empty.", exc_info=True,
-            )
-            posts = []
-
-        return self.view("home", {"posts": posts, "show_sidebar": False})
+        """The public landing page."""
+        return self.view("home", {"show_sidebar": False})
 
     def admin(self, request):
         """`/admin` — kept only as a redirect into the control panel.
@@ -50,4 +31,3 @@ class HomeController(Controller):
         it, exactly as before.
         """
         return redirect(url="/panel", status=302)
-

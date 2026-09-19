@@ -4,26 +4,50 @@
 # Licensed under the MIT License. See LICENSE in the project root.
 
 import pytest
-from app.plugins.brazil_validator.engine import DocumentValidatorEngine
-from app.plugins.brazil_validator.plugin import PLUGIN as BRAZIL_VALIDATOR_PLUGIN, register as register_brazil_validator
-from app.plugins.qrcode_generator.engine import QRCodeGeneratorEngine
-from app.plugins.qrcode_generator.schemas import QRCodeOptions
-from app.plugins.qrcode_generator.plugin import PLUGIN as QRCODE_PLUGIN, register as register_qrcode
-from app.plugins.seo_optimizer.engine import SeoOptimizerEngine
-from app.plugins.seo_optimizer.plugin import PLUGIN as SEO_PLUGIN, register as register_seo
+from craft.migrations import Schema
 
-from app.modules.cms.module import MODULE as CMS_MODULE, register as register_cms, boot as boot_cms
-from app.modules.cms.services.cms_service import CmsService
-from app.modules.cms.schemas.cms_schema import CreatePostData
-from app.modules.cms.controllers.post_controller import PostController
-
-from app.modules.billing.module import MODULE as BILLING_MODULE, register as register_billing, boot as boot_billing
-from app.modules.billing.services.billing_service import BillingService
-from app.modules.billing.schemas.billing_schema import CreateBankSlipData, CreateInvoiceData
-from app.modules.billing.controllers.bank_slip_controller import BankSlipController
-
-from engine.plugins.manager import PluginManager
+from documentation.examples.modules.billing.controllers.bank_slip_controller import BankSlipController
+from documentation.examples.modules.billing.module import MODULE as BILLING_MODULE
+from documentation.examples.modules.billing.module import boot as boot_billing
+from documentation.examples.modules.billing.module import register as register_billing
+from documentation.examples.modules.billing.schemas.billing_schema import CreateBankSlipData, CreateInvoiceData
+from documentation.examples.modules.billing.services.billing_service import BillingService
+from documentation.examples.modules.cms.controllers.post_controller import PostController
+from documentation.examples.modules.cms.module import MODULE as CMS_MODULE
+from documentation.examples.modules.cms.module import boot as boot_cms
+from documentation.examples.modules.cms.module import register as register_cms
+from documentation.examples.modules.cms.schemas.cms_schema import CreatePostData
+from documentation.examples.modules.cms.services.cms_service import CmsService
+from documentation.examples.plugins.brazil_validator.engine import DocumentValidatorEngine
+from documentation.examples.plugins.brazil_validator.plugin import PLUGIN as BRAZIL_VALIDATOR_PLUGIN
+from documentation.examples.plugins.brazil_validator.plugin import register as register_brazil_validator
+from documentation.examples.plugins.qrcode_generator.engine import QRCodeGeneratorEngine
+from documentation.examples.plugins.qrcode_generator.plugin import PLUGIN as QRCODE_PLUGIN
+from documentation.examples.plugins.qrcode_generator.plugin import register as register_qrcode
+from documentation.examples.plugins.qrcode_generator.schemas import QRCodeOptions
+from documentation.examples.plugins.seo_optimizer.engine import SeoOptimizerEngine
+from documentation.examples.plugins.seo_optimizer.plugin import PLUGIN as SEO_PLUGIN
+from documentation.examples.plugins.seo_optimizer.plugin import register as register_seo
 from engine.container.application import Container
+from engine.plugins.manager import PluginManager
+
+
+@pytest.fixture(autouse=True)
+def setup_cms_posts_table(migrated_database):
+    if not Schema.has_table("cms_posts"):
+        Schema.create(
+            "cms_posts",
+            lambda t: (
+                t.increments("id"),
+                t.string("title"),
+                t.string("slug").nullable(),
+                t.text("body").nullable(),
+                t.integer("user_id").nullable(),
+                t.string("status").default("draft"),
+                t.datetime("published_at").nullable(),
+                t.timestamps(),
+            ),
+        )
 
 
 class DummyRequest:
@@ -73,8 +97,7 @@ class TestCapabilityPlugins:
         assert slug == "craft-engine-modern-python-framework"
 
         analysis = SeoOptimizerEngine.analyze_content(
-            "Short Title",
-            "This is a sample post body used for testing SEO metrics computation."
+            "Short Title", "This is a sample post body used for testing SEO metrics computation."
         )
         assert analysis.slug == "short-title"
         assert analysis.word_count > 0
@@ -91,6 +114,7 @@ class TestBusinessModules:
 
     def test_cms_module_bootstrap_and_service(self, migrated_database):
         from app.Models.User import User
+
         user = User.create({"name": "CMS User", "email": "cms_user@test.com", "password": "password"})
 
         assert CMS_MODULE["slug"] == "cms"
@@ -101,27 +125,33 @@ class TestBusinessModules:
         service = container.make("module.cms.service")
         assert isinstance(service, CmsService)
 
-        post_res = service.create_post(CreatePostData(
-            title="Modular Craft Engine",
-            body="Encapsulating domain workflows into business modules.",
-            user_id=user.get_attribute("id"),
-        ))
+        post_res = service.create_post(
+            CreatePostData(
+                title="Modular Craft Engine",
+                body="Encapsulating domain workflows into business modules.",
+                user_id=user.get_attribute("id"),
+            )
+        )
 
         assert post_res["post"].get_attribute("title") == "Modular Craft Engine"
         assert "seo_analysis" in post_res
 
     def test_cms_thin_post_controller(self, migrated_database):
         from app.Models.User import User
+
         user = User.create({"name": "Author", "email": "author@test.com", "password": "password"})
 
         service = CmsService()
         controller = PostController(service=service)
 
-        req = DummyRequest(inputs={
-            "title": "Controller Post",
-            "body": "Thin controller transport layer test.",
-            "user_id": user.get_attribute("id"),
-        }, expects_json=True)
+        req = DummyRequest(
+            inputs={
+                "title": "Controller Post",
+                "body": "Thin controller transport layer test.",
+                "user_id": user.get_attribute("id"),
+            },
+            expects_json=True,
+        )
 
         res = controller.store(req)
         assert res.status_code == 201
@@ -159,12 +189,15 @@ class TestBusinessModules:
         service = BillingService()
         controller = BankSlipController(service=service)
 
-        req = DummyRequest(inputs={
-            "customer_name": "Valid Client",
-            "customer_document": "529.982.247-25",
-            "amount": 250.00,
-            "due_date": "2026-12-31",
-        }, expects_json=True)
+        req = DummyRequest(
+            inputs={
+                "customer_name": "Valid Client",
+                "customer_document": "529.982.247-25",
+                "amount": 250.00,
+                "due_date": "2026-12-31",
+            },
+            expects_json=True,
+        )
 
         res = controller.store(req)
         assert res.status_code == 201

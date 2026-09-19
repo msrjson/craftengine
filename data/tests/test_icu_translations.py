@@ -4,7 +4,7 @@
 # Licensed under the MIT License. See LICENSE in the project root.
 
 from engine.support.icu import format_message, plural_category
-from engine.support.translation import translate, __
+from engine.support.translation import __, translate
 
 
 def test_plural_category_english():

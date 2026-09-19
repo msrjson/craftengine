@@ -77,22 +77,21 @@
                         <span class="dot dot-yellow"></span>
                         <span class="dot dot-green"></span>
                     </div>
-                    <span class="code-filename">routes/web.py & app/Models/Post.py</span>
+                    <span class="code-filename">routes/web.py & app/Models/Task.py</span>
                 </div>
                 <pre class="code-block"><code><span class="code-keyword">from</span> <span class="code-module">craft.facades</span> <span class="code-keyword">import</span> Route, Auth, DB
 <span class="code-keyword">from</span> <span class="code-module">craft.orm.model</span> <span class="code-keyword">import</span> Model
 
-<span class="code-keyword">class</span> <span class="code-class">Post</span>(Model):
-    __table__ = <span class="code-string">"posts"</span>
-    fillable = [<span class="code-string">"title"</span>, <span class="code-string">"body"</span>, <span class="code-string">"user_id"</span>]
+<span class="code-keyword">class</span> <span class="code-class">Task</span>(Model):
+    __table__ = <span class="code-string">"tasks"</span>
+    fillable = [<span class="code-string">"title"</span>, <span class="code-string">"description"</span>, <span class="code-string">"user_id"</span>]
 
-    <span class="code-keyword">def</span> <span class="code-func">author</span>(self):
+    <span class="code-keyword">def</span> <span class="code-func">user</span>(self):
         <span class="code-keyword">return</span> self.belongs_to(User)
 
-<span class="code-comment"># Expressive REST & Admin Routing</span>
-Route.resource(<span class="code-string">"posts"</span>, PostController, write_middleware=<span class="code-string">"auth"</span>)
-Route.get(<span class="code-string">"/admin"</span>, [AdminController, <span class="code-string">"index"</span>])
-    .middleware(<span class="code-string">"auth"</span>, <span class="code-string">"role:admin"</span>, <span class="code-string">"firewall"</span>)</code></pre>
+<span class="code-comment"># Expressive Routing & RBAC Guards</span>
+Route.get(<span class="code-string">"/panel"</span>, [PanelController, <span class="code-string">"index"</span>]).middleware(<span class="code-string">"auth"</span>)
+Route.get(<span class="code-string">"/admin"</span>, [HomeController, <span class="code-string">"admin"</span>]).middleware(<span class="code-string">"auth"</span>, <span class="code-string">"role:admin"</span>)</code></pre>
             </div>
         </div>
     </div>
@@ -235,12 +234,12 @@ Route.get(<span class="code-string">"/admin"</span>, [AdminController, <span cla
                     <h3>Documentation</h3>
                     <p>Comprehensive architectural and API guides for every component.</p>
                 </a>
-                <a href="/posts" class="action-card" id="card-community">
+                <a href="/panel" class="action-card" id="card-panel">
                     <div class="card-icon-wrapper card-icon-green">
-                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
                     </div>
-                    <h3>Discussion Forum</h3>
-                    <p>Explore forum posts, best practices, and release announcements.</p>
+                    <h3>Control Panel</h3>
+                    <p>Manage users, RBAC permissions, database metrics, and system runtime.</p>
                 </a>
                 <a href="/docs/testing" class="action-card" id="card-contribute">
                     <div class="card-icon-wrapper card-icon-purple">
@@ -252,39 +251,6 @@ Route.get(<span class="code-string">"/admin"</span>, [AdminController, <span cla
             </div>
         </div>
     </section>
-
-    <!-- Community / Recent Discussions -->
-    <section class="section-community" id="community">
-        <div class="section-container">
-            <div class="section-header">
-                <div class="flex items-center justify-between w-full">
-                    <div>
-                        <span class="section-tag">Community</span>
-                        <h2 class="section-title">{{ __('recent_posts') }}</h2>
-                    </div>
-                    <a href="/posts" class="text-sm font-semibold text-orange-600 hover:text-orange-700">View All Posts &rarr;</a>
-                </div>
-            </div>
-            @if(posts is defined and posts is not none and posts|length > 0)
-                <div class="discussions-grid">
-                    @foreach(posts as post)
-                        <a href="{{ route('posts.show', id=post.get_attribute('id')) }}" class="discussion-item">
-                            <div class="discussion-meta">
-                                <span class="discussion-tag">Discussion</span>
-                                <span class="discussion-date">{{ (post.get_attribute('created_at') or '')|string|truncate(10, true, '') }}</span>
-                            </div>
-                            <h4 class="discussion-title">{{ post.get_attribute('title') }}</h4>
-                            <p class="discussion-excerpt">{{ post.get_attribute('body') }}</p>
-                        </a>
-                    @endforeach
-                </div>
-            @else
-                <div class="discussions-empty">
-                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
-                    <p>No active discussions yet. <a href="/posts/create">Start one →</a></p>
-                </div>
-            @endif
-        </div>
-    </section>
 @endsection
+
 

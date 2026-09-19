@@ -4,9 +4,9 @@
 # Licensed under the MIT License. See LICENSE in the project root.
 
 from engine.http.datagrid import (
+    OPERATORS_BY_KIND,
     GridColumn,
     GridQuery,
-    OPERATORS_BY_KIND,
 )
 
 

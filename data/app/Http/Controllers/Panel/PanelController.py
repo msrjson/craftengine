@@ -22,10 +22,11 @@ alone click, what they may not have.
 # Copyright (c) 2026 Antonio Santos <snarthost@gmail.com>
 # Licensed under the MIT License. See LICENSE in the project root.
 
-from app.Http.Controllers.Panel.PanelPage import PanelPage
-from craft.facades import Auth, DB, Hash
+from craft.facades import DB, Auth, Hash
 from craft.http.controller import Controller
 from craft.http.response import redirect
+
+from app.Http.Controllers.Panel.PanelPage import PanelPage
 
 
 class PanelController(PanelPage, Controller):
@@ -47,17 +48,10 @@ class PanelController(PanelPage, Controller):
         size of the system is itself information an account that cannot see its
         contents should not be handed.
         """
-        from app.Models.Post import Post
-
         user = Auth.user()
-        user_id = user.get_attribute("id")
-
-        my_posts = Post.query().where("user_id", user_id).order_by_desc("created_at").limit(5).get()
-        my_post_count = Post.query().where("user_id", user_id).count()
 
         stats = [
-            {"label": "My posts", "value": my_post_count, "hint": "Written by you"},
-            {"label": "Published", "value": my_post_count, "hint": "Visible on the site"},
+            {"label": "Account status", "value": "Active", "hint": "Authenticated user"},
             {"label": "Member since", "value": self._joined(user), "hint": "Your account"},
         ]
 
@@ -68,18 +62,20 @@ class PanelController(PanelPage, Controller):
 
             admin_stats = [
                 {"label": "Users", "value": User.query().count(), "hint": "Accounts in this installation"},
-                {"label": "Posts", "value": Post.query().count(), "hint": "Across every author"},
                 {"label": "Groups", "value": Group.query().count(), "hint": "Teams with shared access"},
                 {"label": "Modules", "value": len(self._modules()), "hint": "Feature areas"},
             ]
 
-        return self.panel(request, "panel.index", {
-            "heading": f"Welcome back, {user.get_attribute('name')}",
-            "subheading": "Your workspace in this installation.",
-            "stats": stats,
-            "admin_stats": admin_stats,
-            "my_posts": my_posts,
-        })
+        return self.panel(
+            request,
+            "panel.index",
+            {
+                "heading": f"Welcome back, {user.get_attribute('name')}",
+                "subheading": "Your workspace in this installation.",
+                "stats": stats,
+                "admin_stats": admin_stats,
+            },
+        )
 
     @staticmethod
     def _joined(user) -> str:
@@ -87,7 +83,6 @@ class PanelController(PanelPage, Controller):
         anybody reads off a dashboard."""
         value = user.get_attribute("created_at")
         return str(value).split("T")[0].split(" ")[0] if value else "—"
-
 
     def profile(self, request):
         """The account's own details — and nothing about how access is wired.
@@ -98,12 +93,16 @@ class PanelController(PanelPage, Controller):
         not the installation's configuration.
         """
         user = Auth.user()
-        return self.panel(request, "panel.profile", {
-            "heading": "My profile",
-            "subheading": "Your account in this installation.",
-            "user": user,
-            "is_admin": self.is_admin(user),
-        })
+        return self.panel(
+            request,
+            "panel.profile",
+            {
+                "heading": "My profile",
+                "subheading": "Your account in this installation.",
+                "user": user,
+                "is_admin": self.is_admin(user),
+            },
+        )
 
     def update_profile(self, request):
         """Update authenticated user profile information."""
@@ -180,51 +179,33 @@ class PanelController(PanelPage, Controller):
         grants = []
         for slug in access.permissions(user):
             for grant in access.explain(user, slug):
-                grants.append({
-                    "slug": slug,
-                    "source": grant["source"],
-                    "conditions": grant["conditions"],
-                })
+                grants.append(
+                    {
+                        "slug": slug,
+                        "source": grant["source"],
+                        "conditions": grant["conditions"],
+                    }
+                )
 
-        return self.panel(request, "panel.access", {
-            "heading": "Access audit",
-            "subheading": "How this account's permissions are configured.",
-            "roles": access.roles(user),
-            "groups": access.groups(user),
-            "grants": grants,
-        })
-
-    def posts(self, request):
-        """Posts. Ordinary accounts see their own; administrators see all.
-
-        The scoping is the point: the same page, the same template, and the
-        query narrowed by who is asking.
-        """
-        from app.Models.Post import Post
-
-        user = Auth.user()
-        access = self.app_access()
-        is_admin = access.has_role(user, "admin") or bool(user.get_attribute("is_admin"))
-
-        query = Post.query().order_by_desc("created_at")
-        if not is_admin:
-            query = query.where("user_id", user.get_attribute("id"))
-
-        return self.panel(request, "panel.posts", {
-            "heading": "Posts" if is_admin else "My posts",
-            "subheading": "Every post in this installation." if is_admin
-                          else "Posts you have written.",
-            "posts": query.limit(50).get(),
-            "is_admin": is_admin,
-        })
+        return self.panel(
+            request,
+            "panel.access",
+            {
+                "heading": "Access audit",
+                "subheading": "How this account's permissions are configured.",
+                "roles": access.roles(user),
+                "groups": access.groups(user),
+                "grants": grants,
+            },
+        )
 
     # -- administration --------------------------------------------------------
 
     def users(self, request):
         """The account directory and RBAC assignment. Admin-only."""
-        from app.Models.User import User
-        from app.Models.Role import Role
         from app.Models.Group import Group
+        from app.Models.Role import Role
+        from app.Models.User import User
 
         access = self.app_access()
         users = User.query().order_by_desc("created_at").limit(100).get()
@@ -241,13 +222,17 @@ class PanelController(PanelPage, Controller):
         roles = Role.query().order_by("name").get()
         groups = Group.query().order_by("name").get()
 
-        return self.panel(request, "panel.users", {
-            "heading": "Users",
-            "subheading": f"{len(rows)} accounts.",
-            "rows": rows,
-            "roles": roles,
-            "groups": groups,
-        })
+        return self.panel(
+            request,
+            "panel.users",
+            {
+                "heading": "Users",
+                "subheading": f"{len(rows)} accounts.",
+                "rows": rows,
+                "roles": roles,
+                "groups": groups,
+            },
+        )
 
     def store_user(self, request):
         """Provision a new user account with initial role and group."""
@@ -267,12 +252,14 @@ class PanelController(PanelPage, Controller):
         if existing:
             return redirect(url="/panel/users?error=email_taken", status=302)
 
-        user = User.force_create({
-            "name": name,
-            "email": email,
-            "password": password,
-            "is_admin": is_admin,
-        })
+        user = User.force_create(
+            {
+                "name": name,
+                "email": email,
+                "password": password,
+                "is_admin": is_admin,
+            }
+        )
 
         if role_id:
             DB.statement(
@@ -333,12 +320,15 @@ class PanelController(PanelPage, Controller):
 
     def modules(self, request):
         """Feature modules, with their live enabled state."""
-        return self.panel(request, "panel.modules", {
-            "heading": "Modules",
-            "subheading": "Feature areas. A disabled module makes its routes 404 "
-                          "without a deploy.",
-            "modules": self._modules(),
-        })
+        return self.panel(
+            request,
+            "panel.modules",
+            {
+                "heading": "Modules",
+                "subheading": "Feature areas. A disabled module makes its routes 404 without a deploy.",
+                "modules": self._modules(),
+            },
+        )
 
     def toggle_module(self, request):
         """Enable or disable a module, then return to the list."""
@@ -356,11 +346,15 @@ class PanelController(PanelPage, Controller):
             installed = manager.installed()
         except Exception:
             installed = []
-        return self.panel(request, "panel.plugins", {
-            "heading": "Plugins",
-            "subheading": "Discovered from plugins/<slug>/plugin.py.",
-            "plugins": installed,
-        })
+        return self.panel(
+            request,
+            "panel.plugins",
+            {
+                "heading": "Plugins",
+                "subheading": "Discovered from plugins/<slug>/plugin.py.",
+                "plugins": installed,
+            },
+        )
 
     def system(self, request):
         """What this installation actually is: versions, driver, counts."""
@@ -398,11 +392,15 @@ class PanelController(PanelPage, Controller):
             ("Locale", config.get("app.APP_LOCALE", "en")),
         ]
 
-        return self.panel(request, "panel.system", {
-            "heading": "About this install",
-            "subheading": "Read from the running application, not from a config file.",
-            "facts": facts,
-        })
+        return self.panel(
+            request,
+            "panel.system",
+            {
+                "heading": "About this install",
+                "subheading": "Read from the running application, not from a config file.",
+                "facts": facts,
+            },
+        )
 
     # -- framework control -----------------------------------------------------
     # These pages exist so an administrator can answer "what is this
@@ -423,27 +421,32 @@ class PanelController(PanelPage, Controller):
 
         rows = []
         for route in router.routes:
-            declared = [m if isinstance(m, str) else getattr(m, "__name__", str(m))
-                        for m in route.middleware_list]
-            rows.append({
-                "methods": ", ".join(route.methods),
-                "uri": route.uri,
-                "name": route._name or "—",
-                "middleware": declared,
-                "module": route._module or "",
-                # An unguarded write route is worth seeing at a glance.
-                "guarded": any(
-                    isinstance(m, str) and m.startswith(("auth", "role:", "permission:", "group:", "api"))
-                    for m in route.middleware_list
-                ),
-            })
+            declared = [m if isinstance(m, str) else getattr(m, "__name__", str(m)) for m in route.middleware_list]
+            rows.append(
+                {
+                    "methods": ", ".join(route.methods),
+                    "uri": route.uri,
+                    "name": route._name or "—",
+                    "middleware": declared,
+                    "module": route._module or "",
+                    # An unguarded write route is worth seeing at a glance.
+                    "guarded": any(
+                        isinstance(m, str) and m.startswith(("auth", "role:", "permission:", "group:", "api"))
+                        for m in route.middleware_list
+                    ),
+                }
+            )
         rows.sort(key=lambda r: r["uri"])
 
-        return self.panel(request, "panel.routes", {
-            "heading": "Routes",
-            "subheading": f"{len(rows)} routes registered in this process.",
-            "rows": rows,
-        })
+        return self.panel(
+            request,
+            "panel.routes",
+            {
+                "heading": "Routes",
+                "subheading": f"{len(rows)} routes registered in this process.",
+                "rows": rows,
+            },
+        )
 
     def database(self, request):
         """Driver, connection pool and every table with its row count."""
@@ -478,14 +481,18 @@ class PanelController(PanelPage, Controller):
         except Exception:
             pool = {"open": 0, "idle": 0}
 
-        return self.panel(request, "panel.database", {
-            "heading": "Database",
-            "subheading": f"{db.driver} — {len(tables)} tables.",
-            "driver": db.driver,
-            "pool": pool,
-            "pool_size": getattr(db.write_connection, "pool_size", "?"),
-            "tables": tables,
-        })
+        return self.panel(
+            request,
+            "panel.database",
+            {
+                "heading": "Database",
+                "subheading": f"{db.driver} — {len(tables)} tables.",
+                "driver": db.driver,
+                "pool": pool,
+                "pool_size": getattr(db.write_connection, "pool_size", "?"),
+                "tables": tables,
+            },
+        )
 
     def cache(self, request):
         """Which cache store is in effect, and a way to empty it."""
@@ -494,13 +501,17 @@ class PanelController(PanelPage, Controller):
         # store object, whichever driver actually came up.
         store = self.container().make("cache").store
 
-        return self.panel(request, "panel.cache", {
-            "heading": "Cache",
-            "subheading": "The store actually in use, resolved at runtime.",
-            "configured": config.get("cache.default", "array"),
-            "store": type(store).__name__,
-            "flushed": request.input("flushed") == "1",
-        })
+        return self.panel(
+            request,
+            "panel.cache",
+            {
+                "heading": "Cache",
+                "subheading": "The store actually in use, resolved at runtime.",
+                "configured": config.get("cache.default", "array"),
+                "store": type(store).__name__,
+                "flushed": request.input("flushed") == "1",
+            },
+        )
 
     def flush_cache(self, request):
         """Empty the cache. POST + CSRF: a GET that mutates can be prefetched."""
@@ -528,28 +539,33 @@ class PanelController(PanelPage, Controller):
         recent = []
         try:
             rows = db.statement(
-                "SELECT id, queue, attempts, available_at FROM jobs "
-                "ORDER BY id DESC LIMIT 20",
+                "SELECT id, queue, attempts, available_at FROM jobs ORDER BY id DESC LIMIT 20",
                 read=True,
             ).fetchall()
             recent = [
                 {
-                    "id": row["id"], "queue": row["queue"],
-                    "attempts": row["attempts"], "available_at": row["available_at"],
+                    "id": row["id"],
+                    "queue": row["queue"],
+                    "attempts": row["attempts"],
+                    "available_at": row["available_at"],
                 }
                 for row in rows
             ]
         except Exception:
             recent = []
 
-        return self.panel(request, "panel.queue", {
-            "heading": "Queue",
-            "subheading": "Jobs waiting to be processed by `dev.py queue work`.",
-            "connection": config.get("queue.default", "sync"),
-            "pending": pending,
-            "attempted": attempted,
-            "recent": recent,
-        })
+        return self.panel(
+            request,
+            "panel.queue",
+            {
+                "heading": "Queue",
+                "subheading": "Jobs waiting to be processed by `dev.py queue work`.",
+                "connection": config.get("queue.default", "sync"),
+                "pending": pending,
+                "attempted": attempted,
+                "recent": recent,
+            },
+        )
 
     def logs(self, request):
         """The most recent entries the application wrote to the database."""
@@ -557,19 +573,21 @@ class PanelController(PanelPage, Controller):
 
         entries = []
         try:
-            rows = db.statement(
-                "SELECT * FROM system_logs ORDER BY id DESC LIMIT 100", read=True
-            ).fetchall()
+            rows = db.statement("SELECT * FROM system_logs ORDER BY id DESC LIMIT 100", read=True).fetchall()
             entries = [dict(row) for row in rows]
         except Exception:
             entries = []
 
-        return self.panel(request, "panel.logs", {
-            "heading": "Logs",
-            "subheading": "The last 100 entries recorded in `system_logs`.",
-            "entries": entries,
-            "columns": list(entries[0].keys()) if entries else [],
-        })
+        return self.panel(
+            request,
+            "panel.logs",
+            {
+                "heading": "Logs",
+                "subheading": "The last 100 entries recorded in `system_logs`.",
+                "entries": entries,
+                "columns": list(entries[0].keys()) if entries else [],
+            },
+        )
 
     def schedule(self, request):
         """Registered scheduled tasks and when each one runs."""
@@ -578,16 +596,17 @@ class PanelController(PanelPage, Controller):
         except Exception:
             tasks = []
 
-        rows = [
-            {"name": task.name(), "expression": task.expression()}
-            for task in tasks
-        ]
+        rows = [{"name": task.name(), "expression": task.expression()} for task in tasks]
 
-        return self.panel(request, "panel.schedule", {
-            "heading": "Scheduler",
-            "subheading": "Run them with `dev.py schedule work`, or `schedule run` from cron.",
-            "rows": rows,
-        })
+        return self.panel(
+            request,
+            "panel.schedule",
+            {
+                "heading": "Scheduler",
+                "subheading": "Run them with `dev.py schedule work`, or `schedule run` from cron.",
+                "rows": rows,
+            },
+        )
 
     def tenants(self, request):
         """Tenants and the schema each one is isolated into."""
@@ -599,13 +618,17 @@ class PanelController(PanelPage, Controller):
             tenants = []
 
         db = self.container().make("db")
-        return self.panel(request, "panel.tenants", {
-            "heading": "Tenants",
-            "subheading": "Schema-per-tenant isolation requires PostgreSQL.",
-            "tenants": tenants,
-            "driver": db.driver,
-            "isolated": db.driver == "postgresql",
-        })
+        return self.panel(
+            request,
+            "panel.tenants",
+            {
+                "heading": "Tenants",
+                "subheading": "Schema-per-tenant isolation requires PostgreSQL.",
+                "tenants": tenants,
+                "driver": db.driver,
+                "isolated": db.driver == "postgresql",
+            },
+        )
 
     # -- helpers ---------------------------------------------------------------
     # `container()`, `app_access()` and `is_admin()` come from PanelPage.
@@ -621,9 +644,11 @@ class PanelController(PanelPage, Controller):
         result = []
         for module in modules:
             slug = module.get("slug")
-            result.append({
-                "slug": slug,
-                "name": module.get("name") or slug,
-                "enabled": bool(module.get("enabled")),
-            })
+            result.append(
+                {
+                    "slug": slug,
+                    "name": module.get("name") or slug,
+                    "enabled": bool(module.get("enabled")),
+                }
+            )
         return result

@@ -14,19 +14,24 @@ agree: what a visitor can *see* and what they can *open*.
 # Licensed under the MIT License. See LICENSE in the project root.
 
 import pytest
+from craft.facades import DB, Route
 from starlette.testclient import TestClient
 
 from bootstrap.app import app, asgi_app
-from craft.facades import DB, Route
 
 #: Pages any signed-in account may open — their own workspace, nothing else.
-WORKSPACE_PAGES = ["/panel", "/panel/profile", "/panel/posts"]
+WORKSPACE_PAGES = ["/panel", "/panel/profile"]
+
 #: Pages that manage other people, describe the installation, or expose how
 #: access is configured. `/panel/access` is here because permission slugs,
 #: grant paths and raw ABAC conditions are security configuration, not the
 #: visitor's personal data.
 ADMIN_PAGES = [
-    "/panel/users", "/panel/access", "/panel/modules", "/panel/plugins", "/panel/system",
+    "/panel/users",
+    "/panel/access",
+    "/panel/modules",
+    "/panel/plugins",
+    "/panel/system",
 ]
 
 
@@ -36,9 +41,14 @@ def helper_routes(migrated_database):
         return {"token": request.session().token()}
 
     def do_login(request):
-        return {"ok": app.make("auth").attempt({
-            "email": request.input("email"), "password": request.input("password"),
-        })}
+        return {
+            "ok": app.make("auth").attempt(
+                {
+                    "email": request.input("email"),
+                    "password": request.input("password"),
+                }
+            )
+        }
 
     Route.get("/t/panel/token", token).name("t.panel.token")
     Route.post("/t/panel/login", do_login).name("t.panel.login")
@@ -59,9 +69,14 @@ def accounts(migrated_database):
         DB.statement("DELETE FROM users WHERE email = ?", [email])
 
     plain = User.create({"name": "Plain", "email": "plain-panel@craft.local", "password": "s3cret"})
-    administrator = User.force_create({
-        "name": "Boss", "email": "admin-panel@craft.local", "password": "s3cret", "is_admin": True,
-    })
+    administrator = User.force_create(
+        {
+            "name": "Boss",
+            "email": "admin-panel@craft.local",
+            "password": "s3cret",
+            "is_admin": True,
+        }
+    )
 
     role = Role.query().where("slug", "admin").first() or Role.create({"name": "Admin", "slug": "admin"})
     DB.statement(
@@ -108,7 +123,7 @@ class TestTheSidebarShowsLabelsAndOnlyReachablePages:
 
         # Only items with no permission condition — whether this account holds
         # `create-post` depends on seeded data, and that is a different test.
-        for label in ("Dashboard", "My Profile", "Posts", "Workspace", "Content"):
+        for label in ("Dashboard", "My Profile", "Workspace"):
             assert label in body, f"the sidebar does not name {label!r}"
 
     def test_an_ordinary_account_is_not_shown_the_admin_sections(self, client, accounts):
@@ -225,42 +240,23 @@ class TestTheActiveItem:
         assert active == ["Dashboard"]
 
     def test_a_deeper_url_still_highlights_its_section(self, accounts):
-        """`/panel/posts/7/edit` belongs to Posts."""
+        """`/panel/profile/edit` belongs to My Profile."""
         from app.Models.User import User
 
         nav = app.make("nav")
         user = User.query().where("email", "plain-panel@craft.local").first()
 
-        sections = nav.for_user(user, "/panel/posts/7/edit")
+        sections = nav.for_user(user, "/panel/profile/edit")
         active = [item["label"] for s in sections for item in s["items"] if item["active"]]
-        assert active == ["Posts"]
+        assert active == ["My Profile"]
 
 
 class TestScoping:
-    def test_an_ordinary_account_sees_only_its_own_posts(self, client, accounts):
-        from app.Models.Post import Post
-
-        mine = Post.create({
-            "title": "Mine to see", "body": "x",
-            "user_id": accounts["plain"].get_attribute("id"),
-        })
-        theirs = Post.create({
-            "title": "Not mine at all", "body": "x",
-            "user_id": accounts["admin"].get_attribute("id"),
-        })
-
-        try:
-            login(client, "plain-panel@craft.local")
-            body = client.get("/panel/posts").text
-            assert "Mine to see" in body
-            assert "Not mine at all" not in body
-
-            login(client, "admin-panel@craft.local")
-            body = client.get("/panel/posts").text
-            assert "Mine to see" in body and "Not mine at all" in body
-        finally:
-            for post in (mine, theirs):
-                DB.statement("DELETE FROM posts WHERE id = ?", [post.get_attribute("id")])
+    def test_an_ordinary_account_sees_only_its_own_profile(self, client, accounts):
+        login(client, "plain-panel@craft.local")
+        body = client.get("/panel/profile").text
+        assert "plain-panel@craft.local" in body
+        assert "admin-panel@craft.local" not in body
 
     def test_installation_wide_numbers_are_administrators_only(self, client, accounts):
         """Even the *size* of the system is not for an account that cannot see
@@ -279,8 +275,7 @@ class TestScoping:
         DB.statement("DELETE FROM permissions WHERE slug = 'panel-probe'")
         permission = Permission.create({"name": "Panel Probe", "slug": "panel-probe"})
         DB.statement(
-            "INSERT INTO permission_user (permission_id, user_id, conditions) "
-            "VALUES (:p, :u, :c)",
+            "INSERT INTO permission_user (permission_id, user_id, conditions) VALUES (:p, :u, :c)",
             {
                 "p": permission.get_attribute("id"),
                 "u": accounts["admin"].get_attribute("id"),
@@ -299,8 +294,7 @@ class TestScoping:
             # their own" are different permissions.
             assert "@user.id" in body
         finally:
-            DB.statement("DELETE FROM permission_user WHERE permission_id = ?",
-                         [permission.get_attribute("id")])
+            DB.statement("DELETE FROM permission_user WHERE permission_id = ?", [permission.get_attribute("id")])
             DB.statement("DELETE FROM permissions WHERE slug = 'panel-probe'")
 
 
@@ -317,14 +311,18 @@ class TestModuleToggle:
             login(client, "admin-panel@craft.local")
             token = client.get("/t/panel/token").json()["token"]
 
-            client.post("/panel/modules/toggle",
-                        data={"slug": "panel-test", "enable": "0", "_token": token},
-                        follow_redirects=False)
+            client.post(
+                "/panel/modules/toggle",
+                data={"slug": "panel-test", "enable": "0", "_token": token},
+                follow_redirects=False,
+            )
             assert manager.is_enabled("panel-test") is False
 
-            client.post("/panel/modules/toggle",
-                        data={"slug": "panel-test", "enable": "1", "_token": token},
-                        follow_redirects=False)
+            client.post(
+                "/panel/modules/toggle",
+                data={"slug": "panel-test", "enable": "1", "_token": token},
+                follow_redirects=False,
+            )
             assert manager.is_enabled("panel-test") is True
         finally:
             DB.statement("DELETE FROM modules WHERE slug = 'panel-test'")

@@ -10,8 +10,8 @@ be discovered.
 # Copyright (c) 2026 Antonio Santos <snarthost@gmail.com>
 # Licensed under the MIT License. See LICENSE in the project root.
 
-from craft.providers import ServiceProvider
 from craft.facades import Gate
+from craft.providers import ServiceProvider
 
 
 class AuthServiceProvider(ServiceProvider):
@@ -19,10 +19,6 @@ class AuthServiceProvider(ServiceProvider):
         pass
 
     def boot(self):
-        from app.Models.Post import Post
-        from app.Policies.PostPolicy import PostPolicy
-        Gate.policy(Post, PostPolicy)
-
         Gate.define("is-admin", lambda user: user is not None and user.get_attribute("is_admin"))
 
         # Second control on the admin dashboard, which lists every user,
@@ -34,8 +30,11 @@ class AuthServiceProvider(ServiceProvider):
         # flags the column both work.
         Gate.define(
             "access-admin-dashboard",
-            lambda user: user is not None and (
-                bool(user.get_attribute("is_admin"))
-                or (callable(getattr(user, "has_role", None)) and user.has_role("admin"))
+            lambda user: (
+                user is not None
+                and (
+                    bool(user.get_attribute("is_admin"))
+                    or (callable(getattr(user, "has_role", None)) and user.has_role("admin"))
+                )
             ),
         )

@@ -3,7 +3,7 @@
 # Copyright (c) 2026 Antonio Santos <snarthost@gmail.com>
 # Licensed under the MIT License. See LICENSE in the project root.
 
-from app.plugins.brazil_validator.engine import BrazilValidator, DocumentValidatorEngine
+from documentation.examples.plugins.brazil_validator.engine import BrazilValidator, DocumentValidatorEngine
 
 
 def test_cpf_validation():
@@ -80,15 +80,33 @@ def test_inscricao_estadual_validation_multi_state():
 
 
 VALID_IE_VECTORS = {
-    "AC": "01.004.823/001-12", "AL": "24000004-8", "AM": "04.145.871-0",
-    "AP": "030123459", "BA": "123456-63", "CE": "06000001-5",
-    "DF": "07300001001-09", "ES": "082560722", "GO": "10.987.654-7",
-    "MA": "12000038-5", "MG": "062.307.904/0081", "MS": "280215789",
-    "MT": "0013000001-9", "PA": "15-999999-5", "PB": "06000001-5",
-    "PE": "0321418-40", "PI": "01234567-9", "PR": "123.45678-50",
-    "RJ": "99.999.99-3", "RN": "20.040.040-1", "RO": "0000000062521-3",
-    "RR": "24006628-1", "RS": "224/0266970", "SC": "251.040.852",
-    "SE": "27123456-3", "SP": "110.042.490.114", "TO": "29010227836",
+    "AC": "01.004.823/001-12",
+    "AL": "24000004-8",
+    "AM": "04.145.871-0",
+    "AP": "030123459",
+    "BA": "123456-63",
+    "CE": "06000001-5",
+    "DF": "07300001001-09",
+    "ES": "082560722",
+    "GO": "10.987.654-7",
+    "MA": "12000038-5",
+    "MG": "062.307.904/0081",
+    "MS": "280215789",
+    "MT": "0013000001-9",
+    "PA": "15-999999-5",
+    "PB": "06000001-5",
+    "PE": "0321418-40",
+    "PI": "01234567-9",
+    "PR": "123.45678-50",
+    "RJ": "99.999.99-3",
+    "RN": "20.040.040-1",
+    "RO": "0000000062521-3",
+    "RR": "24006628-1",
+    "RS": "224/0266970",
+    "SC": "251.040.852",
+    "SE": "27123456-3",
+    "SP": "110.042.490.114",
+    "TO": "29010227836",
 }
 
 
@@ -97,7 +115,6 @@ def test_all_27_states_ie_valid():
     for uf, vector in VALID_IE_VECTORS.items():
         res = BrazilValidator.validate_ie(vector, uf)
         assert res.is_valid is True, f"Failed for {uf}: {res.error_code}"
-
 
 
 def test_cep_and_phone_normalizers():
