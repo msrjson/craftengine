@@ -22,20 +22,28 @@ Craft Engine is designed from the ground up to be **AI-Native** and exceptionall
 
 ---
 
-## ⚡ Scaffolding Agent Rules & Context
+## ⚡ AI Ready Out-of-the-Box (Skills, Rules & Agents)
 
-Run the built-in scaffolding command to equip your repository with instant AI capabilities:
+Craft Engine is born **100% pre-configured** with all skills, rules, and agents necessary for a developer and autonomous AI agents:
+- `.claude/rules/AGENTS.md` & `.agents/rules/AGENTS.md` — Strict AI contributor contract (forward-only migrations, absolute data persistence, English codebase, zero hardcoded strings, zero guessing).
+- `.claude/skills/` — 25 complete development skills (spec-driven, TDD, security hardening, performance, incremental implementation).
+- `.claude/agents/` — 4 specialized agent roles (`code-reviewer`, `security-auditor`, `test-engineer`, `web-performance-auditor`).
+- `.claude/commands/` — 8 workflow commands (`/spec`, `/build`, `/test`, `/ship`, `/review-change`, `/code-simplify`, `/constraints`, `/webperf`).
+- `.cursorrules` & `llms.txt` / `llms-full.txt` — Zero-friction context indexing.
+
+If you ever need to re-scaffold or re-sync agent rules and context, run:
 
 ```bash
 python dev.py agent:scaffold
 ```
 
-This generates:
+This generates or refreshes:
 - `.cursorrules` — Directives for Cursor and IDE assistants, setting guidelines for file paths, facades, validation rules, and database safety.
 - `llms.txt` — Standard high-density overview of Craft Engine for LLMs.
 - `llms-full.txt` — Full API contracts and code examples.
+- `.claude/rules/AGENTS.md` & `.agents/rules/AGENTS.md` — Canonical AI governance contract.
 - `.agents/mcp.json` — Model Context Protocol config snippet.
-- `.claude/agents/`, `.claude/skills/`, `.claude/commands/`, `.claude/references/` — the full development agent catalog below.
+- `.claude/agents/`, `.claude/skills/`, `.claude/commands/`, `.claude/references/` — The full development agent catalog.
 
 ---
 

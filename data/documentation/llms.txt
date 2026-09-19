@@ -17,6 +17,7 @@
 - `python dev.py make:crud <Entity> --fields "<spec>"` — Generate full vertical slice (model, migration, controller, request, resource, views, routes).
 - `python dev.py make:auth` — Scaffold login, registration, dashboard, requests, and Forge templates.
 - `python dev.py agent:scaffold` — Bootstrap AI agent context files (.cursorrules, llms.txt, AGENTS.md, mcp.json).
+- `python dev.py agent:list` / `python dev.py agent:install <name>... | --all` — Install development agents, skills and commands into `.claude/`.
 
 ## Documentation Links
 - [Complete Architecture Guide](llms-full.txt)

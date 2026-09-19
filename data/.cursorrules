@@ -51,3 +51,4 @@ from craft.facades import Route, DB, Auth, AntiSpam, View, Cache, Firewall
 - `python dev.py make:crud <Entity> --fields "title:string:required,body:text"`
 - `python dev.py make:auth`
 - `python dev.py agent:scaffold`
+- `python dev.py agent:install <name>... | --all`

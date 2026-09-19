@@ -85,6 +85,8 @@ class TestAgentScaffolder:
         assert os.path.exists(files["llms_full_root"])
         assert os.path.exists(files["llms_full_docs"])
         assert os.path.exists(files["mcp"])
+        assert os.path.exists(files["agents_md"])
+        assert os.path.exists(files["agents_pointer"])
         assert os.path.exists(os.path.join(base_dir, ".claude", "agents", "code-reviewer.md"))
         assert len(result["catalog"]["skill"]) > 0
 

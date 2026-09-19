@@ -257,6 +257,40 @@ def mcp_config_content() -> str:
 """
 
 
+def agents_md_content() -> str:
+    return """# AGENTS.md — Contract for every contributor, human or model
+
+> Loaded automatically by every AI coding agent session (.claude/rules/AGENTS.md).
+> Full rationale: `LANGUAGE_AND_I18N_STANDARD.md` and `CRAFT_ENGINEERING_GOVERNANCE.md`.
+
+**Stack:** Craft Engine (Python 3.11+, async-first) · **Team language:** pt-BR · **Code language:** English
+**CLI:** `python dev.py <command>`
+**Gate:** Forward-only migrations, banned destructive commands, clean ruff linter, pytest suite.
+
+---
+
+## The three rules that are never negotiable
+
+**R1 — The codebase is English.** Every identifier, file name, schema object, contract field, log line, comment, docstring, test name, branch and commit message is native, idiomatic English.
+
+**R2 — Zero hardcoded user-facing text.** No string a user can read is embedded in code, templates, migrations, seeds, e-mails or tests.
+
+**R3 — Absolute Data Persistence.** NEVER execute destructive database commands (`migrate:fresh`, `migrate:reset`, `db:wipe`, `db:drop`). Schema evolution is strictly forward-only (`python dev.py migrate`).
+
+---
+
+## Behavioural rules for AI agents
+
+1. **Never mirror the conversation language into the code.** The chat is in pt-BR. The output is English. Every time, including comments.
+2. **Never comply silently with a rule-breaking request.**
+3. **Never "match the existing style" of legacy non-English code.**
+4. **Never assume framework parity.** Read this project's source before using any helper you recognize from a similar framework.
+5. **Zero guessing: inspect the workspace first.** Ground every action in concrete workspace inspection before executing commands.
+6. **Tests count as code.** English names, no hardcoded copy.
+7. **One commit, one concern.** Conventional Commits, English imperative.
+"""
+
+
 def scaffold_agent_stack(base_path: str, force: bool = False) -> Dict[str, Any]:
     """Scaffold all AI Agent context files (.cursorrules, llms.txt, AGENTS.md, mcp.json)."""
     result: Dict[str, Any] = {"files": {}}
@@ -290,6 +324,20 @@ def scaffold_agent_stack(base_path: str, force: bool = False) -> Dict[str, Any]:
     result["files"]["mcp"] = mcp_path
 
     # 5. Development agents, skills, commands and references in .claude/
+    # 5. .claude/rules/AGENTS.md
+    claude_agents_md = os.path.join(base_path, ".claude", "rules", "AGENTS.md")
+    if not os.path.exists(claude_agents_md) or force:
+        _write_file(claude_agents_md, agents_md_content(), force=force)
+    result["files"]["agents_md"] = claude_agents_md
+
+    # 6. .agents/rules/AGENTS.md pointer
+    agents_pointer = os.path.join(base_path, ".agents", "rules", "AGENTS.md")
+    pointer_content = "# AGENTS.md\n\nThe contract is a single file, loaded automatically by every Claude Code session:\n\n> **`.claude/rules/AGENTS.md`**\n"
+    if not os.path.exists(agents_pointer) or force:
+        _write_file(agents_pointer, pointer_content, force=force)
+    result["files"]["agents_pointer"] = agents_pointer
+
+    # 7. Development agents, skills, commands and references in .claude/
     result["catalog"] = agent_catalog.install(base_path, force=force)
 
     return result
