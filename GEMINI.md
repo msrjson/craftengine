@@ -21,3 +21,8 @@ You are STRICTLY FORBIDDEN from suggesting, outputting, or executing any destruc
 
 ## 3. ABORT CONDITION
 If a requested task implies dropping tables, purging test data, or resetting schema state, REFUSE the destructive action immediately and provide an additive, non-destructive migration alternative.
+
+## 4. WORKSPACE INSPECTION & DISCOVERY (ZERO GUESSING)
+- NEVER guess credentials, paths, configurations, or subsystem states.
+- Always inspect and read the workspace first before taking action (e.g. check `.github/api-key` for repository credentials, check workspace directory layout, inspect existing config files and environment variables).
+- Ground every action in concrete files discovered within the workspace, avoiding unverified assumptions or guesses.
