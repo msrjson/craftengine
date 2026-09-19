@@ -59,7 +59,7 @@ dependencies = [
     # maintained, audited library - never a hand-rolled cipher.
     "cryptography>=42.0",
     "faker>=20.0",
-    "psycopg2-binary>=2.9",
+    "psycopg2-binary>=2.9.12",
     "pillow>=10.0.0",
 ]
 
