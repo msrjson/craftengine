@@ -323,7 +323,6 @@ def scaffold_agent_stack(base_path: str, force: bool = False) -> Dict[str, Any]:
     _write_file(mcp_path, mcp_config_content(), force=force)
     result["files"]["mcp"] = mcp_path
 
-    # 5. Development agents, skills, commands and references in .claude/
     # 5. .claude/rules/AGENTS.md
     claude_agents_md = os.path.join(base_path, ".claude", "rules", "AGENTS.md")
     if not os.path.exists(claude_agents_md) or force:

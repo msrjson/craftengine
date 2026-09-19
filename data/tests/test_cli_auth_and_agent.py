@@ -1,8 +1,10 @@
 """Tests for make:auth and agent:scaffold CLI commands and scaffolders."""
 
 import os
+
 import pytest
-from engine.cli import auth_scaffolder, agent_scaffolder
+
+from engine.cli import agent_scaffolder, auth_scaffolder
 
 
 class TestAuthScaffolder:

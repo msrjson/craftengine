@@ -141,12 +141,16 @@ from craft.http.controller import Controller
 from craft.http.response import redirect
 from craft.validation.validator import Validator
 
+
 class ContactController(Controller):
     def store(self, request):
-        validator = Validator.make(request.all(), {
-            "email": ["required", "email"],
-            "message": ["required", "text", "no_html", "spam_free"],
-        })
+        validator = Validator.make(
+            request.all(),
+            {
+                "email": ["required", "email"],
+                "message": ["required", "text", "no_html", "spam_free"],
+            },
+        )
 
         if validator.fails():
             return redirect.back().with_errors(validator.errors()).with_input()

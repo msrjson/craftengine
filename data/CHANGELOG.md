@@ -18,6 +18,13 @@ full policy (categories to use, what counts as security-relevant, how
 
 ## [Unreleased]
 
+## [3.23.0] r00016 — 2026-09-19
+
+### Added
+
+- **Out-of-the-box AI Coding Agent Suite** (`.claude/`, `engine/cli/agent_scaffolder.py`, `documentation/ai_agents.md`): every workspace and project is born 100% pre-configured with the full development agent catalog — 4 specialized agent roles (`code-reviewer`, `security-auditor`, `test-engineer`, `web-performance-auditor`), 25 development skills, 8 workflow commands (`/spec`, `/build`, `/test`, `/ship`, `/review-change`, `/code-simplify`, `/constraints`, `/webperf`), and 8 reference checklists.
+- **Automated AI Governance Contract Scaffolding** (`engine/cli/agent_scaffolder.py`, `tests/test_cli_auth_and_agent.py`): `python dev.py agent:scaffold` now automatically generates canonical `.claude/rules/AGENTS.md` and pointer `.agents/rules/AGENTS.md` to guarantee strict rules enforcement (forward-only migrations, absolute data persistence, English codebase, zero hardcoded text, and zero guessing via concrete workspace inspection).
+
 ## [3.22.0] r00015 — 2026-09-19
 
 ### Added
