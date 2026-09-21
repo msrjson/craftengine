@@ -15,4 +15,4 @@ COPY data/ ./
 # docs:check fails the build on a broken link instead of publishing it.
 RUN pip install . \
     && python dev.py docs:check \
-    && python dev.py docs:build --output /site
+    && python dev.py docs:build --output /site --base-url https://craftengine.org/docs/

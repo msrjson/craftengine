@@ -207,6 +207,75 @@ def test_rebuilding_replaces_rather_than_accumulates(docs_dir, tmp_path):
     assert not stale.exists(), "a page deleted from the source survived the rebuild"
 
 
+# -- search engine metadata ----------------------------------------------------
+
+
+@pytest.fixture
+def published_site(docs_dir, tmp_path):
+    """The site as it is actually published: with a public base URL."""
+    out = tmp_path / "published"
+    DocsSiteBuilder(docs_dir, str(out), base_url="https://craftengine.org/docs").build()
+    return out
+
+
+def test_a_page_describes_itself_from_its_own_opening_paragraph(published_site):
+    """One shared description across every guide is one snippet in the results."""
+    postgres = _description(published_site / "postgres.html")
+    orm = _description(published_site / "orm.html")
+
+    assert postgres and orm and postgres != orm
+    assert len(postgres) <= 156 and "<" not in postgres
+
+
+def test_a_page_without_prose_falls_back_to_the_project_description(tmp_path):
+    """A reference page that opens straight into code still gets a description."""
+    source = tmp_path / "src"
+    source.mkdir()
+    (source / "snippet.md").write_text("# Snippet\n\n```python\nx = 1\n```\n", encoding="utf-8")
+    out = tmp_path / "out"
+    DocsSiteBuilder(str(source), str(out)).build()
+
+    assert DocsSiteBuilder.DESCRIPTION in (out / "snippet.html").read_text(encoding="utf-8")
+
+
+def test_a_published_page_carries_a_canonical_url_and_social_metadata(published_site):
+    html_text = (published_site / "orm.html").read_text(encoding="utf-8")
+
+    assert '<link rel="canonical" href="https://craftengine.org/docs/orm.html">' in html_text
+    assert '<meta property="og:url" content="https://craftengine.org/docs/orm.html">' in html_text
+    assert '<meta name="twitter:card" content="summary">' in html_text
+
+
+def test_the_index_is_canonical_at_the_directory_not_the_file(published_site):
+    html_text = (published_site / "index.html").read_text(encoding="utf-8")
+    assert '<link rel="canonical" href="https://craftengine.org/docs/">' in html_text
+
+
+def test_a_site_without_a_base_url_claims_no_canonical(built_site):
+    """A canonical URL guessed wrong is worse than none at all."""
+    html_text = (built_site / "index.html").read_text(encoding="utf-8")
+
+    assert "canonical" not in html_text
+    assert 'name="description"' in html_text, "the description does not need a base URL"
+    assert not (built_site / "sitemap.xml").exists()
+
+
+def test_the_sitemap_lists_every_published_page(published_site, library):
+    sitemap = (published_site / "sitemap.xml").read_text(encoding="utf-8")
+
+    assert "<loc>https://craftengine.org/docs/</loc>" in sitemap
+    for slug in library.slugs():
+        assert f"<loc>https://craftengine.org/docs/{slug}.html</loc>" in sitemap
+    assert "sitemap.xml</loc>" not in sitemap, "the sitemap listed itself"
+
+
+def _description(page):
+    """Return the meta description of a built page."""
+    match = re.search(r'<meta name="description" content="([^"]*)">', page.read_text(encoding="utf-8"))
+    assert match, f"{page.name} has no meta description"
+    return match.group(1)
+
+
 # -- the application's own route -----------------------------------------------
 
 

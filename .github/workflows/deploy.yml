@@ -138,9 +138,11 @@ jobs:
         working-directory: data
         run: python dev.py docs:check
 
+      # The canonical URL points at craftengine.org even here: this Pages copy
+      # is a mirror, and two indexed copies of the same guide compete.
       - name: Build the documentation site
         working-directory: data
-        run: python dev.py docs:build --output public/docs
+        run: python dev.py docs:build --output public/docs --base-url https://craftengine.org/docs/
 
       - uses: actions/configure-pages@v5
 

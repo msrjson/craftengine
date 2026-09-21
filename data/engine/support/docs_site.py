@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import html
 import os
+import re
 import shutil
 from typing import List
 
@@ -68,12 +69,19 @@ max-height:none;border-right:0;border-bottom:1px solid var(--rule)}
 main{padding:24px 20px 64px}}
 """
 
+#: The first paragraph of a guide, used as its meta description.
+PARAGRAPH = re.compile(r"<p>(.*?)</p>", re.S)
+TAG = re.compile(r"<[^>]+>")
+#: Search engines truncate a description past roughly this length.
+SUMMARY_LIMIT = 155
+
 PAGE = """<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{title} — {project}</title>
+{meta}
 <link rel="stylesheet" href="assets/style.css">
 </head>
 <body>
@@ -92,13 +100,53 @@ PAGE = """<!doctype html>
 """
 
 
+def summarize(content: str, fallback: str) -> str:
+    """Return a meta description built from a page's opening paragraph.
+
+    A guide that describes itself in its first sentence is exactly what a
+    search result should show; without this every page shares one description
+    and the engine picks a snippet of navigation instead.
+
+    Args:
+        content: The rendered HTML of the page.
+        fallback: Used when the page opens with something other than prose.
+
+    Returns:
+        A single line of plain text, no longer than `SUMMARY_LIMIT`.
+    """
+    match = PARAGRAPH.search(content)
+    text = " ".join(html.unescape(TAG.sub("", match.group(1))).split()) if match else ""
+    if not text:
+        return fallback
+    if len(text) <= SUMMARY_LIMIT:
+        return text
+    return text[:SUMMARY_LIMIT].rsplit(" ", 1)[0] + "\u2026"
+
+
 class DocsSiteBuilder:
     """Renders every page, writes the assets, and refuses to ship a dead link."""
 
-    def __init__(self, docs_dir: str, output_dir: str, project: str = "Craft Engine"):
+    #: Used when a page opens with a table or a code block instead of prose.
+    DESCRIPTION = "Documentation for the Craft Engine Python web framework."
+
+    def __init__(self, docs_dir: str, output_dir: str, project: str = "Craft Engine",
+                 base_url: str = ""):
+        """Configure the build.
+
+        Args:
+            docs_dir: The directory holding the Markdown guides.
+            output_dir: The directory to write the site into.
+            project: The name shown in the sidebar and in social previews.
+            base_url: Where the site will be served, e.g.
+                `https://craftengine.org/docs/`. Given one, every page gets a
+                canonical URL, social metadata and an entry in `sitemap.xml`;
+                without one those are omitted, because a canonical URL guessed
+                wrong is worse than none.
+        """
         self.library = DocsLibrary(docs_dir, link_style="static")
         self.output_dir = output_dir
         self.project = project
+        self.base_url = base_url.rstrip("/") + "/" if base_url else ""
 
     def version_label(self) -> str:
         try:
@@ -158,6 +206,9 @@ class DocsSiteBuilder:
         open(nojekyll, "w", encoding="utf-8").close()
         written.append(".nojekyll")
 
+        if self.base_url:
+            written.append(self._write_sitemap(list(written)))
+
         return written
 
     def _write_index(self) -> str:
@@ -181,10 +232,73 @@ class DocsSiteBuilder:
             filename, self.library.title(slug), self.library.render(slug), current=slug
         )
 
+    def page_url(self, filename: str) -> str:
+        """Return the public URL of a page, or an empty string without a base URL.
+
+        Args:
+            filename: The page's file name inside the site.
+
+        Returns:
+            The absolute URL; `index.html` resolves to the directory itself.
+        """
+        if not self.base_url:
+            return ""
+        return self.base_url + ("" if filename == "index.html" else filename)
+
+    def head_meta(self, filename: str, title: str, description: str) -> str:
+        """Return the head metadata search engines and social clients read.
+
+        Args:
+            filename: The page's file name inside the site.
+            title: The page title, unescaped.
+            description: The page's meta description, unescaped.
+
+        Returns:
+            The metadata elements, one per line.
+        """
+        heading = f"{html.escape(title)} — {html.escape(self.project)}"
+        summary = html.escape(description)
+        tags = [f'<meta name="description" content="{summary}">']
+        url = self.page_url(filename)
+        if url:
+            tags += [
+                f'<link rel="canonical" href="{url}">',
+                '<meta property="og:type" content="article">',
+                f'<meta property="og:site_name" content="{html.escape(self.project)}">',
+                f'<meta property="og:url" content="{url}">',
+                f'<meta property="og:title" content="{heading}">',
+                f'<meta property="og:description" content="{summary}">',
+                '<meta name="twitter:card" content="summary">',
+            ]
+        return "\n".join(tags)
+
+    def _write_sitemap(self, pages: List[str]) -> str:
+        """Write the sitemap listing every page of the site.
+
+        Args:
+            pages: The file names written by this build.
+
+        Returns:
+            The file name written.
+        """
+        urls = "".join(
+            f"\n    <url><loc>{self.page_url(page)}</loc></url>"
+            for page in pages if page.endswith(".html")
+        )
+        document = (
+            '<?xml version="1.0" encoding="UTF-8"?>\n'
+            '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
+            f"{urls}\n</urlset>\n"
+        )
+        with open(os.path.join(self.output_dir, "sitemap.xml"), "w", encoding="utf-8") as handle:
+            handle.write(document)
+        return "sitemap.xml"
+
     def _write(self, filename: str, title: str, content: str, current: str) -> str:
         page = PAGE.format(
             title=html.escape(title),
             project=html.escape(self.project),
+            meta=self.head_meta(filename, title, summarize(content, self.DESCRIPTION)),
             navigation=self.navigation_html(current),
             content=content,
             version=html.escape(self.version_label()),

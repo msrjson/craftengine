@@ -755,6 +755,10 @@ def route_list(
 def docs_build(
     output: str = typer.Option("public/docs", help="Where to write the site."),
     project: str = typer.Option("Craft Engine", help="Name shown in the sidebar."),
+    base_url: str = typer.Option(
+        "", "--base-url", help="Public URL of the site, e.g. https://craftengine.org/docs/. "
+        "Given one, pages get a canonical URL, social metadata and a sitemap."
+    ),
 ) -> None:
     """Render `documentation/` into a directory of static HTML.
 
@@ -778,7 +782,7 @@ def docs_build(
         raise typer.Exit(code=1)
 
     try:
-        written = DocsSiteBuilder(docs_dir, out_dir, project).build()
+        written = DocsSiteBuilder(docs_dir, out_dir, project, base_url).build()
     except BrokenLink as exc:
         echo(f"Unknown catalog kind: {exc}", "red")
         raise typer.Exit(code=1) from None

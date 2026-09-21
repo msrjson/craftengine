@@ -18,6 +18,12 @@ full policy (categories to use, what counts as security-relevant, how
 
 ## [Unreleased]
 
+### Added
+
+- Give every published documentation page a meta description taken from its own opening
+  paragraph, plus Open Graph and Twitter metadata; `docs:build --base-url` adds canonical
+  URLs and writes `sitemap.xml`.
+
 ## [3.23.0] r00016 — 2026-09-19
 
 ### Added
