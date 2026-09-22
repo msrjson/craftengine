@@ -80,6 +80,11 @@ redis = ["redis>=5.0"]
 ai = ["httpx>=0.25"]
 
 [project.scripts]
+# `craft` is the name the framework goes by, and the command a developer or an
+# agent reaches for first. `dev` is kept because every existing project, script
+# and CI job calls it, and because a generated project ships a `dev.py` that
+# works without the package being installed at all.
+craft = "engine.cli.app:main"
 dev = "engine.cli.app:main"
 
 [tool.setuptools.packages.find]
