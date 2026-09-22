@@ -1,0 +1,44 @@
+"""Web routes.
+
+Every route this application answers is declared in this file. The engine
+attaches a small number of its own (the health endpoints, the MSR manifest,
+the static file mount); `craft route:list` shows those too, marked as
+engine-owned, so nothing answers a request without appearing in that list.
+"""
+
+from typing import Any
+
+from craft.facades import Route, View
+from craft.http.response import Response
+
+
+def welcome(request: Any) -> Response:
+    """Render the starter page.
+
+    Delete this function, its route below and resources/views/welcome.forge.py
+    once the application has a home page of its own. Nothing else refers to
+    them.
+
+    Args:
+        request: The incoming request.
+
+    Returns:
+        The rendered starter page.
+    """
+    import engine
+    from craft.support.branding import WORDMARK, WORDMARK_SUBTITLE
+
+    return Response(
+        View.render(
+            "welcome",
+            {
+                "wordmark": WORDMARK.strip("\n"),
+                "wordmark_subtitle": WORDMARK_SUBTITLE,
+                "version": engine.__version__,
+                "release": engine.__release__,
+            },
+        )
+    )
+
+
+Route.get("/", welcome).name("home")

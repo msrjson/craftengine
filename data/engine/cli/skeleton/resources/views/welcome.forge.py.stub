@@ -1,0 +1,86 @@
+<!--
+    This page exists to prove the installation boots. It is not a starting
+    point to build on: there is no layout to extend, no stylesheet to import
+    and no component to reuse, on purpose.
+
+    Delete this file and the "/" route in routes/web.py when you have
+    something of your own to show. Nothing else refers to either.
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Craft Engine</title>
+    <style>
+        :root {
+            --brand: #f97316;
+            --brand-dark: #ea580c;
+            --surface: #0f172a;
+            --surface-raised: #1e293b;
+            --muted: #94a3b8;
+        }
+        * { box-sizing: border-box; }
+        html, body {
+            margin: 0;
+            height: 100%;
+        }
+        body {
+            background: var(--surface);
+            color: var(--muted);
+            font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
+        }
+        main {
+            text-align: center;
+            max-width: 100%;
+        }
+        pre {
+            color: var(--brand);
+            margin: 0;
+            font-size: clamp(6px, 2.1vw, 15px);
+            line-height: 1.15;
+            overflow-x: auto;
+            /* The mark is drawn in block characters, so any font substitution
+               that changes advance width would shear it. */
+            font-family: inherit;
+        }
+        .subtitle {
+            color: var(--brand-dark);
+            letter-spacing: 0.7em;
+            font-size: clamp(9px, 1.6vw, 13px);
+            margin: 18px 0 0;
+            /* letter-spacing adds a trailing gap that breaks optical centering. */
+            text-indent: 0.7em;
+        }
+        .stamp {
+            margin: 28px 0 0;
+            font-size: 12px;
+            color: var(--muted);
+        }
+        .stamp span {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 999px;
+            background: var(--surface-raised);
+        }
+        @media (prefers-reduced-motion: no-preference) {
+            main { animation: rise 420ms ease-out; }
+            @keyframes rise {
+                from { opacity: 0; transform: translateY(6px); }
+                to { opacity: 1; transform: none; }
+            }
+        }
+    </style>
+</head>
+<body>
+    <main>
+        <pre role="img" aria-label="Craft Engine">{{ wordmark }}</pre>
+        <p class="subtitle">{{ wordmark_subtitle }}</p>
+        <p class="stamp"><span>{{ version }} {{ release }}</span></p>
+    </main>
+</body>
+</html>

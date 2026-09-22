@@ -1,0 +1,117 @@
+"""Application bootstrap - creates and boots the Craft application."""
+
+from __future__ import annotations
+
+import os
+
+import engine  # noqa: F401  installs the `craft.*` import alias
+
+from craft.container.application import Application
+from craft.facades.base import Facade
+
+
+def create_app() -> Application:
+    """Create and bootstrap the Craft application.
+
+    Returns:
+        The booted application container.
+    """
+    app = Application(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    app.register_config()
+
+    from craft.providers.service_providers import (
+        AuthServiceProvider,
+        CacheServiceProvider,
+        DatabaseServiceProvider,
+        EventServiceProvider,
+        ExceptionServiceProvider,
+        FrameworkSubsystemsServiceProvider,
+        LoggingServiceProvider,
+        MailServiceProvider,
+        MigratorServiceProvider,
+        PostgresServiceProvider,
+        QueueServiceProvider,
+        RouterServiceProvider,
+        StorageServiceProvider,
+        ViewServiceProvider,
+    )
+
+    for provider in (
+        DatabaseServiceProvider,
+        PostgresServiceProvider,
+        RouterServiceProvider,
+        ViewServiceProvider,
+        AuthServiceProvider,
+        EventServiceProvider,
+        QueueServiceProvider,
+        LoggingServiceProvider,
+        CacheServiceProvider,
+        MigratorServiceProvider,
+        ExceptionServiceProvider,
+        StorageServiceProvider,
+        MailServiceProvider,
+        FrameworkSubsystemsServiceProvider,
+    ):
+        app.register_provider(provider)
+
+    from app.Providers.AppServiceProvider import AppServiceProvider
+    from app.Providers.EventServiceProvider import EventServiceProvider as AppEventServiceProvider
+    from app.Providers.RouteServiceProvider import RouteServiceProvider
+
+    app.register_provider(AppServiceProvider)
+    app.register_provider(AppEventServiceProvider)
+    app.register_provider(RouteServiceProvider)
+
+    Facade._app = app
+    app.boot()
+    return app
+
+
+app = create_app()
+
+from craft.http.kernel import Kernel  # noqa: E402
+from craft.http.middleware import (  # noqa: E402
+    Authenticate,
+    RequestContext,
+    SecurityHeaders,
+    SetLocale,
+    StartSession,
+    VerifyCsrfToken,
+)
+
+kernel = Kernel(app)
+
+# Order matters: the session must exist before the locale can be remembered in
+# it, before CSRF verification, and before the user is resolved from it.
+# SecurityHeaders goes early so every response, including error responses
+# raised further down, carries them.
+_global_middleware = [
+    RequestContext,
+    SecurityHeaders,
+    StartSession,
+    SetLocale,
+    VerifyCsrfToken,
+    Authenticate,
+]
+
+# Multi-tenancy is opt-in, and the middleware is imported inside the branch so
+# a single-tenant application never loads it.
+#
+# Only the row-level-security strategy ships with the engine. The schema
+# strategy needs a middleware that knows how this application maps a host to a
+# schema, which is application knowledge: write it under
+# app/Http/Middleware/ and append it here.
+_config = app.make("config")
+if _config.get("framework.MULTI_TENANCY_ENABLED", False):
+    from craft.http.middleware import ScopeTenant
+
+    _strategy = str(_config.get("framework.MULTI_TENANCY_STRATEGY", "rls")).lower()
+    if _strategy != "rls":
+        # Refuse rather than degrade: an unrecognised strategy that fell
+        # through would serve every tenant from the same tables.
+        raise ValueError(_strategy)
+    _global_middleware.append(ScopeTenant)
+
+kernel.with_middleware(*_global_middleware)
+
+asgi_app = kernel.get_starlette_app()

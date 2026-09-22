@@ -1,0 +1,39 @@
+"""Authentication configuration."""
+
+defaults = {
+    "guard": "web",
+}
+
+guards = {
+    "web": {
+        "driver": "session",
+        "provider": "users",
+    },
+    "api": {
+        "driver": "token",
+        "provider": "users",
+        "token_name": "api_token",
+    },
+}
+
+# Filled in by `craft make:auth`, which generates the User model this points
+# at. A fresh project has no user model and no login, so the entries stay
+# empty rather than naming a class that does not exist.
+providers = {
+    "users": {
+        "model": "",
+    },
+}
+
+# The identity models this project provides, resolved by the engine through
+# `craft.auth.registry`. The engine never imports these directly: it reads
+# them from here, and console command groups that need one (role:*,
+# permission:*, group:*, user:*) simply do not register while it is missing.
+#
+# `craft make:auth` writes the user entry. `craft make:admin` writes the rest.
+models = {
+    "user": "",
+    "role": "",
+    "permission": "",
+    "group": "",
+}

@@ -18,6 +18,7 @@ References:
 from __future__ import annotations
 
 import os
+import json
 import sys
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -145,9 +146,9 @@ def _destructive_guard() -> Iterator[None]:
     try:
         yield
     except DestructiveOperationRefused as refused:
-        echo(f"Refused: {refused.params['operation']} on permanent database "
-             f"'{refused.params['database']}'. Only in-memory SQLite, '*_test' or "
-             "DB_DISPOSABLE_DATABASES may be wiped (NR-02).", "red")
+        echo(f"Refused: {refused.params['operation']} on database "
+             f"'{refused.params['database']}'. Destructive database operations "
+             "are disabled in every environment (NR-02).", "red")
         raise typer.Exit(code=1) from refused
 
 
@@ -155,7 +156,8 @@ def _destructive_guard() -> Iterator[None]:
 def migrate_rollback(step: int = typer.Option(1, help="How many batches to revert.")) -> None:
     """Roll back the last batch of migrations."""
     migrator = get_migrator()
-    migrator.rollback(step=step)
+    with _destructive_guard():
+        migrator.rollback(step=step)
     for note in migrator.notes:
         echo(note, "yellow")
 
@@ -681,6 +683,10 @@ def make_auth(
         echo(f"Authentication file already exists: {exc}. Use --force to overwrite.", "red")
         raise typer.Exit(code=1) from None
 
+    if result.get("already_configured"):
+        echo("Authentication is already configured; existing routes and files were preserved.", "green")
+        return
+
     echo("Authentication scaffolding generated successfully:", "green", bold=True)
     for kind, path in result["files"].items():
         echo(f"  -> {kind:<18} {path}", "green")
@@ -729,24 +735,33 @@ for _kind, _label in [
 def route_list(
     method: Optional[str] = typer.Option(None, help="Filter by HTTP method."),
     path_filter: Optional[str] = typer.Option(None, "--path", help="Filter by URI substring."),
+    as_json: bool = typer.Option(False, "--json", help="Print routes and middleware as JSON."),
 ) -> None:
     """List every registered route."""
     app = get_app(boot_http=True)
     router = app.make("router")
+    from bootstrap.app import kernel
 
-    echo(f"{'METHOD':<16} {'URI':<44} NAME")
-    echo("-" * 96)
-    count = 0
+    global_middleware = [middleware.__name__ for middleware in kernel.middleware_classes]
+    routes = []
     for route in router.routes:
         methods = "|".join(m for m in route.methods if m != "HEAD")
         if method and method.upper() not in route.methods:
             continue
         if path_filter and path_filter not in route.uri:
             continue
-        echo(f"{methods:<16} {route.uri:<44} {route._name or '-'}")
-        count += 1
-    echo("-" * 96)
-    echo(f"{count} route(s).")
+        middleware = [entry if isinstance(entry, str) else entry.__name__ for entry in route.middleware_list]
+        routes.append({"method": methods, "uri": route.uri, "name": route._name or None, "middleware": middleware})
+    if as_json:
+        echo(json.dumps({"global_middleware": global_middleware, "routes": routes}, indent=2))
+        return
+    echo("Global middleware: " + ", ".join(global_middleware))
+    echo(f"{'METHOD':<16} {'URI':<40} {'NAME':<25} MIDDLEWARE")
+    echo("-" * 112)
+    for route in routes:
+        echo(f"{route['method']:<16} {route['uri']:<40} {route['name'] or '-':<25} {','.join(route['middleware']) or '-'}")
+    echo("-" * 112)
+    echo(f"{len(routes)} route(s).")
 
 
 # -- docs -----------------------------------------------------------------------
@@ -1551,6 +1566,35 @@ def security_audit(limit: int = typer.Option(20, help="Number of audit logs to d
 
 
 # -- top-level commands ---------------------------------------------------------
+
+
+@cli.command("new")
+def new_project(
+    name: str = typer.Argument(..., help="Directory to generate the project into."),
+    force: bool = typer.Option(False, "--force", "-f", help="Generate into a non-empty directory."),
+) -> None:
+    """Create a new, bare Craft project.
+
+    The generated project boots, answers one route and contains nothing to
+    reuse. Add authentication with `make:auth`, the admin panel with
+    `make:admin` and resources with `make:crud`.
+    """
+    from engine.cli import project_scaffolder
+
+    try:
+        result = project_scaffolder.build_project(os.path.join(base_path(), name), force=force)
+    except project_scaffolder.ProjectDirectoryNotEmpty as exc:
+        echo(f"Directory is not empty: {exc.path}. Use --force to generate into it anyway.", "red")
+        raise typer.Exit(code=1) from None
+
+    files = result["files"]
+    echo(f"Created a bare Craft project at {result['path']}", "green", bold=True)
+    echo(f"  {len(files)} files written, no application code and no theme.", "green")
+    echo("\nNext steps:", bold=True)
+    echo(f"  cd {name}", "cyan")
+    echo("  craft key:generate", "cyan")
+    echo("  craft migrate", "cyan")
+    echo("  craft serve", "cyan")
 
 
 @cli.command("serve")
