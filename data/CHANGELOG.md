@@ -20,9 +20,33 @@ full policy (categories to use, what counts as security-relevant, how
 
 ### Added
 
+- Redirect `GET /signin` to the canonical `/login` route so mistaken sign-in links reach the login form.
+- Add an authentication contract, root agent instructions, and route listing with middleware details and JSON output.
+- Add a CI check that rejects destructive SQL in seeders and forward migrations.
 - Give every published documentation page a meta description taken from its own opening
   paragraph, plus Open Graph and Twitter metadata; `docs:build --base-url` adds canonical
   URLs and writes `sitemap.xml`.
+- Resolve the application's identity models through `engine/auth/registry.py`, configured
+  under `auth.models` in `config/auth.py`. The engine no longer hardcodes where a project
+  keeps its `User`, `Role`, `Permission` and `Group`.
+- Add `engine/support/branding.py`, holding the Craft Engine wordmark and brand palette as
+  the single source for the console banner and a generated project's starter page.
+
+### Changed
+
+- Preserve existing authentication routes and controllers when `make:auth` runs; generated applications also receive the `/signin` navigation alias.
+- Seed only missing framework accounts, grants, and translations without clearing existing records or overwriting edited values.
+- Refuse schema-wide migration reset and rollback operations regardless of database name or environment.
+- Pause persistent-database test execution until its legacy fixtures can isolate data without physical deletion.
+
+### Fixed
+
+- Stop deleting duplicate cooldown history during unique-index migration; fail with an explicit reconciliation error instead.
+- Correct agent context that described the synchronous ORM as asynchronous or the runtime as supporting Python 3.11.
+
+### Removed
+
+- Stop scaffolding a non-functional MCP configuration that launched `route:list` as though it were an MCP server.
 
 ## [3.23.0] r00016 — 2026-09-19
 
@@ -412,23 +436,23 @@ can be run safely, and before an incident on one of them can be diagnosed.
   `engine/__init__.py`, and fails the build when the two files that declare the
   version disagree with each other.
 
-- **O CI estava vermelho desde 19/08 e nenhuma release subia.** O passo
-  `Lint (ruff)` falhava, e como o job de release depende dele
-  (`needs: [test-sqlite, test-postgres, docker-build]`), ele era pulado em
-  todo push — por isso a tag `v3.13.0` existe no GitHub sem Release
-  correspondente. Cinco violações, quatro delas anteriores:
-  - `engine/ai/contracts.py` usava `Union` sem importar, e
-    `engine/mail/drivers/log.py` usava `Optional` sem importar. Ambos
-    sobrevivem em runtime por causa de `from __future__ import annotations`,
-    mas quebram `typing.get_type_hints()` e qualquer leitura das anotações.
-  - `engine/security/honeypot.py` calculava `now_str` em `is_blocked()` e
-    nunca usava.
-  - `engine/storage/drivers/s3.py` re-erguia `ImportError` dentro de um
-    `except` sem `from`, escondendo a causa original.
-  - `engine/orm/query_builder.py` usava `zip()` sem `strict=` no cálculo de
-    similaridade; a checagem de dimensão logo acima é o que torna a operação
-    significativa, e um truncamento silencioso pontuaria um vetor
-    incompatível como acerto parcial em vez de excluí-lo.
+- **CI had been red since 2026-08-19 and no release was shipping.** The
+  `Lint (ruff)` step failed, and because the release job depends on it
+  (`needs: [test-sqlite, test-postgres, docker-build]`), it was skipped on
+  every push - which is why tag `v3.13.0` exists on GitHub with no matching
+  Release. Five violations, four of them pre-existing:
+  - `engine/ai/contracts.py` used `Union` without importing it, and
+    `engine/mail/drivers/log.py` used `Optional` without importing it. Both
+    survive at runtime thanks to `from __future__ import annotations`, but
+    they break `typing.get_type_hints()` and any reading of the annotations.
+  - `engine/security/honeypot.py` computed `now_str` in `is_blocked()` and
+    never used it.
+  - `engine/storage/drivers/s3.py` re-raised `ImportError` inside an `except`
+    without `from`, hiding the original cause.
+  - `engine/orm/query_builder.py` used `zip()` without `strict=` in the
+    similarity computation; the dimension check just above is what makes the
+    operation meaningful, and a silent truncation would score a mismatched
+    vector as a partial hit instead of excluding it.
 
 ## [3.14.0] r00004 — 2026-08-20
 
