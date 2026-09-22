@@ -11,7 +11,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Craft Engine</title>
+    <title>CraftEngine</title>
     <style>
         :root {
             --brand: #f97316;
@@ -41,20 +41,12 @@
         pre {
             color: var(--brand);
             margin: 0;
-            font-size: clamp(6px, 2.1vw, 15px);
+            font-size: clamp(3px, 1.05vw, 12px);
             line-height: 1.15;
             overflow-x: auto;
             /* The mark is drawn in block characters, so any font substitution
                that changes advance width would shear it. */
             font-family: inherit;
-        }
-        .subtitle {
-            color: var(--brand-dark);
-            letter-spacing: 0.7em;
-            font-size: clamp(9px, 1.6vw, 13px);
-            margin: 18px 0 0;
-            /* letter-spacing adds a trailing gap that breaks optical centering. */
-            text-indent: 0.7em;
         }
         .stamp {
             margin: 28px 0 0;
@@ -78,8 +70,7 @@
 </head>
 <body>
     <main>
-        <pre role="img" aria-label="Craft Engine">{{ wordmark }}</pre>
-        <p class="subtitle">{{ wordmark_subtitle }}</p>
+        <pre role="img" aria-label="CraftEngine">{{ wordmark }}</pre>
         <p class="stamp"><span>{{ version }} {{ release }}</span></p>
     </main>
 </body>

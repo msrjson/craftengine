@@ -21,19 +21,17 @@ SLATE_900: Final[str] = "#0f172a"
 SLATE_800: Final[str] = "#1e293b"
 SLATE_400: Final[str] = "#94a3b8"
 
-#: The mark, drawn in block characters. Forty columns wide, so it survives an
-#: eighty-column terminal with room to spare.
+#: The product name drawn in block characters, on a single row, because the
+#: mark is one word. Eighty-eight columns wide: past the eighty-column
+#: convention, so callers that render into a terminal should expect wrapping
+#: on a narrow one. The page scales it to the viewport instead.
 WORDMARK: Final[str] = r"""
- ██████ ██████   █████  ███████ ████████
-██      ██   ██ ██   ██ ██         ██
-██      ██████  ███████ █████      ██
-██      ██   ██ ██   ██ ██         ██
- ██████ ██   ██ ██   ██ ██         ██
+ ██████ ██████   █████  ███████ ████████ ███████ ███    ██  ██████  ██ ███    ██ ███████
+██      ██   ██ ██   ██ ██         ██    ██      ████   ██ ██       ██ ████   ██ ██
+██      ██████  ███████ █████      ██    █████   ██ ██  ██ ██   ███ ██ ██ ██  ██ █████
+██      ██   ██ ██   ██ ██         ██    ██      ██  ██ ██ ██    ██ ██ ██  ██ ██ ██
+ ██████ ██   ██ ██   ██ ██         ██    ███████ ██   ████  ██████  ██ ██   ████ ███████
 """
-
-#: Spaced lettering under the mark. Kept separate so a caller can render the
-#: two lines in different colors without parsing the block art.
-WORDMARK_SUBTITLE: Final[str] = "E  N  G  I  N  E"
 
 _RESET: Final[str] = "\033[0m"
 
@@ -68,6 +66,5 @@ def console_banner(version: str, release: str) -> str:
     orange = _truecolor(BRAND_ORANGE)
     dim = _truecolor(SLATE_400)
     mark = f"{orange}{WORDMARK.strip(chr(10))}{_RESET}"
-    subtitle = f"{orange}   {WORDMARK_SUBTITLE}{_RESET}"
     stamp = f"{dim}   {version} {release}{_RESET}"
-    return f"\n{mark}\n\n{subtitle}\n{stamp}\n"
+    return f"\n{mark}\n\n{stamp}\n"
