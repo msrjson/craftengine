@@ -27,7 +27,9 @@ services:
     # add a CMD it does not need in production.
     build: ./website
     container_name: craftengine-website
-    command: python -m http.server 8080 --directory /site
+    command: python -m http.server 8090 --directory /site
     ports:
-      - "8080:8080"
+      # 8080 belongs to another workspace on this machine; 8090 keeps the two
+      # from fighting over the port when both are up.
+      - "8090:8090"
     restart: unless-stopped
