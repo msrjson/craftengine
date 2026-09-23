@@ -22,15 +22,32 @@ SLATE_800: Final[str] = "#1e293b"
 SLATE_400: Final[str] = "#94a3b8"
 
 #: The product name drawn in block characters, on a single row, because the
-#: mark is one word. Eighty-eight columns wide: past the eighty-column
-#: convention, so callers that render into a terminal should expect wrapping
-#: on a narrow one. The page scales it to the viewport instead.
+#: mark is one word. Eighty-eight columns wide, so it needs real width to stay
+#: legible: a renderer that cannot give it that should use WORDMARK_STACKED.
 WORDMARK: Final[str] = r"""
  ██████ ██████   █████  ███████ ████████ ███████ ███    ██  ██████  ██ ███    ██ ███████
 ██      ██   ██ ██   ██ ██         ██    ██      ████   ██ ██       ██ ████   ██ ██
 ██      ██████  ███████ █████      ██    █████   ██ ██  ██ ██   ███ ██ ██ ██  ██ █████
 ██      ██   ██ ██   ██ ██         ██    ██      ██  ██ ██ ██    ██ ██ ██  ██ ██ ██
  ██████ ██   ██ ██   ██ ██         ██    ███████ ██   ████  ██████  ██ ██   ████ ███████
+"""
+
+#: The same mark over two rows, forty-seven columns wide. Narrow renderers use
+#: this one: an eighty-eight column mark squeezed into a phone or an
+#: eighty-column terminal is unreadable, and shrinking the type until it fits
+#: is what makes it unreadable rather than what saves it.
+WORDMARK_STACKED: Final[str] = r"""
+ ██████ ██████   █████  ███████ ████████
+██      ██   ██ ██   ██ ██         ██
+██      ██████  ███████ █████      ██
+██      ██   ██ ██   ██ ██         ██
+ ██████ ██   ██ ██   ██ ██         ██
+
+███████ ███    ██  ██████  ██ ███    ██ ███████
+██      ████   ██ ██       ██ ████   ██ ██
+█████   ██ ██  ██ ██   ███ ██ ██ ██  ██ █████
+██      ██  ██ ██ ██    ██ ██ ██  ██ ██ ██
+███████ ██   ████  ██████  ██ ██   ████ ███████
 """
 
 _RESET: Final[str] = "\033[0m"
@@ -65,6 +82,8 @@ def console_banner(version: str, release: str) -> str:
     """
     orange = _truecolor(BRAND_ORANGE)
     dim = _truecolor(SLATE_400)
-    mark = f"{orange}{WORDMARK.strip(chr(10))}{_RESET}"
+    # The stacked mark, because a terminal is eighty columns by convention and
+    # the single-row mark is eighty-eight: it would wrap mid-letter.
+    mark = f"{orange}{WORDMARK_STACKED.strip(chr(10))}{_RESET}"
     stamp = f"{dim}   {version} {release}{_RESET}"
     return f"\n{mark}\n\n{stamp}\n"

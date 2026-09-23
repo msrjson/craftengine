@@ -51,7 +51,7 @@ def run_console(
     environment = dict(os.environ)
     environment.update(
         {
-            "PYTHONPATH": os.pathsep.join([REPOSITORY_ROOT, cwd]),
+            "PYTHONPATH": os.pathsep.join([cwd, REPOSITORY_ROOT]),
             "DB_CONNECTION": "sqlite",
             "DB_DATABASE": database,
             "APP_ENV": "local",
@@ -132,24 +132,28 @@ class TestFirstFiveMinutes:
         assert os.path.isfile(database)
 
     def test_the_generated_application_serves_its_starter_page(self, generated_project):
-        """Booting the generated project answers `/` with the wordmark."""
+        """Booting the generated project answers `/` with its own starter page."""
         database = os.path.join(generated_project, "storage", "database.sqlite")
         migrated = run_console("migrate", cwd=generated_project, database=database)
         assert migrated.returncode == 0, migrated.stdout + migrated.stderr
 
+        # The generated project comes first on the path. With this repository
+        # ahead of it, `bootstrap.app` resolves to *this* application - the demo
+        # one, theme and all - and the test silently measures the wrong thing.
         probe = (
             "import sys; sys.path[:0] = [%r, %r]\n"
             "from starlette.testclient import TestClient\n"
             "from bootstrap.app import asgi_app\n"
             "response = TestClient(asgi_app).get('/')\n"
             "print(response.status_code)\n"
-            "print('WORDMARK' if '\\u2588' in response.text else 'NO-WORDMARK')\n"
-        ) % (REPOSITORY_ROOT, generated_project)
+            "print('MARK' if 'CraftEngine' in response.text else 'NO-MARK')\n"
+            "print('NO-THEME' if 'assets/css' not in response.text else 'THEME')\n"
+        ) % (generated_project, REPOSITORY_ROOT)
 
         environment = dict(os.environ)
         environment.update(
             {
-                "PYTHONPATH": os.pathsep.join([REPOSITORY_ROOT, generated_project]),
+                "PYTHONPATH": os.pathsep.join([generated_project, REPOSITORY_ROOT]),
                 "DB_CONNECTION": "sqlite",
                 "DB_DATABASE": database,
             }
@@ -165,7 +169,10 @@ class TestFirstFiveMinutes:
 
         assert result.returncode == 0, result.stdout + result.stderr
         assert "200" in result.stdout
-        assert "WORDMARK" in result.stdout
+        assert "MARK" in result.stdout
+        # The starter page is self-contained: it links no stylesheet, so there
+        # is no theme for anyone to start building on top of.
+        assert "NO-THEME" in result.stdout
 
 
 class TestNothingAnswersThatWasNotDeclared:

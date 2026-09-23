@@ -26,13 +26,11 @@ def welcome(request: Any) -> Response:
         The rendered starter page.
     """
     import engine
-    from craft.support.branding import WORDMARK
 
     return Response(
         View.render(
             "welcome",
             {
-                "wordmark": WORDMARK.strip("\n"),
                 "version": engine.__version__,
                 "release": engine.__release__,
             },
