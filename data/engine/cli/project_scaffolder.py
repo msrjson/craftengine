@@ -28,6 +28,16 @@ SKELETON_ROOT: Final[str] = os.path.join(os.path.dirname(os.path.abspath(__file_
 #: Suffix marking a template file. Stripped when the file is written out.
 STUB_SUFFIX: Final[str] = ".stub"
 
+#: Templates whose generated name starts with a dot, keyed by the name they
+#: are stored under. They are stored without the dot because setuptools'
+#: package-data globs skip hidden files: a template named `.env.example.stub`
+#: is present in a source checkout and silently missing from an installed
+#: package, so `craft new` would generate a project with no `.env.example`
+#: only for the people who installed the framework normally.
+DOTFILE_RENAMES: Final[Dict[str, str]] = {
+    "env.example": ".env.example",
+}
+
 #: Directories that must exist in a generated project even when no template
 #: file lands in them, because the framework writes into them at runtime.
 RUNTIME_DIRECTORIES: Final[List[str]] = [
@@ -95,9 +105,12 @@ def _destination_for(relative_template: str) -> str:
             stub suffix.
 
     Returns:
-        The same path with the stub suffix removed.
+        The same path with the stub suffix removed, and the leading dot
+        restored for templates stored without one.
     """
-    return relative_template[: -len(STUB_SUFFIX)]
+    without_suffix = relative_template[: -len(STUB_SUFFIX)]
+    directory, filename = os.path.split(without_suffix)
+    return os.path.join(directory, DOTFILE_RENAMES.get(filename, filename))
 
 
 def _write_package_markers(target: str, written: Dict[str, str]) -> None:

@@ -19,6 +19,19 @@ include:
   - path: data/docker-compose.yml
 
 services:
+  # What a developer gets from `craft new`, served on its own port with no
+  # database service and nothing added. Kept alongside `framework` so the two
+  # can be compared directly: :9000 still carries the demo application,
+  # :9001 carries one route.
+  skeleton:
+    build:
+      context: .
+      dockerfile: Dockerfile.skeleton
+    container_name: craftengine-skeleton
+    ports:
+      - "9001:9001"
+    restart: unless-stopped
+
   website:
     # The site's Dockerfile is build-only by design: DigitalOcean App Platform
     # runs it to produce /site and then serves those files itself, with no
