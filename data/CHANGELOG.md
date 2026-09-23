@@ -41,6 +41,7 @@ full policy (categories to use, what counts as security-relevant, how
 
 ### Fixed
 
+- Boot the console against a single application, so `craft migrate` no longer fails with "database is locked" on a file-backed SQLite database: the second application kept its own database connection, and migration DDL ran on it while the migrator held its transaction on the other.
 - Stop deleting duplicate cooldown history during unique-index migration; fail with an explicit reconciliation error instead.
 - Correct agent context that described the synchronous ORM as asynchronous or the runtime as supporting Python 3.11.
 

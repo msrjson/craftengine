@@ -80,8 +80,19 @@ def base_path() -> str:
     return os.getcwd()
 
 
-def get_app(boot_http: bool = False) -> Any:
-    """Boot (once) and return the Craft application."""
+def get_app() -> Any:
+    """Boot (once) and return the Craft application.
+
+    The application `bootstrap.app` builds at import time is the one every
+    command uses. Calling `create_app()` again here built a *second*
+    application: a second container, a second database manager and a second
+    physical connection to the same database. The first one keeps the global
+    container (`Container.getInstance()`), so anything resolving through it -
+    the module-level `Schema` migration files import - ran its statements on
+    the first connection while the migrator held its transaction on the
+    second. On file-backed SQLite that is a writer against a writer, and
+    `migrate` died with "database is locked".
+    """
     global _app_instance
     if _app_instance is not None:
         return _app_instance
@@ -91,12 +102,7 @@ def get_app(boot_http: bool = False) -> Any:
 
     import engine  # registers the `craft.*` module aliases  # noqa: F401
 
-    if boot_http:
-        from bootstrap.app import app as booted
-    else:
-        from bootstrap.app import create_app
-
-        booted = create_app()
+    from bootstrap.app import app as booted
 
     _app_instance = booted
     return _app_instance
@@ -738,7 +744,7 @@ def route_list(
     as_json: bool = typer.Option(False, "--json", help="Print routes and middleware as JSON."),
 ) -> None:
     """List every registered route."""
-    app = get_app(boot_http=True)
+    app = get_app()
     router = app.make("router")
     from bootstrap.app import kernel
 

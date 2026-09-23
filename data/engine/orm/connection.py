@@ -688,9 +688,22 @@ class Connection:
                 os.makedirs(directory, exist_ok=True)
         else:
             database = ":memory:"
-        conn = sqlite3.connect(database, check_same_thread=False)
+        is_file = database != ":memory:"
+        # `timeout` is the busy timeout: how long a statement waits for a lock
+        # another connection holds before giving up with "database is locked".
+        # A file-backed database is pooled per thread, so a threaded server
+        # does have several connections contending for it; an in-memory one
+        # shares a single session and never contends.
+        conn = sqlite3.connect(database, check_same_thread=False, timeout=15.0 if is_file else 5.0)
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA foreign_keys = ON")
+        if is_file:
+            # Write-ahead logging lets readers work while one connection
+            # writes, instead of every reader blocking the writer. It is a
+            # property of the file and persists, so this runs once and is a
+            # no-op afterwards. An in-memory database has no file to journal
+            # and rejects the pragma.
+            conn.execute("PRAGMA journal_mode = WAL")
         return conn
 
     def _connect_postgres(self) -> Any:
