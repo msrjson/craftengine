@@ -8,6 +8,11 @@ from engine.cli import agent_scaffolder, auth_scaffolder
 
 
 class TestAuthScaffolder:
+    def test_existing_home_route_is_used_after_login(self):
+        controller = auth_scaffolder.auth_controller_stub("home")
+        assert 'redirect(route="home")' in controller
+        assert 'redirect(route="dashboard")' not in controller
+
     def test_build_auth_creates_all_files(self, tmp_path):
         base_dir = str(tmp_path)
         routes_dir = os.path.join(base_dir, "routes")
@@ -31,7 +36,10 @@ class TestAuthScaffolder:
             content = f.read()
             assert "@honeypot" in content
             assert "@error('email')" in content
-            assert "@csrf" in content
+        assert "@csrf" in content
+
+        with open(files["routes"], encoding="utf-8") as handle:
+            assert 'Route.get("/signin"' in handle.read()
 
     def test_build_auth_views_only(self, tmp_path):
         base_dir = str(tmp_path)
@@ -44,16 +52,32 @@ class TestAuthScaffolder:
         assert "controller" not in files
         assert "request_login" not in files
 
-    def test_build_auth_refuses_overwrite_without_force(self, tmp_path):
+    def test_build_auth_preserves_existing_authentication(self, tmp_path):
         base_dir = str(tmp_path)
         auth_scaffolder.build_auth(base_dir)
 
-        with pytest.raises(FileExistsError):
-            auth_scaffolder.build_auth(base_dir, force=False)
-
-        # Works with force=True
         result = auth_scaffolder.build_auth(base_dir, force=True)
+        assert result["already_configured"] is True
         assert len(result["files"]) > 0
+
+    def test_existing_starter_auth_is_not_overwritten(self, tmp_path):
+        base_dir = str(tmp_path)
+        routes_dir = os.path.join(base_dir, "routes")
+        controller_dir = os.path.join(base_dir, "app", "Http", "Controllers", "Auth")
+        os.makedirs(routes_dir)
+        os.makedirs(controller_dir)
+        routes_path = os.path.join(routes_dir, "web.py")
+        controller_path = os.path.join(controller_dir, "AuthController.py")
+        with open(routes_path, "w", encoding="utf-8") as handle:
+            handle.write('Route.get("/login", handler).name("login")\n')
+        with open(controller_path, "w", encoding="utf-8") as handle:
+            handle.write("# Existing secure controller\n")
+
+        result = auth_scaffolder.build_auth(base_dir, force=True)
+
+        assert result["already_configured"] is True
+        with open(controller_path, encoding="utf-8") as handle:
+            assert handle.read() == "# Existing secure controller\n"
 
     def test_register_auth_routes_idempotency(self, tmp_path):
         base_dir = str(tmp_path)
@@ -86,8 +110,8 @@ class TestAgentScaffolder:
         assert os.path.exists(files["llms_docs"])
         assert os.path.exists(files["llms_full_root"])
         assert os.path.exists(files["llms_full_docs"])
-        assert os.path.exists(files["mcp"])
         assert os.path.exists(files["agents_md"])
+        assert os.path.exists(files["project_agents"])
         assert os.path.exists(files["agents_pointer"])
         assert os.path.exists(os.path.join(base_dir, ".claude", "agents", "code-reviewer.md"))
         assert len(result["catalog"]["skill"]) > 0

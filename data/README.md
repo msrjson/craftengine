@@ -5,6 +5,10 @@ building new applications — the skeleton you copy to start an app.
 
 The core lives in `engine/` and is exposed publicly as `craft.*`.
 
+For the starter application's actual login URLs and middleware flow, see
+[Authentication](documentation/authentication.md). `GET /signin` redirects to
+the canonical `/login` page; credentials are submitted to `POST /login`.
+
 ```python
 from craft.facades import Route, DB, Auth
 from craft.orm.model import Model
@@ -68,8 +72,6 @@ for the RBAC system these roles are built on.
 ```bash
 python dev.py migrate                 # apply pending migrations
 python dev.py migrate:status          # what ran, and in which batch
-python dev.py migrate:rollback        # revert the last batch
-python dev.py migrate:fresh --seed    # drop everything, recreate, seed
 python dev.py db seed                 # run the DatabaseSeeder
 python dev.py db show|tables|ping     # inspect the connection
 python dev.py route list              # every registered route

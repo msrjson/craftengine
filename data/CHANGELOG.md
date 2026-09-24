@@ -20,6 +20,17 @@ full policy (categories to use, what counts as security-relevant, how
 
 ### Added
 
+- Record every route the framework attaches on the router itself, marked with its origin
+  (`craft.http.router.APP_ORIGIN` / `ENGINE_ORIGIN`) and the module that registered it.
+  `Kernel.register_engine_routes(refresh=False)` performs the registration,
+  `Kernel.engine_routes()` and `Router.engine_routes()` return the entries, and
+  `RouteEntry.describe()` renders one as a mapping. The health probes, the metrics scrape,
+  the MSR manifest and the static-asset mount were appended straight onto the ASGI route
+  table before this, so they answered requests that no route listing could account for.
+- Ship `config/msr.py` in a generated project. The file was missing, so the manifest route
+  existed with no switch anywhere in the project to find it by.
+
+- Add `craft make:admin`, which generates the RBAC admin panel on request: admin controllers, the panel shell, `Role`, `Permission` and `Group` models, one migration holding every RBAC and ABAC table, the Forge views, the `/admin/*` routes appended to `routes/web.py` behind `auth` and `role:admin`, and the identity model entries in `config/auth.py`.
 - Redirect `GET /signin` to the canonical `/login` route so mistaken sign-in links reach the login form.
 - Add an authentication contract, root agent instructions, and route listing with middleware details and JSON output.
 - Add a CI check that rejects destructive SQL in seeders and forward migrations.
@@ -33,6 +44,15 @@ full policy (categories to use, what counts as security-relevant, how
   the single source for the console banner and a generated project's starter page.
 
 ### Changed
+
+- **Breaking:** the health probes (`/health`, `/ready`) and the MSR JSON manifest
+  (`/.well-known/msr.json`) no longer answer unless the application asks for them. Set
+  `HEALTH_ROUTES_ENABLED=true` or `MSR_ENABLED=true` to restore either. A project upgrading
+  from an earlier release keeps its own `config/framework.py`, whose `HEALTH_ROUTES_ENABLED`
+  still reads `True` until it is changed; a project with no `config/msr.py` loses the
+  manifest until it adds one. Nothing answering a request that nobody declared is the point:
+  readiness discloses the database driver, the cache store and the pool census on every hit,
+  and the manifest publishes the exact version of the installation.
 
 - Preserve existing authentication routes and controllers when `make:auth` runs; generated applications also receive the `/signin` navigation alias.
 - Seed only missing framework accounts, grants, and translations without clearing existing records or overwriting edited values.
@@ -48,6 +68,20 @@ full policy (categories to use, what counts as security-relevant, how
 ### Removed
 
 - Stop scaffolding a non-functional MCP configuration that launched `route:list` as though it were an MCP server.
+
+### Security
+
+- Stop disclosing the installation's infrastructure on `/ready`. The probe now answers
+  `{"status": ...}` and the HTTP code to every caller; the database driver, the cache store
+  class and the connection-pool census are returned only to one presenting
+  `HEALTH_READINESS_TOKEN` as a bearer token, compared with `hmac.compare_digest`. The token
+  is optional - without one nobody gets the detail - and a wrong token is answered with the
+  reduced payload rather than a 404, because a health check the orchestrator cannot reach is
+  not a health check.
+- Cap what probing costs. Each readiness run issues a `SELECT 1` and a cache write, so an
+  unauthenticated path converted request rate directly into database load. One result is now
+  shared across every request that arrives within `HEALTH_READINESS_CACHE_SECONDS`
+  (default 5; zero restores per-hit checks), bounding the cost by time instead of traffic.
 
 ## [3.23.0] r00016 — 2026-09-19
 

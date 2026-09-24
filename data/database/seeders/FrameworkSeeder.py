@@ -1,159 +1,92 @@
-"""Framework tables seeder — translations, modules, and the whole authorization
-starter set: roles, permissions, groups and one conditional (ABAC) grant.
+"""Add missing framework authorization demo records without replacing live data."""
 
-A fresh installation comes up with a working three-tier ladder rather than an
-empty `roles` table, so the admin UI, the route middleware and the demo
-accounts are all exercisable the minute `migrate --seed` finishes. See
-`documentation/authorization.md`.
-"""
-# Craft Framework
-# Copyright (c) 2026 Antonio Santos <snarthost@gmail.com>
-# Licensed under the MIT License. See LICENSE in the project root.
+from typing import Any
 
 from craft.auth.conditions import dump
-from craft.seeding import Seeder
 from craft.facades import DB
-from database.seeders.TranslationSeeder import TranslationSeeder
+from craft.seeding import Seeder
+
 from app.Models.Group import Group
 from app.Models.Module import Module
-from app.Models.Role import Role
 from app.Models.Permission import Permission
+from app.Models.Role import Role
+from app.Models.User import User
+from database.seeders.TranslationSeeder import TranslationSeeder
+
+
+def _ensure_model(model: Any, values: dict[str, Any]) -> Any:
+    """Create a named starter record only when it is absent."""
+    return model.query().where("slug", values["slug"]).first() or model.create(values)
+
+
+def _ensure_pivot(table: str, values: dict[str, Any]) -> None:
+    """Add a starter relation without changing an existing grant."""
+    query = DB.table(table)
+    for column, value in values.items():
+        if column == "conditions":
+            continue
+        query = query.where(column, value)
+    if query.first() is None:
+        DB.table(table).insert(values)
+
+
+def _id(record: Any) -> Any:
+    return record.get_attribute("id")
 
 
 class FrameworkSeeder(Seeder):
-    def run(self):
-        # 1. Clean tables. Order matters: the pivots reference the rows below
-        # them, so they go first.
-        DB.statement("DELETE FROM permission_user")
-        DB.statement("DELETE FROM permission_group")
-        DB.statement("DELETE FROM group_role")
-        DB.statement("DELETE FROM group_user")
-        DB.statement("DELETE FROM groups")
-        DB.statement("DELETE FROM permission_role")
-        DB.statement("DELETE FROM role_user")
-        DB.statement("DELETE FROM permissions")
-        DB.statement("DELETE FROM roles")
-        DB.statement("DELETE FROM modules")
+    """Seed missing framework reference data while preserving user edits."""
 
-        # 2. Seed translations (all locales live in TranslationSeeder)
+    def run(self) -> None:
         self.call(TranslationSeeder)
+        # An existing authorization installation may have intentionally revoked
+        # starter grants. Re-running a seeder must never restore those grants.
+        if Group.query().where("slug", "content-team").first() is not None:
+            return
+        _ensure_model(Module, {"name": "Inventory Management", "slug": "inventory", "enabled": True})
+        _ensure_model(Module, {"name": "Billing Services", "slug": "billing", "enabled": True})
 
-        # 3. Seed modules
-        Module.create({"name": "Inventory Management", "slug": "inventory", "enabled": True})
-        Module.create({"name": "Billing Services", "slug": "billing", "enabled": True})
+        roles = {
+            "admin": _ensure_model(Role, {"name": "Administrator", "slug": "admin"}),
+            "user": _ensure_model(Role, {"name": "User", "slug": "user"}),
+            "tenant-manager": _ensure_model(Role, {"name": "Tenant Manager", "slug": "tenant-manager"}),
+        }
+        permissions = {
+            "create-post": _ensure_model(Permission, {"name": "Create Posts", "slug": "create-post"}),
+            "delete-post": _ensure_model(Permission, {"name": "Delete Posts", "slug": "delete-post"}),
+            "manage-users": _ensure_model(Permission, {"name": "Manage Users", "slug": "manage-users"}),
+            "publish-post": _ensure_model(Permission, {"name": "Publish Posts", "slug": "publish-post"}),
+        }
+        grants = {
+            "admin": ("create-post", "delete-post", "manage-users", "publish-post"),
+            "user": ("create-post", "delete-post"),
+            "tenant-manager": ("create-post", "delete-post", "manage-users"),
+        }
+        for role_slug, permission_slugs in grants.items():
+            for permission_slug in permission_slugs:
+                _ensure_pivot("permission_role", {
+                    "role_id": _id(roles[role_slug]), "permission_id": _id(permissions[permission_slug]),
+                })
 
-        # 4. Seed Roles
-        # A 3-tier ladder matches the 3 seeded demo users: `user` (basic) ->
-        # `tenant-manager` (elevated, can manage users but isn't a full admin)
-        # -> `admin` (full access).
-        admin_role = Role.create({"name": "Administrator", "slug": "admin"})
-        user_role = Role.create({"name": "User", "slug": "user"})
-        tenant_manager_role = Role.create({"name": "Tenant Manager", "slug": "tenant-manager"})
+        accounts = {
+            "admin@craft.local": "admin",
+            "user@craft.local": "user",
+            "tenant@craft.local": "tenant-manager",
+        }
+        for email, role_slug in accounts.items():
+            user = User.query().where("email", email).first()
+            if user is not None:
+                _ensure_pivot("role_user", {"user_id": _id(user), "role_id": _id(roles[role_slug])})
 
-        # 5. Seed Permissions
-        create_post = Permission.create({"name": "Create Posts", "slug": "create-post"})
-        delete_post = Permission.create({"name": "Delete Posts", "slug": "delete-post"})
-        manage_users = Permission.create({"name": "Manage Users", "slug": "manage-users"})
-
-        # 6. Populate Pivot Tables (permission_role)
-        # admin gets all permissions
-        DB.statement(
-            "INSERT INTO permission_role (role_id, permission_id) VALUES (:role, :perm)",
-            {"role": admin_role.get_attribute("id"), "perm": create_post.get_attribute("id")}
-        )
-        DB.statement(
-            "INSERT INTO permission_role (role_id, permission_id) VALUES (:role, :perm)",
-            {"role": admin_role.get_attribute("id"), "perm": delete_post.get_attribute("id")}
-        )
-        DB.statement(
-            "INSERT INTO permission_role (role_id, permission_id) VALUES (:role, :perm)",
-            {"role": admin_role.get_attribute("id"), "perm": manage_users.get_attribute("id")}
-        )
-
-        # user gets create and delete posts
-        DB.statement(
-            "INSERT INTO permission_role (role_id, permission_id) VALUES (:role, :perm)",
-            {"role": user_role.get_attribute("id"), "perm": create_post.get_attribute("id")}
-        )
-        DB.statement(
-            "INSERT INTO permission_role (role_id, permission_id) VALUES (:role, :perm)",
-            {"role": user_role.get_attribute("id"), "perm": delete_post.get_attribute("id")}
-        )
-
-        # tenant-manager gets everything user has, plus manage-users — elevated
-        # but short of full admin.
-        DB.statement(
-            "INSERT INTO permission_role (role_id, permission_id) VALUES (:role, :perm)",
-            {"role": tenant_manager_role.get_attribute("id"), "perm": create_post.get_attribute("id")}
-        )
-        DB.statement(
-            "INSERT INTO permission_role (role_id, permission_id) VALUES (:role, :perm)",
-            {"role": tenant_manager_role.get_attribute("id"), "perm": delete_post.get_attribute("id")}
-        )
-        DB.statement(
-            "INSERT INTO permission_role (role_id, permission_id) VALUES (:role, :perm)",
-            {"role": tenant_manager_role.get_attribute("id"), "perm": manage_users.get_attribute("id")}
-        )
-
-        # 7. Associate Users to Roles (role_user)
-        from app.Models.User import User
-        admin_user = User.query().where("email", "admin@craft.local").first()
-        jane_user = User.query().where("email", "user@craft.local").first()
-        tenant_user = User.query().where("email", "tenant@craft.local").first()
-
-        if admin_user:
-            DB.statement(
-                "INSERT INTO role_user (user_id, role_id) VALUES (:user, :role)",
-                {"user": admin_user.get_attribute("id"), "role": admin_role.get_attribute("id")}
-            )
-        if jane_user:
-            DB.statement(
-                "INSERT INTO role_user (user_id, role_id) VALUES (:user, :role)",
-                {"user": jane_user.get_attribute("id"), "role": user_role.get_attribute("id")}
-            )
-        if tenant_user:
-            DB.statement(
-                "INSERT INTO role_user (user_id, role_id) VALUES (:user, :role)",
-                {"user": tenant_user.get_attribute("id"), "role": tenant_manager_role.get_attribute("id")}
-            )
-
-        # 8. Groups — access granted to a team instead of one person at a time.
-        # `content-team` grants the `user` role to every member, so adding
-        # someone to the team is one row rather than a tour of the roles they
-        # need. The standard demo account is a member, which makes the group
-        # path exercisable straight after `migrate --seed`.
-        content_team = Group.create({
-            "name": "Content Team",
-            "slug": "content-team",
+        group = _ensure_model(Group, {
+            "name": "Content Team", "slug": "content-team",
             "description": "Writers and editors. Members inherit the `user` role.",
         })
-        DB.statement(
-            "INSERT INTO group_role (group_id, role_id) VALUES (:group, :role)",
-            {"group": content_team.get_attribute("id"), "role": user_role.get_attribute("id")},
-        )
-        if jane_user:
-            DB.statement(
-                "INSERT INTO group_user (user_id, group_id) VALUES (:user, :group)",
-                {"user": jane_user.get_attribute("id"), "group": content_team.get_attribute("id")},
-            )
-
-        # 9. One conditional grant (ABAC), so the feature is visible rather than
-        # merely documented: the Content Team may publish, but only their own
-        # drafts. `@user.id` is replaced with the acting user's id at check
-        # time, and the condition is evaluated against the record being acted
-        # upon — see `craft.auth.conditions`.
-        publish_post = Permission.create({"name": "Publish Posts", "slug": "publish-post"})
-        DB.statement(
-            "INSERT INTO permission_group (group_id, permission_id, conditions) "
-            "VALUES (:group, :perm, :conditions)",
-            {
-                "group": content_team.get_attribute("id"),
-                "perm": publish_post.get_attribute("id"),
-                "conditions": dump({"user_id": "@user.id"}),
-            },
-        )
-        # Administrators publish anything: the same permission, unconditional.
-        DB.statement(
-            "INSERT INTO permission_role (role_id, permission_id) VALUES (:role, :perm)",
-            {"role": admin_role.get_attribute("id"), "perm": publish_post.get_attribute("id")},
-        )
+        _ensure_pivot("group_role", {"group_id": _id(group), "role_id": _id(roles["user"])})
+        demo_user = User.query().where("email", "user@craft.local").first()
+        if demo_user is not None:
+            _ensure_pivot("group_user", {"user_id": _id(demo_user), "group_id": _id(group)})
+        _ensure_pivot("permission_group", {
+            "group_id": _id(group), "permission_id": _id(permissions["publish-post"]),
+            "conditions": dump({"user_id": "@user.id"}),
+        })

@@ -46,9 +46,14 @@ thread serves.
 
 ### The probes are outside this
 
-`/health`, `/ready` and `/metrics` are mounted outside the middleware stack, so
-they carry no request id and are not counted. A scrape every ten seconds would
-otherwise dominate the request metrics it exists to report.
+`/health`, `/ready` and `/metrics` are dispatched outside the middleware
+stack, so they carry no request id and are not counted. A scrape every ten
+seconds would otherwise dominate the request metrics it exists to report. All
+three are opt-in (`HEALTH_ROUTES_ENABLED`, `METRICS_ENABLED`) and, once on,
+appear in `python dev.py route list` alongside the application's own routes.
+Both carry a bearer token: `METRICS_TOKEN` hides `/metrics` entirely, while
+`HEALTH_READINESS_TOKEN` unlocks the detail of `/ready` without hiding the
+probe itself.
 
 ## Structured logging
 

@@ -22,9 +22,7 @@ def _reset_rbac_tables():
 
 @pytest.fixture
 def rbac_user(migrated_database):
-    from app.Models.User import User
-    from app.Models.Role import Role
-    from app.Models.Permission import Permission
+    from tests.support.models import Permission, Role, User
 
     DB.statement("DELETE FROM users WHERE email = 'rbac@craft.local'")
     _reset_rbac_tables()
@@ -181,8 +179,7 @@ class TestRequireRoleMiddleware:
         assert response.status_code == 403
 
     def test_user_with_the_role_is_allowed(self, client, migrated_database):
-        from app.Models.User import User
-        from app.Models.Role import Role
+        from tests.support.models import Role, User
 
         DB.statement("DELETE FROM users WHERE email = 'rbac-admin@craft.local'")
         user = User.create(
@@ -213,7 +210,7 @@ class TestRequirePermissionMiddleware:
         assert response.status_code == 200
 
     def test_user_without_the_permission_is_forbidden(self, client, migrated_database):
-        from app.Models.User import User
+        from tests.support.models import User
 
         DB.statement("DELETE FROM users WHERE email = 'rbac-nobody@craft.local'")
         User.create(
@@ -231,21 +228,76 @@ class TestRequirePermissionMiddleware:
         assert response.status_code == 403
 
 
+class TestPrivilegeLadder:
+    """Three tiers, built by the test itself: a role each, and a permission
+    that reaches the middle tier without reaching the bottom one.
+
+    This is what the seeded demo accounts used to prove. The ladder is the
+    engine behaviour — the resolver reading `role_user` and `permission_role`
+    — so the test now builds it instead of depending on an application's
+    seeder for its subjects.
+    """
+
+    @pytest.fixture
+    def ladder(self, migrated_database):
+        from tests.support.models import Permission, Role, User
+
+        emails = ("plain@ladder.local", "manager@ladder.local", "boss@ladder.local")
+        for email in emails:
+            DB.statement("DELETE FROM users WHERE email = ?", [email])
+        _reset_rbac_tables()
+
+        users = {
+            tier: User.force_create(
+                {"name": tier, "email": email, "password": "s3cret", "type": tier}
+            )
+            for tier, email in zip(("plain", "manager", "boss"), emails, strict=True)
+        }
+        roles = {
+            tier: Role.create({"name": tier.title(), "slug": slug})
+            for tier, slug in (
+                ("plain", "user"), ("manager", "tenant-manager"), ("boss", "admin")
+            )
+        }
+        for tier, user in users.items():
+            DB.statement(
+                "INSERT INTO role_user (user_id, role_id) VALUES (:user, :role)",
+                {"user": user.get_attribute("id"), "role": roles[tier].get_attribute("id")},
+            )
+
+        manage = Permission.create({"name": "Manage Users", "slug": "manage-users"})
+        for tier in ("manager", "boss"):
+            DB.statement(
+                "INSERT INTO permission_role (role_id, permission_id) VALUES (:role, :perm)",
+                {"role": roles[tier].get_attribute("id"), "perm": manage.get_attribute("id")},
+            )
+
+        yield users
+
+        _reset_rbac_tables()
+        for email in emails:
+            DB.statement("DELETE FROM users WHERE email = ?", [email])
+
+    def test_every_tier_carries_its_own_role(self, ladder):
+        assert ladder["plain"].has_role("user") is True
+        assert ladder["manager"].has_role("tenant-manager") is True
+        assert ladder["boss"].has_role("admin") is True
+
+    def test_a_permission_reaches_only_the_tiers_it_was_granted_to(self, ladder):
+        assert ladder["manager"].has_permission("manage-users") is True
+        assert ladder["boss"].has_permission("manage-users") is True
+        assert ladder["plain"].has_permission("manage-users") is False
+
+
 class TestSeededDemoAccountsHaveRoles:
-    """The 3 seeded demo accounts must each carry a role — a tenant user with
-    zero roles defeats the point of the 3-tier ladder."""
+    """DEMO-ONLY: about `database/seeders/UserSeeder.py` and the accounts it
+    writes, not about the engine. `TestPrivilegeLadder` above covers the
+    behaviour; delete this class with the sample application's seeders."""
 
     def test_all_three_demo_users_have_a_role(self, migrated_database):
         from database.seeders.UserSeeder import UserSeeder
         from database.seeders.FrameworkSeeder import FrameworkSeeder
-        from app.Models.User import User
-
-        DB.statement("DELETE FROM permission_role")
-        DB.statement("DELETE FROM role_user")
-        DB.statement("DELETE FROM permissions")
-        DB.statement("DELETE FROM roles")
-        DB.statement("DELETE FROM users WHERE email IN "
-                     "('user@craft.local', 'tenant@craft.local', 'admin@craft.local')")
+        from tests.support.models import User
 
         UserSeeder().run()
         FrameworkSeeder().run()
@@ -270,10 +322,8 @@ class TestSeededDemoAccountsHaveRoles:
         `type`, and `is_admin` gates the admin surface independently.
         """
         from database.seeders.UserSeeder import UserSeeder
-        from app.Models.User import User
+        from tests.support.models import User
 
-        DB.statement("DELETE FROM users WHERE email IN "
-                     "('user@craft.local', 'tenant@craft.local', 'admin@craft.local')")
         UserSeeder().run()
 
         expected = {

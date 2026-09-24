@@ -176,11 +176,6 @@ vague "could be migrated later".
 a key extraction: script it or do it file by file, but complete it. Fatigue,
 tedium and repetition are not inputs to your decisions.
 
-**E8 — Zero guessing: inspect the workspace first.** Never assume paths, credentials,
-configurations or subsystem states. Always discover and inspect the concrete files
-present in the workspace (e.g. `.github/api-key`, configuration files, directory
-structure) before executing actions.
-
 ---
 
 ## Definition of done

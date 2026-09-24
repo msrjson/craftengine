@@ -86,11 +86,17 @@ served verbatim, with the same headers. Use it only when the configuration
 cannot express what you need, and validate it with the command from the
 [specification's agent guide](https://github.com/msrjson/specification).
 
-## Turning it off
+## Turning it on
+
+The manifest is **off until you ask for it**:
 
 ```ini
-MSR_ENABLED=false
+MSR_ENABLED=true
 ```
 
-An application route on `/.well-known/msr.json` also takes precedence over the
-built-in one.
+Off by default because it states the exact version and release date of this
+installation, which is the most useful single input for matching a published
+vulnerability to a running instance. Publishing it is a decision about the
+product, not a route an application should acquire by existing. Once on, it is
+listed by `python dev.py route list`, and an application route on
+`/.well-known/msr.json` takes precedence over the built-in one.

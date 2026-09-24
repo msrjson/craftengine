@@ -57,7 +57,7 @@ python dev.py migrate --pretend
 python dev.py migrate:status
 ```
 
-> **Note on Data Persistence**: Destructive migration resets (`migrate:fresh`, `migrate:reset`) are strictly banned in Craft Engine production and automated workflows. All schema evolution must be forward-only. See [Database Safety](database_safety.md).
+> **Data persistence:** Rollback and reset operations are refused in every environment. All schema evolution must be forward-only. See [Database Safety](database_safety.md).
 
 ---
 

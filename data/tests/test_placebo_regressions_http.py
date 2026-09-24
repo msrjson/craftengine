@@ -33,9 +33,12 @@ class TestNamedRoutesFailLoudly:
 
     def test_a_known_route_still_resolves(self, migrated_database):
         from craft.container.application import Container
+        from craft.facades import Route
+
+        Route.get("/t/placebo/named", lambda request: "ok").name("t.placebo.named")
 
         router = Container.getInstance().make("router")
-        assert router.url_for("login") == "/login"
+        assert router.url_for("t.placebo.named") == "/t/placebo/named"
 
 
 class TestUniqueAndExistsFailClosed:
@@ -79,7 +82,7 @@ class TestUniqueAndExistsFailClosed:
             )
 
     def test_unique_still_works_against_a_real_table(self, migrated_database):
-        from app.Models.User import User
+        from tests.support.models import User
         from craft.validation.validator import Validator
 
         DB.statement("DELETE FROM users WHERE email = 'dup@craft.local'")

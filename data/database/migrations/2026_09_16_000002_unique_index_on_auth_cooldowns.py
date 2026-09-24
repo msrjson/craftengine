@@ -22,21 +22,21 @@ from craft.facades import DB, Schema
 
 
 def up():
-    # A unique index creation fails outright if a duplicate pair already
-    # exists from before this constraint existed - keep the most recently
-    # updated row per (identifier_type, identifier_value) and drop the rest,
-    # rather than let the migration fail on an installation with live data.
-    DB.statement("""
-        DELETE FROM auth_cooldowns
-        WHERE id NOT IN (
-            SELECT MAX(id) FROM auth_cooldowns
-            GROUP BY identifier_type, identifier_value
-        )
-    """)
+    # Existing duplicates require manual, non-destructive reconciliation.
+    # Never erase security history to make an index creation succeed.
+    duplicate = DB.statement("""
+        SELECT identifier_type, identifier_value
+        FROM auth_cooldowns
+        GROUP BY identifier_type, identifier_value
+        HAVING COUNT(*) > 1
+        LIMIT 1
+    """).fetchone()
+    if duplicate is not None:
+        raise RuntimeError("Duplicate auth cooldown identifiers require non-destructive reconciliation.")
     Schema.table("auth_cooldowns", lambda t: (
         t.unique_index(["identifier_type", "identifier_value"], name="uq_auth_cooldowns_identifier"),
     ))
 
 
 def down():
-    DB.statement('DROP INDEX IF EXISTS "uq_auth_cooldowns_identifier"')
+    raise RuntimeError("This migration is forward-only.")

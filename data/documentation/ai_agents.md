@@ -1,5 +1,9 @@
 # AI Agent Integration & Discovery Guide
 
+Start with [Authentication](authentication.md) before creating login links or
+changing route protection. The starter uses `/login`; `GET /signin` redirects
+there. Inspect the live route table with `python dev.py route list --json`.
+
 Craft Engine is designed from the ground up to be **AI-Native** and exceptionally developer-friendly for both humans and autonomous coding agents (Cursor, Claude Code, GitHub Copilot, Windsurf, AGY).
 
 ---
@@ -42,7 +46,6 @@ This generates or refreshes:
 - `llms.txt` — Standard high-density overview of Craft Engine for LLMs.
 - `llms-full.txt` — Full API contracts and code examples.
 - `.claude/rules/AGENTS.md` & `.agents/rules/AGENTS.md` — Canonical AI governance contract.
-- `.agents/mcp.json` — Model Context Protocol config snippet.
 - `.claude/agents/`, `.claude/skills/`, `.claude/commands/`, `.claude/references/` — The full development agent catalog.
 
 ---
@@ -176,4 +179,9 @@ This scaffolds:
 - `resources/views/auth/login.forge.py` (with `@csrf`, `@honeypot`, `@error`)
 - `resources/views/auth/register.forge.py`
 - `resources/views/auth/dashboard.forge.py`
-- Idempotently wires `/login`, `/register`, `/logout`, and `/dashboard` into `routes/web.py`.
+- In a new application, wires `/login`, the `GET /signin` redirect, `/register`,
+  `/logout`, and a protected `/dashboard` into `routes/web.py`.
+
+If the application already has a login route and controller, `make:auth`
+preserves them, including when `--force` is supplied. This avoids replacing
+an existing CAPTCHA or redirect flow with generated code.

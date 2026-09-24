@@ -4,17 +4,9 @@ By default the suite runs against an in-memory SQLite database whose schema is
 built by the real migrator, so migrations are exercised on every run instead of
 relying on hand-maintained fixture tables.
 
-To validate the PostgreSQL dialect, point the suite at a real server::
-
-    $env:CRAFT_TEST_DB = "pgsql"
-    $env:DB_HOST = "127.0.0.1"; $env:DB_PORT = "5499"
-    $env:DB_DATABASE = "craft_test"   # must be disposable (NR-02)
-    $env:DB_USERNAME = "craft"; $env:DB_PASSWORD = "secretpassword"
-    python -m pytest
-
-Per-agent test databases: parallel pytest workers derive a unique DB name from
-the worker id, ensuring zero collisions. The DB name always ends in `_test` so
-`is_disposable_database()` (Slice 0) accepts it.
+PostgreSQL test execution remains disabled until legacy physical-delete tests
+have been converted to non-destructive isolation. A `_test` suffix does not
+authorize wiping a database.
 """
 # Craft Framework
 # Copyright (c) 2026 Antonio Santos <snarthost@gmail.com>
@@ -40,43 +32,13 @@ os.environ.setdefault("CACHE_DRIVER", "array")
 TEST_DB = os.environ.get("CRAFT_TEST_DB", "sqlite").lower()
 os.environ["DB_CONNECTION"] = TEST_DB
 
-# Per-agent database naming for parallel workers.
 _WORKER_ID = os.environ.get("PYTEST_XDIST_WORKER", "master")
 if TEST_DB == "sqlite":
     os.environ["DB_DATABASE"] = ":memory:"
 else:
-    # Derive per-worker DB name, always ending in _test.
-    base_name = os.environ.get("DB_DATABASE", "craft_test")
-    if not base_name.endswith("_test"):
-        base_name = f"{base_name}_test"
-    if _WORKER_ID != "master":
-        # Append worker id to avoid collisions in parallel runs.
-        base_name = f"{base_name}_{_WORKER_ID}"
-    os.environ["DB_DATABASE"] = base_name
+    pytest.exit("Persistent database tests are disabled until fixtures preserve every record.")
 
 import engine  # noqa: F401,E402  installs the `craft.*` import alias
-
-# Refuse to run tests on a permanent database (dev DB accidentally run as test).
-from engine.migrations.safety import is_disposable_database as _is_disposable_db
-
-
-def _check_database_safety() -> None:
-    """Raise if the test database is not disposable, preventing accidental data loss."""
-    if TEST_DB == "sqlite":
-        # SQLite in-memory (:memory:) is always disposable.
-        return
-    driver = TEST_DB
-    database = os.environ.get("DB_DATABASE", "")
-    if not _is_disposable_db(driver, database):
-        pytest.exit(
-            f"REFUSE: test database '{database}' is not disposable (missing _test suffix or allowlist). "
-            f"This safety check prevents wiping a permanent database. "
-            f"Use a database ending in '_test' or add it to DB_DISPOSABLE_DATABASES."
-        )
-
-
-_check_database_safety()
-
 
 @pytest.fixture
 def is_postgres() -> bool:
@@ -108,9 +70,6 @@ def migrated_database() -> Generator[Any, None, None]:
             db.statement("SELECT pg_advisory_lock(?)", [lock_id])
 
         migrator = Migrator(app)
-        if TEST_DB != "sqlite":
-            # A real server keeps state between runs — start from a clean schema.
-            migrator.drop_all_tables()
         migrator.run()
         yield app
 
@@ -122,6 +81,43 @@ def migrated_database() -> Generator[Any, None, None]:
                 db.statement("SELECT pg_advisory_unlock(?)", [lock_id])
             except Exception:
                 pass  # Lock already released or connection closed; no error needed.
+
+
+#: Where the suite's own identity models live, by configuration key. The
+#: engine resolves identity through `engine/auth/registry.py` and the guard's
+#: provider, so pointing those keys here is all it takes for the whole stack —
+#: login, RBAC middleware, console commands — to act on the test models.
+_IDENTITY_CONFIG = {
+    "auth.providers.users.model": "tests.support.models.User",
+    "auth.models.user": "tests.support.models.User",
+    "auth.models.role": "tests.support.models.Role",
+    "auth.models.permission": "tests.support.models.Permission",
+    "auth.models.group": "tests.support.models.Group",
+}
+
+
+@pytest.fixture(scope="session", autouse=True)
+def identity_models(migrated_database) -> Generator[Any, None, None]:
+    """Give the suite identity models and tables of its own.
+
+    The tests exercise the engine, so they must not depend on the application
+    that ships beside it owning a `User`. The schema is completed where a
+    migration did not already build it, and the auth configuration is pointed
+    at `tests/support/models.py` for the whole session.
+    """
+    from tests.support.schema import ensure_identity_schema
+
+    ensure_identity_schema()
+
+    config = migrated_database.make("config")
+    previous = {key: config.get(key) for key in _IDENTITY_CONFIG}
+    for key, path in _IDENTITY_CONFIG.items():
+        config.set(key, path)
+
+    yield migrated_database
+
+    for key, path in previous.items():
+        config.set(key, path)
 
 
 @pytest.fixture

@@ -99,7 +99,7 @@ include = ["engine*"]
 # any Python package and setuptools ships only modules by default. The bug is
 # invisible when running from a source checkout, where the files are simply on
 # disk - it appears only in an installed package.
-"engine.cli" = ["skeleton/**/*"]
+"engine.cli" = ["skeleton/**/*", "admin_templates/**/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

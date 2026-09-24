@@ -697,13 +697,13 @@ class Connection:
         conn = sqlite3.connect(database, check_same_thread=False, timeout=15.0 if is_file else 5.0)
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA foreign_keys = ON")
-        if is_file:
-            # Write-ahead logging lets readers work while one connection
-            # writes, instead of every reader blocking the writer. It is a
-            # property of the file and persists, so this runs once and is a
-            # no-op afterwards. An in-memory database has no file to journal
-            # and rejects the pragma.
-            conn.execute("PRAGMA journal_mode = WAL")
+        # Write-ahead logging was tried here and removed. It was added to fix
+        # `migrate` failing with "database is locked" on a fresh project, and
+        # it did not: the cause was the console booting two applications, and
+        # therefore two connections, against one file. What WAL did do was
+        # create sibling `-wal` and `-shm` files, which broke read/write
+        # replica handling with a disk I/O error. A change that did not solve
+        # the problem it was written for, and caused another, is not kept.
         return conn
 
     def _connect_postgres(self) -> Any:

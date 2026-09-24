@@ -31,7 +31,7 @@ def api_routes(migrated_database):
 
 @pytest.fixture
 def api_user(migrated_database):
-    from app.Models.User import User
+    from tests.support.models import User
 
     DB.statement("DELETE FROM users WHERE email = 'api@craft.local'")
     user = User.force_create({

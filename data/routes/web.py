@@ -3,7 +3,10 @@
 # Copyright (c) 2026 Antonio Santos <snarthost@gmail.com>
 # Licensed under the MIT License. See LICENSE in the project root.
 
+from typing import Any
+
 from craft.facades import Route
+from craft.http.response import redirect
 
 from app.Http.Controllers.Admin.CrudBuilderController import CrudBuilderController
 from app.Http.Controllers.Admin.GroupController import GroupController
@@ -12,6 +15,12 @@ from app.Http.Controllers.Admin.RoleController import PermissionController, Role
 from app.Http.Controllers.Auth.AuthController import AuthController
 from app.Http.Controllers.Docs.DocsController import DocsController
 from app.Http.Controllers.Panel.PanelController import PanelController
+
+
+def redirect_signin(request: Any) -> Any:
+    """Send legacy sign-in links to the named login route."""
+    return redirect(route="login")
+
 
 # Home & Dashboard Routes
 Route.get("/", [HomeController, "index"]).name("home")
@@ -22,6 +31,7 @@ Route.get("/dashboard", [HomeController, "index"]).name("dashboard")
 # brute-force gap: the CAPTCHA on /login stops naive scripted attempts, but
 # does not bound automated ones without a request-rate limit.
 Route.get("/login", [AuthController, "show_login"]).name("login")
+Route.get("/signin", redirect_signin)
 Route.post("/login", [AuthController, "login"]).middleware("throttle").name("login.attempt")
 Route.get("/register", [AuthController, "show_register"]).name("register")
 Route.post("/register", [AuthController, "register"]).middleware("throttle").name("register.store")

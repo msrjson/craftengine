@@ -442,30 +442,107 @@ class Kernel:
                 resolved.append(entry)
         return resolved
 
+    #: Name of the sub-application serving `public/`.
+    STATIC_MOUNT_NAME = "static"
+
+    #: Dotted module recorded as the attribution of the static mount.
+    STATIC_MOUNT_PROVIDER = "engine.http.kernel"
+
+    def register_engine_routes(self, *, refresh: bool = False) -> List[Any]:
+        """Record the framework's own routes on the router, and return them.
+
+        The probes, the manifest and the static mount used to be appended
+        straight onto the ASGI route table, so they answered requests that no
+        listing could account for. Registering them here makes the router the
+        one place every route that answers is written down, whoever attached
+        it, and `RouteEntry.origin` says which layer that was.
+
+        Args:
+            refresh: Drop what was registered and read the configuration
+                again. Registration is otherwise idempotent, so the default
+                leaves an already-registered table untouched.
+
+        Returns:
+            The engine routes now on the router.
+        """
+        from engine.http.health import register_health_routes
+        from engine.http.msr import register_msr_route
+
+        router = self.app.make("router")
+        if refresh:
+            router.clear_engine_routes()
+
+        register_health_routes(self.app, router)
+        register_msr_route(self.app, router)
+        self._register_static_mount(router)
+        return router.engine_routes()
+
+    def engine_routes(self) -> List[Any]:
+        """Return the routes the framework attached, for listings and audits.
+
+        Returns:
+            The `RouteEntry` objects marked with the engine origin; each
+            carries `uri`, `methods`, its name, and the `provider` module that
+            registered it. `RouteEntry.describe()` renders one as a mapping.
+        """
+        return self.app.make("router").engine_routes()
+
+    def _register_static_mount(self, router: Any) -> None:
+        """Record the `public/` mount, which serves the application's assets.
+
+        Infrastructure rather than a feature, so it is always registered when
+        the directory exists - but it is registered, not hidden, and the
+        kernel places it after every other route so it shadows nothing.
+
+        Args:
+            router: The router the mount is recorded on.
+        """
+        public_dir = os.path.join(self.app.base_path, "public")
+        if not os.path.isdir(public_dir):
+            return
+        router.add_engine_mount(
+            "/",
+            CachedStaticFiles(directory=public_dir),
+            name=self.STATIC_MOUNT_NAME,
+            provider=self.STATIC_MOUNT_PROVIDER,
+        )
+
+    def _engine_starlette_routes(self, router: Any) -> List[Any]:
+        """Build the engine routes, outside the application middleware stack.
+
+        Plain routes come before mounts so the static mount on `/` never
+        shadows a probe, and an application route on the same path is left to
+        win by being earlier in the table the kernel assembles.
+
+        Args:
+            router: The router holding the registered entries.
+
+        Returns:
+            Starlette routes and mounts, in the order they must be appended.
+        """
+        claimed = router.claimed_uris()
+        plain: List[Any] = []
+        mounts: List[Any] = []
+        for entry in router.engine_routes():
+            if entry.is_mount:
+                mounts.append(Mount(entry.uri, app=entry.action, name=entry._name))
+            elif entry.uri not in claimed:
+                plain.append(StarletteRoute(entry.uri, endpoint=entry.action, methods=entry.methods))
+        return plain + mounts
+
     def _build_starlette_app(self) -> Starlette:
+        self.register_engine_routes()
         router = self.app.make("router")
         routes = []
 
-        for r in router.routes:
+        for r in router.application_routes():
             endpoint = self._create_endpoint(r.action, r._module, r.middleware_list, route_uri=r.uri)
             for m in r.methods:
                 routes.append(StarletteRoute(r.uri, endpoint=endpoint, methods=[m]))
 
-        # Probes are mounted outside the middleware stack, and after the
-        # application's own routes so a project can still define its own.
-        from engine.http.health import register_health_routes
-
-        register_health_routes(self.app, routes, {r.uri for r in router.routes})
-
-        # The MSR JSON manifest (https://msrjson.org), same placement and precedence.
-        from engine.http.msr import register_msr_route
-
-        register_msr_route(self.app, routes, {r.uri for r in router.routes})
-
-        # Serve static files (CSS, JS, images) from the public/ directory.
-        public_dir = os.path.join(self.app.base_path, "public")
-        if os.path.isdir(public_dir):
-            routes.append(Mount("/", app=CachedStaticFiles(directory=public_dir), name="static"))
+        # Appended after the application's own routes, so a project that
+        # declares `/health` keeps its own.
+        routes.extend(self._engine_starlette_routes(router))
 
         # Never hardcode debug - it leaks stack traces to clients in production.
         try:

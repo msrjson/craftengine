@@ -113,7 +113,7 @@ class TestBusinessModules:
     """Verify business modules lifecycle, domain services, repositories, and thin controllers."""
 
     def test_cms_module_bootstrap_and_service(self, migrated_database):
-        from app.Models.User import User
+        from tests.support.models import User
 
         user = User.create({"name": "CMS User", "email": "cms_user@test.com", "password": "password"})
 
@@ -137,7 +137,7 @@ class TestBusinessModules:
         assert "seo_analysis" in post_res
 
     def test_cms_thin_post_controller(self, migrated_database):
-        from app.Models.User import User
+        from tests.support.models import User
 
         user = User.create({"name": "Author", "email": "author@test.com", "password": "password"})
 

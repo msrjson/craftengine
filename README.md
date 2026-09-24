@@ -22,6 +22,9 @@ data/        THE APPLICATION. Mounted 1:1 into the Docker container as /app.
 what gets deployed, and it is what `docker compose` (run from inside `data/`)
 builds and mounts. Nothing outside `data/` is copied into the container image.
 
+AI coding agents should read [AGENTS.md](AGENTS.md) at the workspace root and
+[data/AGENTS.md](data/AGENTS.md) before editing the application.
+
 ## Cloning this workspace to start a new application
 
 Read `.agents/skills/project/workspace-architecture/SKILL.md` first — it is

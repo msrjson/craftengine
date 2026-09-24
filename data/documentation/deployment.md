@@ -144,11 +144,11 @@ nothing pending. `MIGRATION_LOCK_TIMEOUT` (default 120s) bounds that wait, and
 exceeding it fails the boot rather than migrating concurrently. Drivers
 without advisory locks (SQLite, MySQL) run unlocked.
 
-Check first with `migrate:status`, and rehearse a rollback:
+Check the migration status first. If a release needs correction, deploy a new
+forward migration that preserves existing columns and records:
 
 ```bash
 python dev.py migrate:status
-python dev.py migrate:rollback --step 1
 ```
 
 ## Multi-tenancy
@@ -174,8 +174,16 @@ let the platform collect it.
 
 ## Health checks
 
-Two probes ship mounted, outside the middleware stack, so neither loads a
-session nor verifies CSRF:
+Two probes ship with the framework, **off until you ask for them**:
+
+```dotenv
+HEALTH_ROUTES_ENABLED=true
+```
+
+Off by default because a probe is an unauthenticated path into the
+installation. Once on, both are dispatched outside the middleware stack, so
+neither loads a session nor verifies CSRF, and both are listed by
+`python dev.py route list` like any other route:
 
 | Path | Question | Checks | Fails with |
 |---|---|---|---|
@@ -187,8 +195,25 @@ checks the database and a database incident restarts every healthy web
 instance on top of it, turning one outage into two. Liveness answers from the
 process alone; readiness is the one that takes an instance out of rotation.
 
+### What `/ready` tells whom
+
+By default it answers the verdict and nothing else, to everyone:
+
 ```jsonc
 // GET /ready
+{"status": "ok"}          // 200, or {"status": "unavailable"} with 503
+```
+
+That is everything a load balancer routes on. The detail behind it is a map of
+the installation - what it runs on, and how close it is to exhaustion - so it
+is returned only to a caller presenting the readiness token:
+
+```dotenv
+HEALTH_READINESS_TOKEN=a-long-random-string
+```
+
+```jsonc
+// GET /ready, Authorization: Bearer a-long-random-string
 {
   "status": "ok",
   "checks": {
@@ -201,10 +226,30 @@ process alone; readiness is the one that takes an instance out of rotation.
 
 `pool_open == pool_size` sustained is the signal to alert on: the instance is
 about to start failing on `pool_timeout`, and that is visible here before it is
-visible in the error rate.
+visible in the error rate. Point the alerting scraper at `/ready` with the
+token; leave the load balancer on the tokenless form.
 
-Configure with `HEALTH_ROUTES_ENABLED`, `HEALTH_LIVENESS_PATH` and
-`HEALTH_READINESS_PATH`. An application route on either path takes precedence,
+The token is optional. With none configured the probe still works - everyone
+just gets the reduced payload. A wrong token is answered, not hidden: unlike
+`/metrics`, a health check that 404s without a secret is a health check the
+orchestrator cannot use.
+
+### The cost of being probed
+
+Each readiness run issues a `SELECT 1` and a cache write, so an unauthenticated
+path would otherwise turn request rate into database load. One result is shared
+by every request that arrives behind it:
+
+```dotenv
+HEALTH_READINESS_CACHE_SECONDS=5   # 0 runs the checks on every hit
+```
+
+Five seconds is shorter than any sane probe interval, so an orchestrator
+polling every ten seconds still sees every run, while a flood costs one
+round-trip instead of thousands.
+
+Move them with `HEALTH_LIVENESS_PATH` and `HEALTH_READINESS_PATH`. An
+application route on either path takes precedence,
 so defining your own `/health` replaces the built-in one rather than colliding
 with it. Add a dependency of your own:
 

@@ -121,14 +121,25 @@ class TestManifestBuilder:
 
 @pytest.fixture
 def msr_config(migrated_database):
+    """Publish the manifest for the duration of a test.
+
+    Opt-in since 4.0.0: an application that never asked for it does not answer
+    on the manifest path at all, so the endpoint tests have to turn it on and
+    re-register the engine routes.
+    """
+    from bootstrap.app import kernel
+
     config = app.make("config")
-    saved = {name: config.get(f"msr.{name}") for name in ("DOMAIN", "URL")}
+    saved = {name: config.get(f"msr.{name}") for name in ("DOMAIN", "URL", "ENABLED")}
+    config.set("msr.ENABLED", True)
     config.set("msr.DOMAIN", "shop.example.com")
     config.set("lang.en.msr.entity.summary", "An application summary.")
+    kernel.register_engine_routes(refresh=True)
     yield config
     for name, value in saved.items():
         config.set(f"msr.{name}", value)
     config.set("lang.en.msr.entity.summary", None)
+    kernel.register_engine_routes(refresh=True)
 
 
 class TestManifestEndpoint:

@@ -702,6 +702,36 @@ def make_auth(
     echo("  2. Access the registration screen at: http://127.0.0.1:9000/register", "cyan")
 
 
+@make_app.command("admin")
+def make_admin(
+    force: bool = typer.Option(False, "--force", "-f", help="Overwrite existing files."),
+) -> None:
+    """Scaffold the RBAC admin panel: controllers, models, migration, views, and routes."""
+    from engine.cli import admin_scaffolder
+
+    try:
+        result = admin_scaffolder.build_admin(base_path(), force=force)
+    except FileExistsError as exc:
+        echo(f"An admin panel file already exists: {exc}. Use --force to overwrite.", "red")
+        raise typer.Exit(code=1) from None
+
+    if result.get("already_configured"):
+        echo("The admin panel is already registered; existing routes and files were preserved.", "green")
+        return
+
+    echo("Admin panel scaffolding generated successfully:", "green", bold=True)
+    for kind, path in result["files"].items():
+        echo(f"  -> {kind:<48} {path}", "green")
+
+    echo("\nNext steps:", bold=True)
+    echo("  1. Create the RBAC tables:", "cyan")
+    echo("     python dev.py migrate", bold=True)
+    echo("  2. Give an account the admin role:", "cyan")
+    echo("     python dev.py role:assign <email> admin", bold=True)
+    echo("  3. Open the panel at: http://127.0.0.1:9000/admin", "cyan")
+    echo("  4. The views extend layouts.app and layouts.panel; provide them if absent.", "cyan")
+
+
 def _simple_generator(kind: str, label: str):
     def command(name: str, force: bool = typer.Option(False, "--force")) -> None:
         from engine.cli import generators

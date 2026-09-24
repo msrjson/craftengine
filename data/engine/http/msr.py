@@ -11,7 +11,8 @@ manifest with guessed values.
 
 Category: Core Framework (HTTP).
 Relations:
-  - Mounted by `engine/http/kernel.py`, after the application's own routes.
+  - Registered on `engine/http/router.py` as an engine route and dispatched
+    by `engine/http/kernel.py` after the application's own routes.
   - Builds the manifest with `engine/support/msr.py`.
 References:
   - Guide: `documentation/msr.md`
@@ -39,24 +40,32 @@ RESPONSE_HEADERS = {
 }
 
 
-def register_msr_route(app: Any, routes: list[Any], claimed: set[str]) -> None:
-    """Mount the manifest route unless it is disabled or the application owns the path.
+#: Dotted module recorded as the attribution of the route below.
+PROVIDER = "engine.http.msr"
+
+
+def register_msr_route(app: Any, router: Any) -> None:
+    """Register the manifest route, if the application asked for it.
+
+    Off unless `msr.ENABLED` says otherwise. The manifest publishes the exact
+    version, release date, vendor and pricing of the installation, which is
+    the single most useful input for matching a published vulnerability to a
+    running instance. Publishing it is a business decision the owner makes,
+    not a default an application inherits. An application route on the same
+    path always wins.
 
     Args:
         app: The application container.
-        routes: The Starlette route list being assembled by the kernel.
-        claimed: URIs the application router already answers.
+        router: The router the route is recorded on.
     """
-    from starlette.routing import Route as StarletteRoute
-
     config = app.make("config")
-    if not config.get("msr.ENABLED", True) or MANIFEST_PATH in claimed:
+    if not config.get("msr.ENABLED", False) or MANIFEST_PATH in router.claimed_uris():
         return
 
     async def endpoint(request: Any) -> Any:
         return await _respond(app)
 
-    routes.append(StarletteRoute(MANIFEST_PATH, endpoint=endpoint, methods=["GET", "HEAD"]))
+    router.add_engine_route(["GET", "HEAD"], MANIFEST_PATH, endpoint, name="msr.manifest", provider=PROVIDER)
 
 
 def build_manifest(app: Any) -> dict[str, Any]:
@@ -113,4 +122,4 @@ def render_manifest(manifest: dict[str, Any]) -> str:
     return json.dumps(manifest, indent=2, ensure_ascii=False)
 
 
-__all__ = ["RESPONSE_HEADERS", "build_manifest", "register_msr_route", "render_manifest"]
+__all__ = ["PROVIDER", "RESPONSE_HEADERS", "build_manifest", "register_msr_route", "render_manifest"]

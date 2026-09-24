@@ -68,7 +68,7 @@ def client():
 
 @pytest.fixture
 def user(migrated_database):
-    from app.Models.User import User
+    from tests.support.models import User
 
     DB.statement("DELETE FROM users WHERE email = 'mw@craft.local'")
     return User.create(

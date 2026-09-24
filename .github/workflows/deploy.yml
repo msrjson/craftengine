@@ -34,6 +34,10 @@ jobs:
         run: |
           ruff check .
 
+      - name: Forward migration and seeder safety
+        working-directory: data
+        run: python tools/check_data_safety.py
+
       # Two passes: views are `*.forge.py`, a template DSL carrying a `.py`
       # suffix, so one config cannot classify both without failing every view.
       # Blocking, no bypass label — see the standard's §12.4.
@@ -49,6 +53,8 @@ jobs:
           python -m pytest --cov=engine --cov-report=term-missing
 
   test-postgres:
+    # This job intentionally fails closed in tests/conftest.py until every
+    # legacy fixture uses non-destructive isolation. Never bypass that guard.
     name: Pytest (PostgreSQL) — Python 3.14
     runs-on: ubuntu-latest
 

@@ -40,10 +40,7 @@ def rbac(migrated_database):
     behind broke an unrelated file that runs later in the alphabet. Wiping only
     on setup protects this file and nobody else.
     """
-    from app.Models.Group import Group
-    from app.Models.Permission import Permission
-    from app.Models.Role import Role
-    from app.Models.User import User
+    from tests.support.models import Group, Permission, Role, User
 
     DB.statement("DELETE FROM users WHERE email LIKE '%@abac.local'")
     _wipe()

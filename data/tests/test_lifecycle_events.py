@@ -40,7 +40,7 @@ def events(migrated_database):
 
 @pytest.fixture
 def audit_user(migrated_database):
-    from app.Models.User import User
+    from tests.support.models import User
 
     DB.statement("DELETE FROM users WHERE email = 'events@craft.local'")
     return User

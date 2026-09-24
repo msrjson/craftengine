@@ -19,6 +19,53 @@ import os
 import re
 from typing import Any, Dict
 
+from engine.cli import identity_config, layout_scaffolder
+
+#: Templates for the concrete classes authentication needs. The engine
+#: ships the contract (`craft.auth.models.AuthenticatableMixin`) and the
+#: resolver (`craft.auth.registry`); the concrete `User` belongs to the
+#: project, so it is generated rather than imported from the framework.
+AUTH_TEMPLATE_ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "auth_templates")
+
+#: Dotted path of the generated user model, recorded in `config/auth.py`.
+USER_MODEL_PATH = "app.Models.User.User"
+
+
+def _copy_auth_templates(base_path: str, force: bool = False) -> Dict[str, str]:
+    """Write the user model and its migration into the project.
+
+    Args:
+        base_path: Root of the target project.
+        force: Overwrite files that already exist.
+
+    Returns:
+        A mapping of result key to the absolute path written. A file the
+        project already has is left alone and omitted.
+    """
+    import shutil
+
+    written: Dict[str, str] = {}
+    for key, relative in (
+        ("model_user", os.path.join("app", "Models", "User.py")),
+        (
+            "migration_users",
+            os.path.join("database", "migrations", "2025_01_01_000001_create_users_table.py"),
+        ),
+    ):
+        destination = os.path.join(base_path, relative)
+        if os.path.exists(destination) and not force:
+            continue
+        os.makedirs(os.path.dirname(destination), exist_ok=True)
+        shutil.copyfile(os.path.join(AUTH_TEMPLATE_ROOT, relative + ".stub"), destination)
+        written[key] = destination
+
+    marker = os.path.join(base_path, "app", "Models", "__init__.py")
+    if not os.path.exists(marker):
+        os.makedirs(os.path.dirname(marker), exist_ok=True)
+        with open(marker, "w", encoding="utf-8") as handle:
+            handle.write("")
+    return written
+
 
 def _write(path: str, content: str, force: bool = False) -> str:
     """Write content to path, creating directories if needed, unless exists and not force."""
@@ -404,6 +451,23 @@ def build_auth(
         if os.path.exists(controller_path):
             files["controller"] = controller_path
         return {"files": files, "already_configured": True}
+
+    # The generated views open with `@extends("layouts.app")`, so the shell has
+    # to exist or every one of them raises at render time. Written only when
+    # the project has none.
+    layout_path = layout_scaffolder.ensure_layout(base_path, force=force)
+    if layout_path is not None:
+        result["files"]["view_layout"] = layout_path
+
+    # The generated controller imports `app.Models.User`. The engine does not
+    # ship that class - it resolves whatever the project declares - so the
+    # generator writes it, along with the table it reads.
+    result["files"].update(_copy_auth_templates(base_path, force=force))
+    config_path = identity_config.record_models(
+        base_path, {"user": USER_MODEL_PATH}, user_provider=True
+    )
+    if config_path is not None:
+        result["files"]["config_auth"] = config_path
 
     # Views
     views_dir = os.path.join(base_path, "resources", "views", "auth")

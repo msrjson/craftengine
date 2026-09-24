@@ -5,7 +5,7 @@
 
 import pytest
 from craft.facades import Image, Media
-from app.Models.Media import Media as MediaModel
+from tests.support.models import Media as MediaModel
 from craft.facades import DB
 
 

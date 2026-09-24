@@ -48,17 +48,35 @@ MULTI_TENANCY_STRATEGY = env("MULTI_TENANCY_STRATEGY", "rls")
 PQC_SECURITY_ENABLED = env("PQC_SECURITY_ENABLED", True)
 CAPTCHA_ENABLED = env("CAPTCHA_ENABLED", True)
 
-# Health probes
+# Health probes - set HEALTH_ROUTES_ENABLED=true to serve /health and /ready.
 #
-# Two endpoints, because a load balancer asks two different questions.
-# `/health` is liveness: it touches nothing external, so a database incident
-# does not get every healthy web instance restarted on top of it. `/ready` is
-# readiness: it checks the database and cache, so an instance that cannot
-# serve is taken out of rotation instead of returning errors. An application
-# route on either path takes precedence over the built-in one.
-HEALTH_ROUTES_ENABLED = env("HEALTH_ROUTES_ENABLED", True)
+# Off by default. Two endpoints, because a load balancer asks two different
+# questions. `/health` is liveness: it touches nothing external, so a database
+# incident does not get every healthy web instance restarted on top of it.
+# `/ready` is readiness: it checks the database and cache, so an instance that
+# cannot serve is taken out of rotation instead of returning errors.
+#
+# Readiness is why this is opt-in rather than on: its payload names the
+# database driver, the cache store and the connection-pool census, and every
+# hit costs a query and a cache round-trip. Unauthenticated, that is both
+# infrastructure disclosure and a free load amplifier, so it is turned on
+# deliberately - ideally reachable only from the orchestrator's network.
+# An application route on either path takes precedence over the built-in one.
+HEALTH_ROUTES_ENABLED = env("HEALTH_ROUTES_ENABLED", False)
 HEALTH_LIVENESS_PATH = env("HEALTH_LIVENESS_PATH", "/health")
 HEALTH_READINESS_PATH = env("HEALTH_READINESS_PATH", "/ready")
+
+# Who may see *why* an instance is not ready. Without a token /ready answers
+# only {"status": ...} and the HTTP code, which is everything a load balancer
+# routes on; the driver, the cache store and the pool census are returned only
+# to a caller presenting this as a bearer token. Optional: leaving it empty
+# gives everyone the reduced payload, never the detailed one.
+HEALTH_READINESS_TOKEN = env("HEALTH_READINESS_TOKEN", "")
+
+# How long one readiness result serves every request behind it. The checks
+# issue a query and a cache write, so without this an unauthenticated path
+# turns request rate into database load. Zero runs them on every hit.
+HEALTH_READINESS_CACHE_SECONDS = env("HEALTH_READINESS_CACHE_SECONDS", 5)
 
 # How many requests one process serves at once. Zero derives it from the
 # connection pool (`pool_size` x 2, at least 8), which is the right default:

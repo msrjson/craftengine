@@ -6,6 +6,14 @@ Routes are defined inside the `routes/` directory:
 - `routes/web.py` for standard browser-based HTML routes (supporting session state, cookie-based auth, CSRF validations, and template responses).
 - `routes/api.py` for stateless JSON API routes (typically prefixed with `/api`).
 
+The starter application's canonical login route is `GET /login` (named `login`),
+with credentials submitted to `POST /login` (named `login.attempt`). A `GET
+/signin` request redirects to `/login` for links that use that spelling. New
+links should use the named `login` route; the redirect does not handle login
+submissions.
+See [Authentication](authentication.md) for the complete starter route contract
+and middleware flow.
+
 ---
 
 ## Basic Routes

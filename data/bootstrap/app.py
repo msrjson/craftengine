@@ -172,4 +172,10 @@ if _config.get("framework.MULTI_TENANCY_ENABLED", False):
 
 kernel.with_middleware(*_global_middleware)
 
+# Record the framework's own routes - the health probes, the metrics scrape,
+# the MSR manifest, the static-asset mount - on the router, so `route:list`
+# and the panel's route audit account for every path that answers. Each is
+# governed by its own configuration flag and none of them is on by default.
+kernel.register_engine_routes()
+
 asgi_app = kernel.get_starlette_app()

@@ -95,7 +95,7 @@ project:
 ```
 
 `python dev.py agent:scaffold` also writes `llms.txt` and `llms-full.txt` (project root and
-`documentation/`), `.agents/mcp.json`, and installs this catalog into `.claude/agents/`,
+`documentation/`), and installs this catalog into `.claude/agents/`,
 `.claude/skills/`, `.claude/commands/` and `.claude/references/`. `python dev.py agent:list` shows
 what the catalog offers and `python dev.py agent:install <name>` adds a single entry.
 
@@ -312,12 +312,12 @@ rules and specs at the start; put the active task material last, closest to the 
 ## MCP Integrations
 
 Model Context Protocol servers provide live context instead of pasted context.
-`python dev.py agent:scaffold` writes `.agents/mcp.json` with a `craft-engine` server entry that
-runs `python dev.py route:list`; extend it with the servers the project needs:
+Use `python dev.py route list --json` for route introspection. Configure an MCP
+server only when the project supplies an actual MCP transport; a CLI command
+that prints a route table is not an MCP server.
 
 | MCP server kind | What it provides |
 |---|---|
-| **Project CLI** | Route table and other `python dev.py` introspection |
 | **Chrome DevTools** | Live browser state, DOM, console, network |
 | **PostgreSQL** | Schema and read-only query results (point it at a development database, never production) |
 | **Filesystem** | Project file access and search |

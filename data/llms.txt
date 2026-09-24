@@ -1,12 +1,13 @@
 # Craft Engine
-> High-performance async Python web framework designed with Laravel elegance, Active Record ORM, Typer CLI, and native AI coding agent ergonomics.
+> Python web framework on Starlette, with Laravel-style ergonomics, Active Record ORM, and native AI coding agent guidance.
 
 ## Core Architectural Primitives
-- **Active Record ORM**: Async Python models inheriting `craft.orm.model.Model` with fluent query builder, relationships, casts, and soft deletes.
+- **Active Record ORM**: Synchronous Python models inheriting `craft.orm.model.Model` with fluent query builder, relationships, casts, and soft deletes.
 - **Facades**: Global static accessors (`Route`, `DB`, `Auth`, `AntiSpam`, `Cache`, `Firewall`, `View`).
 - **Forge Template Engine**: High-velocity server-rendered views supporting `@extends`, `@section`, `@csrf`, `@honeypot`, `@antispam`, and `@error('field')`.
 - **Form Validation & AntiSpam**: Zero-dependency `Validator` supporting 30+ rules (`required`, `email`, `url`, `file`, `image`, `mimes`, `max_file_size`, `alpha_spaces`, `no_html`, `spam_free`, `honeypot`), with `MessageBag` and `redirect.back().with_errors()`.
 - **Forward-Only Database Evolution**: Schema safety enforced by `python dev.py migrate`. Banned destructive operations protect data persistence.
+- **Explicit Authentication Routes**: In the starter, `GET /login` displays the form, `POST /login` submits credentials, and `GET /signin` redirects to `/login`. Inspect `routes/web.py` in each application.
 
 ## Key CLI Commands (`python dev.py <cmd>`)
 - `python dev.py serve [--port 9000]` — Launch ASGI development server.
@@ -16,7 +17,7 @@
 - `python dev.py make:request <Name>` — Generate FormRequest validator.
 - `python dev.py make:crud <Entity> --fields "<spec>"` — Generate full vertical slice (model, migration, controller, request, resource, views, routes).
 - `python dev.py make:auth` — Scaffold login, registration, dashboard, requests, and Forge templates.
-- `python dev.py agent:scaffold` — Bootstrap AI agent context files (.cursorrules, llms.txt, AGENTS.md, mcp.json).
+- `python dev.py agent:scaffold` — Bootstrap AI agent context files (.cursorrules, llms.txt, AGENTS.md).
 - `python dev.py agent:list` / `python dev.py agent:install <name>... | --all` — Install development agents, skills and commands into `.claude/`.
 
 ## Documentation Links
@@ -24,3 +25,4 @@
 - [Form Validation & AntiSpam](documentation/forms_and_validation.md)
 - [CLI Reference](documentation/cli.md)
 - [AI Agents Standard](documentation/ai_agents.md)
+- [Authentication and Routes](documentation/authentication.md)

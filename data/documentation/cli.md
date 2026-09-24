@@ -16,11 +16,10 @@ Colon-separated commands work, and so does the plain form: `migrate:status` and
 | `migrate --pretend` | Print what would run, touching nothing |
 | `migrate --seed` | Migrate, then run the DatabaseSeeder |
 | `migrate:status` | Which migrations ran, and in which batch |
-| `migrate:rollback` | Revert the last batch |
-| `migrate:rollback --step N` | Revert the last N batches |
-| `migrate:reset` | Revert everything *(Banned in persistence-first & automated agent workflows)* |
-| `migrate:refresh` | Reset, then re-run *(Banned in persistence-first & automated agent workflows)* |
-| `migrate:fresh` | Drop every table, then re-run *(Banned in persistence-first & automated agent workflows)* |
+| `migrate:rollback` | Refused under absolute data persistence |
+| `migrate:reset` | Refused under absolute data persistence |
+| `migrate:refresh` | Refused under absolute data persistence |
+| `migrate:fresh` | Refused under absolute data persistence |
 | `migrate:install` | Create the migrations table only |
 
 > **Safety Notice**: Craft Engine enforces **Absolute Data Persistence**. Destructive commands (`migrate:fresh`, `migrate:reset`, `migrate:refresh`, `db wipe`) are strictly prohibited in production, test, and automated agent environments. See [Database Safety](database_safety.md).
@@ -58,6 +57,7 @@ Colon-separated commands work, and so does the plain form: `migrate:status` and
 | `make seeder Product` | Seeder |
 | `make service Billing` | Plain service class |
 | `make auth [--views] [-f]` | Full authentication stack (Controller, FormRequests, Forge views, routes) |
+| `make admin [-f]` | RBAC admin panel (controllers, Role/Permission/Group models, RBAC migration, Forge views, `/admin/*` routes, `config/auth.py` model entries) |
 
 Names are normalised: `service_order`, `service-order` and `ServiceOrder` all
 produce `ServiceOrder`. Suffixes are added once — `make controller Product` and
@@ -74,7 +74,12 @@ Migration names drive the stub: `create_*_table` produces a create migration and
 python dev.py route list
 python dev.py route list --method POST
 python dev.py route list --path /api
+python dev.py route list --json
 ```
+
+The table shows the ordered global middleware stack plus each route's declared
+middleware. `--json` returns `global_middleware` and a `routes` array with
+`method`, `uri`, `name`, and `middleware` fields for tooling and agents.
 
 ## Queue
 

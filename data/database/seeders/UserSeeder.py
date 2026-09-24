@@ -31,14 +31,14 @@ class UserSeeder(Seeder):
     def run(self):
         self.seed_demo_tenant()
 
-        User.force_create({
+        self._ensure_user({
             "name": "Standard User",
             "email": "user@craft.local",
             "password": "craft",
             "type": "user",
             "is_admin": False,
         })
-        User.force_create({
+        self._ensure_user({
             "name": "Tenant User",
             "email": "tenant@craft.local",
             "password": "craft",
@@ -47,13 +47,19 @@ class UserSeeder(Seeder):
             # What `ScopeTenant.resolve()` reads when the host names no tenant.
             "tenant_id": self.DEMO_TENANT_ID,
         })
-        User.force_create({
+        self._ensure_user({
             "name": "Admin User",
             "email": "admin@craft.local",
             "password": "craft",
             "type": "admin",
             "is_admin": True,
         })
+
+    @staticmethod
+    def _ensure_user(values):
+        """Preserve an existing account, including its password and access."""
+        if User.query().where("email", values["email"]).first() is None:
+            User.force_create(values)
 
     def seed_demo_tenant(self):
         """Insert the demo tenant, idempotently.
