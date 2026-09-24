@@ -1,69 +1,67 @@
-# Craft Engine
+# CraftEngine
 
-A batteries-included Python web framework, built on **Starlette**. This repository is the **base skeleton** for
-building new applications — the skeleton you copy to start an app.
+A Python web framework built on **Starlette**, delivered as an engine and
+nothing else: no admin panel, no login screen, no theme, no demo data. A new
+project answers one route and contains nothing to reuse, so the people and
+agents building on it start from their own code rather than from someone
+else's layout.
 
 The core lives in `engine/` and is exposed publicly as `craft.*`.
-
-For the starter application's actual login URLs and middleware flow, see
-[Authentication](documentation/authentication.md). `GET /signin` redirects to
-the canonical `/login` page; credentials are submitted to `POST /login`.
 
 ```python
 from craft.facades import Route, DB, Auth
 from craft.orm.model import Model
 ```
 
-**1200+ tests**, validated on SQLite, PostgreSQL, and Python 3.14.
+**1,500+ tests**, validated on SQLite, PostgreSQL, and Python 3.14.
 
-
-> New here — or an AI agent picking this up? Read
-> [**`CRAFT_ENGINE.md`**](CRAFT_ENGINE.md): what the engine contains, the build
-> loop, how the same codebase carries an app from a blog to multi-tenant scale,
-> and an explicit list of what does *not* exist yet.
->
-> Looking for an objective market comparison (Django vs FastAPI vs Laravel vs Rails)?
-> Check out the [**Market Evaluation & Framework Benchmark**](documentation/market_evaluation.md).
+> New here - or an AI agent picking this up? Read [`AGENTS.md`](AGENTS.md)
+> first, then [`CRAFT_ENGINE.md`](CRAFT_ENGINE.md) for what the engine
+> contains and what does *not* exist yet.
 
 ---
 
 ## Getting started
 
 ```bash
+craft new myapp
+cd myapp
 cp .env.example .env
-python dev.py key:generate        # signs session cookies
-python dev.py migrate --seed
-python dev.py serve
+craft key:generate        # signs session cookies
+craft migrate
+craft serve               # http://127.0.0.1:9000
 ```
 
-The default database is **SQLite** — zero configuration, no server needed.
-For PostgreSQL or MySQL, uncomment the matching block in `.env`.
-`APP_DEBUG` defaults to off in the framework; `.env.example` turns it on
-for local development.
+The default database is **SQLite**: zero configuration, no server. For
+PostgreSQL or MySQL, uncomment the matching block in `.env`. `python dev.py`
+works everywhere `craft` does, without installing the package.
 
-Or with Docker (app at `http://localhost:9000`):
+`/` shows a starter page. Delete `resources/views/welcome.forge.py` and its
+route in `routes/web.py` when you have a page of your own; nothing else refers
+to either.
 
-```bash
-docker compose up -d --build
-```
+### Add what you need
 
----
+Nothing below is present until you ask for it, and everything it writes is
+yours to change:
 
-## Demo accounts
+| Command | Writes |
+|---|---|
+| `craft make:auth` | `User` model and migration, sign-in, registration, sign-out |
+| `craft make:admin` | Role, permission and group management under `/admin` |
+| `craft make:crud Product --fields "name:string:required"` | Model, migration, screens and a JSON API |
+| `craft make:model`, `make:controller`, `make:request`, ... | One class at a time |
 
-`migrate --seed` seeds **3 standard demo accounts** — the framework's
-official demo credentials. Any skeleton spun up from this repository gets the
-same 3 accounts, so docs, screenshots, and admin-UI work can reference them
-by name without re-explaining who they are.
+Every route that answers is listed by `craft route:list`, the engine's own
+included. Health probes, metrics and the MSR manifest are off until a flag in
+`config/` turns them on.
 
-| Email | Password | Role | Demonstrates |
-|---|---|---|---|
-| `user@craft.local` | `craft` | `user` | A plain authenticated account — the `user` role, basic permissions. |
-| `tenant@craft.local` | `craft` | `tenant-manager` | `type = "tenant"`, so `TenantMiddleware` routes it to an isolated per-schema PostgreSQL tenant; the `tenant-manager` role adds `manage-users` on top of the basic set — elevated, short of full admin. |
-| `admin@craft.local` | `craft` | `admin` | `is_admin = True` and the `admin` role — full access, every seeded permission. |
+### Upgrading from 3.x
 
-All 3 passwords are `craft`. See [`documentation/authorization.md`](documentation/authorization.md)
-for the RBAC system these roles are built on.
+4.0 removed the demo application. A project that used its admin panel, login
+screens or seeded accounts runs `craft make:auth` and `craft make:admin`, then
+points `config/auth.py` at its models. The last release carrying the demo is
+`v3.23.0-r00016`.
 
 ---
 

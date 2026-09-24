@@ -1,6 +1,6 @@
 # Image & Multimedia Manipulation
 
-Craft Engine provides a fluent, chainable, and high-performance **Image & Video Manipulation** API powered by Pillow, inspired by modern frameworks like Laravel 13.
+Craft Engine provides a fluent, chainable, and high-performance **Image & Video Manipulation** API powered by Pillow.
 
 ## 🖼️ Basic Image Usage
 

@@ -1,6 +1,6 @@
 # Craft AI SDK
 
-Craft Engine includes a provider-agnostic, unified **AI SDK** and autonomous **Agent Orchestrator** inspired by the modern AI-native patterns of Laravel 13.
+Craft Engine includes a provider-agnostic, unified **AI SDK** and autonomous **Agent Orchestrator**.
 
 ## 🚀 Basic Usage
 

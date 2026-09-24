@@ -63,10 +63,9 @@ python dev.py db ping
 python dev.py db show
 ```
 
-`--seed` also creates the framework's 3 standard demo accounts (`user@craft.local`,
-`tenant@craft.local`, `admin@craft.local`, all password `craft`) — see [the
-README's Demo accounts section](../README.md#demo-accounts) or
-[`authorization.md`](authorization.md) for what each one demonstrates.
+A new project seeds nothing. There are no accounts until you create them:
+run `craft make:auth` for a user model and sign-in, then register through
+`/register` or create users from `craft tinker`.
 
 ## Run
 

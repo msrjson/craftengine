@@ -147,12 +147,12 @@ which subsystems you switch on — not the architecture.
 SQLite (zero setup), `cookie` sessions, `array` cache, `sync` queue.
 
 ```bash
-python dev.py make crud Post --fields "title:string:required,body:text:required"
-python dev.py migrate --seed && python dev.py serve
+craft make:auth
+craft make:crud Post --fields "title:string:required,body:text:required"
+craft migrate && craft serve
 ```
 
-Seeded demo accounts (`user@`, `tenant@`, `admin@craft.local`, password
-`craft`) mean the admin UI is usable the minute it exists.
+Register an account at `/register`; the generated screens sit behind `auth`.
 
 ### 2. A real product · users, roles, background work
 

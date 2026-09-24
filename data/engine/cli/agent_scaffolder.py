@@ -35,7 +35,7 @@ def cursorrules_content() -> str:
     return """# Craft Engine — AI Assistant Rules (.cursorrules)
 
 You are an expert full-stack developer working on a Craft Engine project.
-Craft Engine is a Python web framework inspired by Laravel, featuring a synchronous Active Record ORM, a Starlette ASGI runtime, the dev CLI, Forge templates, and Facades.
+Craft Engine is a Python web framework delivered as a bare engine: a synchronous Active Record ORM, a Starlette ASGI runtime, the `craft` CLI, Forge templates, and Facades. A project starts with no application code to reuse; generators add what it needs.
 
 ## 1. CORE ARCHITECTURAL INVARIANTS
 - Framework: Craft Engine (Python 3.14+; Starlette ASGI with synchronous request handlers).
@@ -51,8 +51,10 @@ Craft Engine is a Python web framework inspired by Laravel, featuring a synchron
 - `database/migrations/` — Forward-only schema migrations.
 - `resources/views/` — Forge templates (`.forge.py` or `.html`).
 - `routes/web.py` & `routes/api.py` — Route definitions using `craft.facades.Route`.
-- The starter login URL is `/login`; `GET /signin` redirects there. Inspect
-  `python dev.py route list --json` before suggesting a route.
+- A project has no login route until `craft make:auth` has run; after it the
+  canonical route is `/login` and `GET /signin` redirects there. Inspect
+  `craft route:list --json` before suggesting a route: it lists every route
+  that answers, the engine's own included.
 
 ## 3. FACADES & DEPENDENCY INJECTION
 Import facades directly:
@@ -93,7 +95,7 @@ from craft.facades import Route, DB, Auth, AntiSpam, View, Cache, Firewall
 
 def llms_txt_content() -> str:
     return """# Craft Engine
-> Python web framework on Starlette, with Laravel-style ergonomics, Active Record ORM, and native AI coding agent guidance.
+> Python web framework on Starlette, delivered as a bare engine: Active Record ORM, generators for what a project needs, and native AI coding agent guidance.
 
 ## Core Architectural Primitives
 - **Active Record ORM**: Synchronous Python models inheriting `craft.orm.model.Model` with fluent query builder, relationships, casts, and soft deletes.
@@ -101,22 +103,25 @@ def llms_txt_content() -> str:
 - **Forge Template Engine**: High-velocity server-rendered views supporting `@extends`, `@section`, `@csrf`, `@honeypot`, `@antispam`, and `@error('field')`.
 - **Form Validation & AntiSpam**: Zero-dependency `Validator` supporting 30+ rules (`required`, `email`, `url`, `file`, `image`, `mimes`, `max_file_size`, `alpha_spaces`, `no_html`, `spam_free`, `honeypot`), with `MessageBag` and `redirect.back().with_errors()`.
 - **Forward-Only Database Evolution**: Schema safety enforced by `python dev.py migrate`. Banned destructive operations protect data persistence.
-- **Explicit Authentication Routes**: In the starter, `GET /login` displays the form, `POST /login` submits credentials, and `GET /signin` redirects to `/login`. Inspect `routes/web.py` in each application.
+- **Nothing To Reuse**: `craft new` writes a project with one route and no models, controllers, theme or seeded data. `craft make:auth`, `craft make:admin` and `craft make:crud` add authentication, the RBAC panel and resources on request.
+- **No Undeclared Routes**: every route that answers appears in `craft route:list`. Health probes, metrics and the MSR manifest stay off until a flag in `config/` enables them.
 
-## Key CLI Commands (`python dev.py <cmd>`)
+## Key CLI Commands (`craft <cmd>`, or `python dev.py <cmd>` without installing)
+- `craft new <name>` — Generate a bare project: one route, nothing to reuse.
 - `python dev.py serve [--port 9000]` — Launch ASGI development server.
 - `python dev.py migrate` — Apply forward-only schema migrations.
 - `python dev.py make:model <Name> [-m]` — Generate Active Record model and optional migration.
 - `python dev.py make:controller <Name> [--resource]` — Generate HTTP controller.
 - `python dev.py make:request <Name>` — Generate FormRequest validator.
 - `python dev.py make:crud <Entity> --fields "<spec>"` — Generate full vertical slice (model, migration, controller, request, resource, views, routes).
-- `python dev.py make:auth` — Scaffold login, registration, dashboard, requests, and Forge templates.
+- `python dev.py make:auth` — Scaffold the User model and migration, sign-in, registration, sign-out and their Forge templates.
+- `python dev.py make:admin` — Scaffold role, permission and group management under `/admin`, with its models and migration.
 - `python dev.py agent:scaffold` — Bootstrap AI agent context files (.cursorrules, llms.txt, AGENTS.md).
 - `python dev.py agent:list` / `python dev.py agent:install <name>... | --all` — Install development agents, skills and commands into `.claude/`.
 
 ## Documentation Links
 - [Complete Architecture Guide](llms-full.txt)
-- [Form Validation & AntiSpam](documentation/forms_and_validation.md)
+- [Form Validation & AntiSpam](documentation/validation.md)
 - [CLI Reference](documentation/cli.md)
 - [AI Agents Standard](documentation/ai_agents.md)
 - [Authentication and Routes](documentation/authentication.md)
@@ -126,7 +131,7 @@ def llms_txt_content() -> str:
 def llms_full_txt_content() -> str:
     return """# Craft Engine — Full Specification for LLMs & AI Coding Agents
 
-Craft Engine is a full-stack Python web framework with Laravel-like syntax, a Starlette ASGI runtime, synchronous Active Record ORM, and integrated security and AI tooling.
+Craft Engine is a Python web framework delivered as a bare engine, with a Starlette ASGI runtime, a synchronous Active Record ORM, and integrated security and AI tooling. A new project has one route and nothing to reuse; generators add authentication, an RBAC panel and resources on request.
 
 ---
 
@@ -158,8 +163,9 @@ first = Article.find(1)
 
 ## 2. HTTP Routing & Controllers
 File location: `routes/web.py`
-The starter's canonical login URL is `/login`. `GET /signin` is a navigation
-redirect only. Verify application routes with `python dev.py route list --json`.
+There is no login route until `craft make:auth` has run; after it the canonical
+URL is `/login`, and `GET /signin` is a navigation redirect only. Verify
+application routes with `craft route:list --json`.
 ```python
 from craft.facades import Route
 from app.Http.Controllers.ArticleController import ArticleController
@@ -286,12 +292,14 @@ def project_agents_content() -> str:
     """Return the short, tool-neutral entry point for generated projects."""
     return """# Craft Engine project instructions
 
-Craft is Laravel-like in ergonomics, but application behavior is defined by
-this project's Python code. Inspect routes before proposing a URL.
+Application behavior is defined by this project's Python code, verified in
+its source rather than recalled from another framework. Inspect routes before
+proposing a URL.
 
 - Read `documentation/authentication.md` and `routes/web.py` for login behavior.
-- In the starter, `GET /login` is canonical, `POST /login` submits credentials,
-  and `GET /signin` only redirects to `/login`.
+- There is no login until `craft make:auth` has run. After it, `GET /login` is
+  canonical, `POST /login` submits credentials, and `GET /signin` only
+  redirects to `/login`.
 - Use `python dev.py route list --json` to inspect route names and middleware.
 - `Authenticate` resolves the session globally; `auth` requires login on a
   route; roles, permissions, groups, or Gate authorize privileged actions.

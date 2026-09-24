@@ -1,6 +1,6 @@
 # Craft Engine — Full Specification for LLMs & AI Coding Agents
 
-Craft Engine is a full-stack Python web framework with Laravel-like syntax, a Starlette ASGI runtime, synchronous Active Record ORM, and integrated security and AI tooling.
+Craft Engine is a Python web framework delivered as a bare engine, with a Starlette ASGI runtime, a synchronous Active Record ORM, and integrated security and AI tooling. A new project has one route and nothing to reuse; generators add authentication, an RBAC panel and resources on request.
 
 ---
 
@@ -32,8 +32,9 @@ first = Article.find(1)
 
 ## 2. HTTP Routing & Controllers
 File location: `routes/web.py`
-The starter's canonical login URL is `/login`. `GET /signin` is a navigation
-redirect only. Verify application routes with `python dev.py route list --json`.
+There is no login route until `craft make:auth` has run; after it the canonical
+URL is `/login`, and `GET /signin` is a navigation redirect only. Verify
+application routes with `craft route:list --json`.
 ```python
 from craft.facades import Route
 from app.Http.Controllers.ArticleController import ArticleController

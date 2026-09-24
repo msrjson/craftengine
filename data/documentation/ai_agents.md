@@ -10,11 +10,14 @@ Craft Engine is designed from the ground up to be **AI-Native** and exceptionall
 
 ## 🤖 Why Craft Engine is Agent-Friendly
 
-1. **Active Record & Laravel-Style Ergonomics**:
-   LLMs have been trained on vast amounts of Laravel, Django, and FastAPI code. Craft Engine uses the exact same intuitive mental models:
-   - `Model.find(id)` / `Model.where(...)`
+1. **Small, conventional surface**:
+   The primitives are few and predictable, but they are Craft's own - verify
+   them in `engine/` rather than assuming another framework's API:
+   - `Model.find(id)` / `Model.query().where(...)`
    - `Route.get(...)` / `Route.post(...)`
-   - `Validator.make(data, rules)`
+   - `Validator(data, rules)` - a constructor; there is no `Validator.make`
+   - A `FormRequest` subclass validates, and with `antispam = True` also runs
+     the honeypot and time trap: `LoginRequest(request).passes()`
    - Controllers, FormRequests, Resources, and Forge templates.
 2. **Deterministic CLI Tooling**:
    - Every file can be generated deterministically via `python dev.py make:*` (`make:model`, `make:controller`, `make:request`, `make:crud`, `make:auth`).

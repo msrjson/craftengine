@@ -29,7 +29,7 @@ Colon-separated commands work, and so does the plain form: `migrate:status` and
 | Command | What it does |
 |---|---|
 | `db seed` | Run `DatabaseSeeder` |
-| `db seed --class UserSeeder` | Run one seeder |
+| `db seed --class ProductSeeder` | Run one seeder |
 | `db show` | Connection, driver, host, database |
 | `db tables` | List tables |
 | `db ping` | Verify the connection; non-zero exit on failure |
