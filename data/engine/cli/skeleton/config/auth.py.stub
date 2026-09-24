@@ -27,8 +27,8 @@ providers = {
 
 # The identity models this project provides, resolved by the engine through
 # `craft.auth.registry`. The engine never imports these directly: it reads
-# them from here, and console command groups that need one (role:*,
-# permission:*, group:*, user:*) simply do not register while it is missing.
+# them from here. A console command that needs one (role:*, permission:*,
+# group:*, user:*) stops and names the generator to run while it is missing.
 #
 # `craft make:auth` writes the user entry. `craft make:admin` writes the rest.
 models = {

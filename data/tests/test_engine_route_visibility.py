@@ -94,7 +94,8 @@ class TestNothingAnswersUndeclared:
         assert MANIFEST_PATH not in {route["uri"] for route in engine_table()}
 
     def test_the_declared_route_still_answers(self, default_configuration):
-        assert TestClient(asgi_app).get("/login").status_code == 200
+        # "/" is the one route this application declares (routes/web.py).
+        assert TestClient(asgi_app).get("/").status_code == 200
 
 
 class TestTurningThemOn:

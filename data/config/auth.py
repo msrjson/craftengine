@@ -1,7 +1,4 @@
 """Authentication configuration."""
-# Craft Framework
-# Copyright (c) 2026 Antonio Santos <snarthost@gmail.com>
-# Licensed under the MIT License. See LICENSE in the project root.
 
 defaults = {
     "guard": "web",
@@ -19,28 +16,24 @@ guards = {
     },
 }
 
+# Filled in by `craft make:auth`, which generates the User model this points
+# at. A fresh project has no user model and no login, so the entries stay
+# empty rather than naming a class that does not exist.
 providers = {
     "users": {
-        "model": "app.Models.User.User",
+        "model": "",
     },
 }
 
-# The identity models this project provides. The engine resolves these through
-# `engine/auth/registry.py` instead of importing `app.Models.*` directly, so a
-# project is free to name, move or omit them: the RBAC console commands simply
-# do not register when their model is absent.
+# The identity models this project provides, resolved by the engine through
+# `craft.auth.registry`. The engine never imports these directly: it reads
+# them from here. A console command that needs one (role:*, permission:*,
+# group:*, user:*) stops and names the generator to run while it is missing.
 #
-# `user` is what the `users` provider above points at, repeated here because
-# the provider answers "which model backs this guard" while this answers "which
-# model is this project's user". They are the same class in a normal project
-# and are allowed to diverge in one that runs several guards.
+# `craft make:auth` writes the user entry. `craft make:admin` writes the rest.
 models = {
-    "user": "app.Models.User.User",
-    "role": "app.Models.Role.Role",
-    "permission": "app.Models.Permission.Permission",
-    "group": "app.Models.Group.Group",
+    "user": "",
+    "role": "",
+    "permission": "",
+    "group": "",
 }
-
-# NOTE: no `password_timeout` here. It described a confirm-password window
-# that Craft does not implement, and nothing read it - a knob with no wiring.
-
