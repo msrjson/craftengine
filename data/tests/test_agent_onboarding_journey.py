@@ -188,3 +188,79 @@ class TestNothingAnswersThatWasNotDeclared:
 
         assert result.returncode == 0, result.stdout + result.stderr
         assert "/" in result.stdout
+
+
+#: Runs inside a generated project that has had make:auth and make:admin. Two
+#: users, one holding the `admin` role; each signs in and asks for the panel.
+_RBAC_PROBE = """
+import re, sys
+sys.path[:0] = [%(project)r, %(repository)r]
+from starlette.testclient import TestClient
+from bootstrap.app import asgi_app
+from app.Models.User import User
+from app.Models.Role import Role
+from craft.facades import DB
+
+admin = User.create({"name": "Ada", "email": "ada@journey.test", "password": "correct-horse"})
+User.create({"name": "Bob", "email": "bob@journey.test", "password": "correct-horse"})
+role = Role.create({"name": "Admin", "slug": "admin"})
+DB.table("role_user").insert({"user_id": admin.get_attribute("id"), "role_id": role.get_attribute("id")})
+
+def visit(email, password, paths):
+    client = TestClient(asgi_app)
+    token = re.search(r'name="_token" value="([^"]+)"', client.get("/login").text).group(1)
+    client.post("/login", data={"email": email, "password": password, "_token": token})
+    return [client.get(path, follow_redirects=False).status_code for path in paths]
+
+screens = ["/admin/roles", "/admin/permissions", "/admin/groups", "/admin/crud-builder", "/dashboard"]
+print("ADMIN", visit("ada@journey.test", "correct-horse", screens))
+print("PLAIN", visit("bob@journey.test", "correct-horse", ["/admin/roles", "/dashboard"]))
+print("WRONG", visit("ada@journey.test", "wrong-password", ["/dashboard"]))
+print("ANON", [TestClient(asgi_app).get("/admin/roles", follow_redirects=False).status_code])
+stored = User.query().where("email", "ada@journey.test").first().get_attribute("password")
+print("HASHED", stored != "correct-horse")
+"""
+
+
+class TestGeneratedAuthenticationAndAdminPanel:
+    """What `make:auth` and `make:admin` produce must actually work together.
+
+    Every screen those commands generate used to fail in a project generated
+    by `craft new`: the login answered 500 because the anti-spam provider was
+    missing and the controller called APIs that do not exist, the admin views
+    extended a layout nobody generated, and the generated user had no
+    has_role, so `role:admin` refused everyone - including administrators.
+    None of it showed in this suite, because this repository used its own demo
+    application instead of the generated code.
+    """
+
+    def test_roles_gate_the_panel_and_sign_in_works(self, generated_project):
+        database = os.path.join(generated_project, "storage", "database.sqlite")
+        for command in (("make:auth",), ("make:admin",), ("migrate",)):
+            result = run_console(*command, cwd=generated_project, database=database)
+            assert result.returncode == 0, result.stdout + result.stderr
+
+        environment = dict(os.environ)
+        environment.update({"DB_CONNECTION": "sqlite", "DB_DATABASE": database})
+        probe = _RBAC_PROBE % {"project": generated_project, "repository": REPOSITORY_ROOT}
+        result = subprocess.run(
+            [sys.executable, "-c", probe],
+            cwd=generated_project,
+            env=environment,
+            capture_output=True,
+            text=True,
+            timeout=180,
+        )
+        assert result.returncode == 0, result.stdout + result.stderr
+        report = dict(line.split(" ", 1) for line in result.stdout.splitlines() if " " in line)
+
+        # An administrator reaches every screen of the panel and the dashboard.
+        assert report["ADMIN"] == "[200, 200, 200, 200, 200]", report
+        # A signed-in account without the role is refused, not redirected away.
+        assert report["PLAIN"] == "[403, 200]", report
+        # A wrong password authenticates nobody.
+        assert report["WRONG"] == "[302]", report
+        # A visitor who never signed in is sent to sign in.
+        assert report["ANON"] == "[302]", report
+        # The password reached the database hashed.
+        assert report["HASHED"] == "True", report

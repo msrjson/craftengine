@@ -1,5 +1,5 @@
 {#
-    Admin — Groups.
+    Admin - Groups.
 
     Rendered by `app/Http/Controllers/Admin/GroupController.py::index`, behind
     `auth` + `role:admin` (see `routes/web.py`). This screen hands out access,
@@ -7,7 +7,7 @@
 
     A group grants access to a team rather than to one person at a time: it
     carries roles and/or permissions, and every member inherits them. The
-    conditions column shows a grant's ABAC conditions verbatim — "publish-post,
+    conditions column shows a grant's ABAC conditions verbatim - "publish-post,
     only where user_id matches the acting user" is precisely the detail that
     must not be rounded off on the screen people audit.
 
@@ -18,9 +18,9 @@
       permissions_of  {group_id: [{"slug": str, "conditions": str|None}]}
       roles, permissions, users   for the three grant forms below
 #}
-@extends("layouts.panel")
+@extends("layouts.app")
 
-@section("title", "Groups — Admin")
+@section("title", "Groups - Admin")
 
 @section("content")
 <div class="space-y-8">
@@ -211,7 +211,7 @@
                            class="w-full px-4 py-2.5 rounded-xl border border-slate-200 font-mono text-xs focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500">
                     <p class="text-xs text-slate-500">
                         Narrows the grant to matching records. <code>@user.&lt;attr&gt;</code> refers to the
-                        acting user, so <code>{"user_id": "@user.id"}</code> means “only their own”.
+                        acting user, so <code>{"user_id": "@user.id"}</code> means "only their own".
                         Operators: eq, ne, in, not_in, gt, gte, lt, lte, is_null, contains.
                     </p>
                 </div>

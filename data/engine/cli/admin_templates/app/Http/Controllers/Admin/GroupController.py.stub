@@ -1,4 +1,4 @@
-"""GroupController — admin UI for group-level access.
+"""GroupController - admin UI for group-level access.
 
 Category: Application (Admin Controllers).
 Relations:
@@ -6,7 +6,7 @@ Relations:
     `permissions()` relations; membership and grants live in the `group_user`,
     `group_role` and `permission_group` pivots created by
     `database/migrations/2026_08_11_000001_create_groups_and_abac_tables.py`.
-  - Routes registered in `routes/web.py`, guarded by `auth` + `role:admin` —
+  - Routes registered in `routes/web.py`, guarded by `auth` + `role:admin` -
     this screen hands out access, so reaching it must itself be authorized.
   - Decisions are never re-implemented here: what a member ends up being
     allowed to do is resolved by `craft.auth.access.AccessResolver`.
@@ -70,7 +70,7 @@ class GroupController(PanelPage, Controller):
         """Permissions granted straight to a group, with their conditions.
 
         A join rather than the relation, because the relation returns the
-        permissions and drops the `conditions` column carried by the pivot —
+        permissions and drops the `conditions` column carried by the pivot -
         which is exactly the part an administrator needs to see.
         """
         rows = DB.statement(

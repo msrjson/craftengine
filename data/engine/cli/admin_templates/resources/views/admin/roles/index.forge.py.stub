@@ -1,5 +1,5 @@
 {#
-    Admin — Roles.
+    Admin - Roles.
 
     Rendered by `app/Http/Controllers/Admin/RoleController.py::index` at
     `GET /admin/roles`, behind `auth` + `role:admin`. The form posts to
@@ -12,9 +12,9 @@
       permissions        list[Permission]   options for the grant form
       show_sidebar       bool
 #}
-@extends("layouts.panel")
+@extends("layouts.app")
 
-@section("title", "Roles — Admin")
+@section("title", "Roles - Admin")
 
 @section("content")
 <div class="space-y-8">

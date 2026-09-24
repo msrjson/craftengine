@@ -79,7 +79,6 @@ class TestGeneratedFiles:
             "app/Models/Role.py",
             "app/Models/Permission.py",
             "app/Models/Group.py",
-            "resources/views/admin/dashboard.forge.py",
             "resources/views/admin/roles/index.forge.py",
             "resources/views/admin/permissions/index.forge.py",
             "resources/views/admin/groups/index.forge.py",

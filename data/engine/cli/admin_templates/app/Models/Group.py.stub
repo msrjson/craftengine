@@ -1,4 +1,4 @@
-"""Group model — access granted to a team rather than to one person at a time.
+"""Group model - access granted to a team rather than to one person at a time.
 
 A group collects users and carries roles and/or permissions of its own.
 Onboarding someone into "the support team" then becomes a single membership
@@ -7,7 +7,7 @@ it is one delete rather than an audit of five pivot tables.
 
 Permissions reaching a user *through* a group are resolved by
 `craft.auth.access.AccessResolver`, together with the direct and role-based
-paths — see `documentation/authorization.md`. Nothing here re-implements that
+paths - see `documentation/authorization.md`. Nothing here re-implements that
 check; these relations exist for reading and managing membership.
 """
 # Craft Framework

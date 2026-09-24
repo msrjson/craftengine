@@ -19,40 +19,12 @@ def create_app() -> Application:
     app = Application(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     app.register_config()
 
-    from craft.providers.service_providers import (
-        AuthServiceProvider,
-        CacheServiceProvider,
-        DatabaseServiceProvider,
-        EventServiceProvider,
-        ExceptionServiceProvider,
-        FrameworkSubsystemsServiceProvider,
-        LoggingServiceProvider,
-        MailServiceProvider,
-        MigratorServiceProvider,
-        PostgresServiceProvider,
-        QueueServiceProvider,
-        RouterServiceProvider,
-        StorageServiceProvider,
-        ViewServiceProvider,
-    )
+    # Every engine provider, from the single list in the engine. Writing the
+    # list out here is how this bootstrap once fell behind and left the
+    # generated login screen without the anti-spam it depends on.
+    from craft.providers.engine_providers import register_engine_providers
 
-    for provider in (
-        DatabaseServiceProvider,
-        PostgresServiceProvider,
-        RouterServiceProvider,
-        ViewServiceProvider,
-        AuthServiceProvider,
-        EventServiceProvider,
-        QueueServiceProvider,
-        LoggingServiceProvider,
-        CacheServiceProvider,
-        MigratorServiceProvider,
-        ExceptionServiceProvider,
-        StorageServiceProvider,
-        MailServiceProvider,
-        FrameworkSubsystemsServiceProvider,
-    ):
-        app.register_provider(provider)
+    register_engine_providers(app)
 
     from app.Providers.AppServiceProvider import AppServiceProvider
     from app.Providers.EventServiceProvider import EventServiceProvider as AppEventServiceProvider

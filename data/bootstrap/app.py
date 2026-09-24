@@ -20,70 +20,11 @@ def create_app() -> Application:
     # Load config
     app.register_config()
 
-    # Register framework service providers
-    from craft.providers.service_providers import (
-        DatabaseServiceProvider,
-        PostgresServiceProvider,
-        RouterServiceProvider,
-        ViewServiceProvider,
-        AuthServiceProvider,
-        EventServiceProvider,
-        QueueServiceProvider,
-        LoggingServiceProvider,
-        CacheServiceProvider,
-        MigratorServiceProvider,
-        ExceptionServiceProvider,
-        PQCServiceProvider,
-        CaptchaServiceProvider,
-        FirewallServiceProvider,
-        HoneypotServiceProvider,
-        AntiSpamServiceProvider,
-        VaultServiceProvider,
-        SignerServiceProvider,
-        MediaServiceProvider,
-        AIServiceProvider,
-        AgentServiceProvider,
-        StorageServiceProvider,
-        MailServiceProvider,
-        FrameworkSubsystemsServiceProvider,
-    )
+    # Every engine provider, from the single list in the engine, so this
+    # bootstrap and the one `craft new` generates cannot drift apart.
+    from craft.providers.engine_providers import register_engine_providers
 
-    app.register_provider(DatabaseServiceProvider)
-    app.register_provider(PostgresServiceProvider)
-    app.register_provider(RouterServiceProvider)
-    app.register_provider(ViewServiceProvider)
-    app.register_provider(AuthServiceProvider)
-    app.register_provider(EventServiceProvider)
-    app.register_provider(QueueServiceProvider)
-    app.register_provider(LoggingServiceProvider)
-    app.register_provider(CacheServiceProvider)
-    app.register_provider(MigratorServiceProvider)
-    app.register_provider(ExceptionServiceProvider)
-    app.register_provider(FirewallServiceProvider)
-    app.register_provider(HoneypotServiceProvider)
-    app.register_provider(AntiSpamServiceProvider)
-    app.register_provider(MediaServiceProvider)
-    app.register_provider(AIServiceProvider)
-    app.register_provider(AgentServiceProvider)
-    app.register_provider(StorageServiceProvider)
-    app.register_provider(MailServiceProvider)
-
-    # `config/framework.py` ships these as feature flags, but nothing read
-    # them: both providers registered unconditionally, so setting
-    # PQC_SECURITY_ENABLED=false or CAPTCHA_ENABLED=false changed nothing. A
-    # switch that does not switch is worse than no switch.
-    config = app.make("config")
-    if config.get("framework.PQC_SECURITY_ENABLED", True):
-        app.register_provider(PQCServiceProvider)
-    if config.get("framework.CAPTCHA_ENABLED", True):
-        app.register_provider(CaptchaServiceProvider)
-    # Unconditional and lazy: registering costs nothing (the Vault/Signer
-    # instance is only built, and APP_KEY only read, on first use).
-    app.register_provider(VaultServiceProvider)
-    app.register_provider(SignerServiceProvider)
-
-
-    app.register_provider(FrameworkSubsystemsServiceProvider)
+    register_engine_providers(app)
 
     # Register application service providers
     from app.Providers.AppServiceProvider import AppServiceProvider

@@ -1,15 +1,18 @@
 """The user this application authenticates."""
 
-from craft.auth.models import AuthenticatableMixin
+from craft.auth.models import AuthenticatableMixin, AuthorizableMixin
 from craft.orm.model import Model
 
 
-class User(AuthenticatableMixin, Model):
+class User(AuthenticatableMixin, AuthorizableMixin, Model):
     """An account that can sign in.
 
-    Add your own columns and relationships here; this model is yours. The
-    mixin hashes the password on every insert path, so never store a
-    plaintext secret by writing to the column directly.
+    Add your own columns and relationships here; this model is yours.
+
+    AuthenticatableMixin hashes the password on every insert path, so never
+    store a plaintext secret by writing to the column directly.
+    AuthorizableMixin answers has_role, has_permission and can, which the
+    `role:` and `permission:` route middleware call on the signed-in user.
     """
 
     __table__ = "users"

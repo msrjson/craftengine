@@ -1,5 +1,5 @@
 {#
-    Admin — CRUD builder result.
+    Admin - CRUD builder result.
 
     Rendered by `app/Http/Controllers/Admin/CrudBuilderController.py::store`
     after a successful generation, behind `auth` + `role:admin`. Lists the files
@@ -13,7 +13,7 @@
 #}
 @extends("layouts.app")
 
-@section("title", "CRUD Builder — Generated")
+@section("title", "CRUD Builder - Generated")
 
 @section("content")
 <div class="max-w-4xl bg-white border border-slate-200/80 rounded-3xl p-8 shadow-sm space-y-6">
@@ -31,7 +31,7 @@
     <!-- Next Step Box -->
     <div class="p-5 rounded-2xl bg-amber-50/80 border border-amber-200 text-amber-900 space-y-2">
         <h3 class="font-bold text-sm flex items-center space-x-2">
-            <span>⚡ Next Step: Apply Database Migration</span>
+            <span>Next Step: Apply Database Migration</span>
         </h3>
         <p class="text-xs text-amber-700">Run the pending migration in your terminal to create the database table with UUID identity:</p>
         <div class="bg-slate-900 text-amber-300 font-mono text-xs px-4 py-2.5 rounded-xl shadow-inner flex items-center justify-between">

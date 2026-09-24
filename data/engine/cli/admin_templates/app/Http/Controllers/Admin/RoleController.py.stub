@@ -1,4 +1,4 @@
-"""RoleController — Minimal admin UI for the RBAC system.
+"""RoleController - Minimal admin UI for the RBAC system.
 
 Category: Application (Admin Controllers).
 Relations:
