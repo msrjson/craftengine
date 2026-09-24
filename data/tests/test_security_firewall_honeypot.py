@@ -162,7 +162,7 @@ def test_firewall_middleware_blocks_malicious_query():
 
 
 def test_authenticate_api_token_with_hashed_token():
-    from app.Models.User import User
+    from tests.support.models import User
 
     raw_token = "secret-super-api-token-1234"
     hashed_token = hashlib.sha256(raw_token.encode("utf-8")).hexdigest()

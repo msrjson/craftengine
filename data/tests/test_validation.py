@@ -167,7 +167,7 @@ class TestDatabaseRules:
     @pytest.fixture(autouse=True)
     def seeded(self, migrated_database):
         DB.statement("DELETE FROM users WHERE email = 'taken@craft.local'")
-        from app.Models.User import User
+        from tests.support.models import User
 
         user = User.create(
             {"name": "Taken", "email": "taken@craft.local", "password": "x"}

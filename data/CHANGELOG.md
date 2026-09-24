@@ -18,11 +18,111 @@ full policy (categories to use, what counts as security-relevant, how
 
 ## [Unreleased]
 
+## [4.0.0] r00017 — 2026-09-24
+
+The framework is now delivered as a bare engine. A new project starts from `craft new`
+with nothing to reuse, and generators add what it needs. This is a breaking release for
+any project that relied on the bundled demo application; see Removed.
+
 ### Added
 
+- Record every route the framework attaches on the router itself, marked with its origin
+  (`craft.http.router.APP_ORIGIN` / `ENGINE_ORIGIN`) and the module that registered it.
+  `Kernel.register_engine_routes(refresh=False)` performs the registration,
+  `Kernel.engine_routes()` and `Router.engine_routes()` return the entries, and
+  `RouteEntry.describe()` renders one as a mapping. The health probes, the metrics scrape,
+  the MSR manifest and the static-asset mount were appended straight onto the ASGI route
+  table before this, so they answered requests that no route listing could account for.
+- Ship `config/msr.py` in a generated project. The file was missing, so the manifest route
+  existed with no switch anywhere in the project to find it by.
+
+- Add `craft make:admin`, which generates the RBAC admin panel on request: admin controllers, the panel shell, `Role`, `Permission` and `Group` models, one migration holding every RBAC and ABAC table, the Forge views, the `/admin/*` routes appended to `routes/web.py` behind `auth` and `role:admin`, and the identity model entries in `config/auth.py`.
+- Add root agent instructions (`AGENTS.md`) and a route listing with middleware details and JSON output.
+- Add a CI check that rejects destructive SQL in seeders and forward migrations.
 - Give every published documentation page a meta description taken from its own opening
   paragraph, plus Open Graph and Twitter metadata; `docs:build --base-url` adds canonical
   URLs and writes `sitemap.xml`.
+- Resolve the application's identity models through `engine/auth/registry.py`, configured
+  under `auth.models` in `config/auth.py`. The engine no longer hardcodes where a project
+  keeps its `User`, `Role`, `Permission` and `Group`.
+- Add `engine/support/branding.py`, holding the Craft Engine wordmark and brand palette as
+  the single source for the console banner and a generated project's starter page.
+
+- `craft new <name>` generates a bare project: configuration, three empty providers, one
+  route and the migrations the engine itself needs - no models, controllers, theme or seeded
+  data. The console is also installed as `craft`; `dev` keeps working.
+- `make:auth` writes the `User` model, its migration and the `config/auth.py` entries, so the
+  screens it generates work in a project that has no user model yet.
+- `craft.auth.models.AuthenticatableMixin` (password hashing on every insert path) and
+  `AuthorizableMixin` (`has_role`, `has_permission`, `can`, delegating to the AccessResolver
+  and denying when none is available). The `role:` and `permission:` middleware call these.
+- `engine/providers/engine_providers.py`: the one list of engine providers every bootstrap
+  registers, so a generated project can no longer fall behind this repository's.
+- The schema tenancy strategy (`MULTI_TENANCY_STRATEGY=schema`) now lives in the engine as
+  `craft.http.tenant_schema`, beside the rls strategy; it lived in the demo application.
+- `make:auth`, `make:admin` and `make:crud` write a bare `layouts/app.forge.py` when the
+  project has none - a valid document with a title and a content slot, and no theme.
+- The CraftEngine mark and palette in `docs/brand/`.
+
+### Changed
+
+- **Breaking:** the health probes (`/health`, `/ready`) and the MSR JSON manifest
+  (`/.well-known/msr.json`) no longer answer unless the application asks for them. Set
+  `HEALTH_ROUTES_ENABLED=true` or `MSR_ENABLED=true` to restore either. A project upgrading
+  from an earlier release keeps its own `config/framework.py`, whose `HEALTH_ROUTES_ENABLED`
+  still reads `True` until it is changed; a project with no `config/msr.py` loses the
+  manifest until it adds one. Nothing answering a request that nobody declared is the point:
+  readiness discloses the database driver, the cache store and the pool census on every hit,
+  and the manifest publishes the exact version of the installation.
+
+- Preserve existing authentication routes and controllers when `make:auth` runs; generated applications also receive the `/signin` navigation alias.
+- Seed only missing translations, without clearing existing records or overwriting edited values.
+- Refuse schema-wide migration reset and rollback operations regardless of database name or environment.
+- Pause persistent-database test execution until its legacy fixtures can isolate data without physical deletion.
+
+### Fixed
+
+- The code `make:auth` generated did not run in a generated project: sign-in answered 500
+  (AntiSpam and Honeypot were not registered, and the controller called `Validator.make` and
+  `AntiSpam.verify(..., ip_address=...)`, neither of which exists), old input was flashed as an
+  empty dict, and the dashboard called Python's `hasattr` inside a template.
+- `make:admin` generated a panel nobody could enter: `role:admin` found no `has_role` on the
+  generated user and refused everyone, `/admin` redirected to a `/panel` that only the demo had,
+  and the views extended a `layouts.panel` that nothing generated.
+- `make:crud` skipped registering its JSON API when `routes/api.py` was absent, while still
+  printing the API's URL; it now creates the file. Its screens no longer carry theme classes.
+- `craft new` generated an empty project from an installed package: the templates were not
+  declared as package data, and setuptools' globs drop hidden files such as `.env.example`.
+- `make:auth` registered no routes when `routes/web.py` did not exist yet.
+- The bundled `plugins/audit-log` imported the demo's `SystemLog` model and silently wrote
+  nothing without it; it writes through the `DB` facade.
+- `documentation/ai_agents.md` taught `Validator.make(data, rules)`, which does not exist.
+- Boot the console against a single application, so `craft migrate` no longer fails with "database is locked" on a file-backed SQLite database: the second application kept its own database connection, and migration DDL ran on it while the migrator held its transaction on the other.
+- Stop deleting duplicate cooldown history during unique-index migration; fail with an explicit reconciliation error instead.
+- Correct agent context that described the synchronous ORM as asynchronous or the runtime as supporting Python 3.11.
+
+### Removed
+
+- **Breaking:** the demo application. The admin and control panels, the login and
+  registration screens, the documentation-site controller, the demo models, services and
+  seeders, and the bundled theme are gone; generate what a project needs with `make:auth`,
+  `make:admin` and `make:crud`. `v3.23.0-r00016` is the last release carrying them.
+  Migrations are all kept, because they have already run on existing databases.
+- Stop scaffolding a non-functional MCP configuration that launched `route:list` as though it were an MCP server.
+
+### Security
+
+- Stop disclosing the installation's infrastructure on `/ready`. The probe now answers
+  `{"status": ...}` and the HTTP code to every caller; the database driver, the cache store
+  class and the connection-pool census are returned only to one presenting
+  `HEALTH_READINESS_TOKEN` as a bearer token, compared with `hmac.compare_digest`. The token
+  is optional - without one nobody gets the detail - and a wrong token is answered with the
+  reduced payload rather than a 404, because a health check the orchestrator cannot reach is
+  not a health check.
+- Cap what probing costs. Each readiness run issues a `SELECT 1` and a cache write, so an
+  unauthenticated path converted request rate directly into database load. One result is now
+  shared across every request that arrives within `HEALTH_READINESS_CACHE_SECONDS`
+  (default 5; zero restores per-hit checks), bounding the cost by time instead of traffic.
 
 ## [3.23.0] r00016 — 2026-09-19
 
@@ -412,23 +512,23 @@ can be run safely, and before an incident on one of them can be diagnosed.
   `engine/__init__.py`, and fails the build when the two files that declare the
   version disagree with each other.
 
-- **O CI estava vermelho desde 19/08 e nenhuma release subia.** O passo
-  `Lint (ruff)` falhava, e como o job de release depende dele
-  (`needs: [test-sqlite, test-postgres, docker-build]`), ele era pulado em
-  todo push — por isso a tag `v3.13.0` existe no GitHub sem Release
-  correspondente. Cinco violações, quatro delas anteriores:
-  - `engine/ai/contracts.py` usava `Union` sem importar, e
-    `engine/mail/drivers/log.py` usava `Optional` sem importar. Ambos
-    sobrevivem em runtime por causa de `from __future__ import annotations`,
-    mas quebram `typing.get_type_hints()` e qualquer leitura das anotações.
-  - `engine/security/honeypot.py` calculava `now_str` em `is_blocked()` e
-    nunca usava.
-  - `engine/storage/drivers/s3.py` re-erguia `ImportError` dentro de um
-    `except` sem `from`, escondendo a causa original.
-  - `engine/orm/query_builder.py` usava `zip()` sem `strict=` no cálculo de
-    similaridade; a checagem de dimensão logo acima é o que torna a operação
-    significativa, e um truncamento silencioso pontuaria um vetor
-    incompatível como acerto parcial em vez de excluí-lo.
+- **CI had been red since 2026-08-19 and no release was shipping.** The
+  `Lint (ruff)` step failed, and because the release job depends on it
+  (`needs: [test-sqlite, test-postgres, docker-build]`), it was skipped on
+  every push - which is why tag `v3.13.0` exists on GitHub with no matching
+  Release. Five violations, four of them pre-existing:
+  - `engine/ai/contracts.py` used `Union` without importing it, and
+    `engine/mail/drivers/log.py` used `Optional` without importing it. Both
+    survive at runtime thanks to `from __future__ import annotations`, but
+    they break `typing.get_type_hints()` and any reading of the annotations.
+  - `engine/security/honeypot.py` computed `now_str` in `is_blocked()` and
+    never used it.
+  - `engine/storage/drivers/s3.py` re-raised `ImportError` inside an `except`
+    without `from`, hiding the original cause.
+  - `engine/orm/query_builder.py` used `zip()` without `strict=` in the
+    similarity computation; the dimension check just above is what makes the
+    operation meaningful, and a silent truncation would score a mismatched
+    vector as a partial hit instead of excluding it.
 
 ## [3.14.0] r00004 — 2026-08-20
 

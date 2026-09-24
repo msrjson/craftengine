@@ -5,7 +5,10 @@ Relations:
   - Registers hooks against the framework lifecycle events emitted by
     `engine/events/lifecycle.py` and bridged to hooks by
     `engine/plugins/manager.py`.
-  - Persists through the `SystemLog` model (`app/Models/SystemLog.py`).
+  - Persists through the `DB` facade straight into `system_logs`. It used
+    to go through the demo application's `SystemLog` model, so the plugin
+    shipped with the framework silently wrote nothing in any project that
+    had not reproduced that model.
 References:
   - Guide: `documentation/plugins.md`
 """
@@ -36,13 +39,18 @@ def _record(level, message, context):
     business write that triggered it fails. `trigger_hook` already isolates
     exceptions, but being explicit keeps the intent local and readable.
     """
-    from app.Models.SystemLog import SystemLog
+    from datetime import datetime, timezone
 
+    from craft.facades import DB
+
+    now = datetime.now(timezone.utc).isoformat()
     try:
-        SystemLog.force_create({
+        DB.table("system_logs").insert({
             "level": level,
             "message": message,
             "context": json.dumps(context, default=str),
+            "created_at": now,
+            "updated_at": now,
         })
     except Exception:
         import logging

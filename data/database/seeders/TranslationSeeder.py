@@ -129,11 +129,8 @@ TRANSLATIONS = {
 
 class TranslationSeeder(Seeder):
     def run(self):
-        DB.statement("DELETE FROM translations")
-
         for locale, entries in TRANSLATIONS.items():
             for key, value in entries.items():
-                DB.statement(
-                    "INSERT INTO translations (key, locale, value) VALUES (?, ?, ?)",
-                    [key, locale, value],
-                )
+                existing = DB.table("translations").where("key", key).where("locale", locale).first()
+                if existing is None:
+                    DB.table("translations").insert({"key": key, "locale": locale, "value": value})

@@ -1,0 +1,17 @@
+"""Application service provider.
+
+Bind this application's own services into the container here. Intentionally
+empty: a fresh project has nothing to bind yet.
+"""
+
+from craft.providers import ServiceProvider
+
+
+class AppServiceProvider(ServiceProvider):
+    """Registers and boots this application's services."""
+
+    def register(self) -> None:
+        """Bind services into the container."""
+
+    def boot(self) -> None:
+        """Run after every provider has registered."""

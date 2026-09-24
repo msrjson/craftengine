@@ -688,9 +688,22 @@ class Connection:
                 os.makedirs(directory, exist_ok=True)
         else:
             database = ":memory:"
-        conn = sqlite3.connect(database, check_same_thread=False)
+        is_file = database != ":memory:"
+        # `timeout` is the busy timeout: how long a statement waits for a lock
+        # another connection holds before giving up with "database is locked".
+        # A file-backed database is pooled per thread, so a threaded server
+        # does have several connections contending for it; an in-memory one
+        # shares a single session and never contends.
+        conn = sqlite3.connect(database, check_same_thread=False, timeout=15.0 if is_file else 5.0)
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA foreign_keys = ON")
+        # Write-ahead logging was tried here and removed. It was added to fix
+        # `migrate` failing with "database is locked" on a fresh project, and
+        # it did not: the cause was the console booting two applications, and
+        # therefore two connections, against one file. What WAL did do was
+        # create sibling `-wal` and `-shm` files, which broke read/write
+        # replica handling with a disk I/O error. A change that did not solve
+        # the problem it was written for, and caused another, is not kept.
         return conn
 
     def _connect_postgres(self) -> Any:

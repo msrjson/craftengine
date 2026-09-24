@@ -20,85 +20,19 @@ def create_app() -> Application:
     # Load config
     app.register_config()
 
-    # Register framework service providers
-    from craft.providers.service_providers import (
-        DatabaseServiceProvider,
-        PostgresServiceProvider,
-        RouterServiceProvider,
-        ViewServiceProvider,
-        AuthServiceProvider,
-        EventServiceProvider,
-        QueueServiceProvider,
-        LoggingServiceProvider,
-        CacheServiceProvider,
-        MigratorServiceProvider,
-        ExceptionServiceProvider,
-        PQCServiceProvider,
-        CaptchaServiceProvider,
-        FirewallServiceProvider,
-        HoneypotServiceProvider,
-        AntiSpamServiceProvider,
-        VaultServiceProvider,
-        SignerServiceProvider,
-        MediaServiceProvider,
-        AIServiceProvider,
-        AgentServiceProvider,
-        StorageServiceProvider,
-        MailServiceProvider,
-        FrameworkSubsystemsServiceProvider,
-    )
+    # Every engine provider, from the single list in the engine, so this
+    # bootstrap and the one `craft new` generates cannot drift apart.
+    from craft.providers.engine_providers import register_engine_providers
 
-    app.register_provider(DatabaseServiceProvider)
-    app.register_provider(PostgresServiceProvider)
-    app.register_provider(RouterServiceProvider)
-    app.register_provider(ViewServiceProvider)
-    app.register_provider(AuthServiceProvider)
-    app.register_provider(EventServiceProvider)
-    app.register_provider(QueueServiceProvider)
-    app.register_provider(LoggingServiceProvider)
-    app.register_provider(CacheServiceProvider)
-    app.register_provider(MigratorServiceProvider)
-    app.register_provider(ExceptionServiceProvider)
-    app.register_provider(FirewallServiceProvider)
-    app.register_provider(HoneypotServiceProvider)
-    app.register_provider(AntiSpamServiceProvider)
-    app.register_provider(MediaServiceProvider)
-    app.register_provider(AIServiceProvider)
-    app.register_provider(AgentServiceProvider)
-    app.register_provider(StorageServiceProvider)
-    app.register_provider(MailServiceProvider)
-
-    # `config/framework.py` ships these as feature flags, but nothing read
-    # them: both providers registered unconditionally, so setting
-    # PQC_SECURITY_ENABLED=false or CAPTCHA_ENABLED=false changed nothing. A
-    # switch that does not switch is worse than no switch.
-    config = app.make("config")
-    if config.get("framework.PQC_SECURITY_ENABLED", True):
-        app.register_provider(PQCServiceProvider)
-    if config.get("framework.CAPTCHA_ENABLED", True):
-        app.register_provider(CaptchaServiceProvider)
-    # Unconditional and lazy: registering costs nothing (the Vault/Signer
-    # instance is only built, and APP_KEY only read, on first use).
-    app.register_provider(VaultServiceProvider)
-    app.register_provider(SignerServiceProvider)
-
-
-    app.register_provider(FrameworkSubsystemsServiceProvider)
+    register_engine_providers(app)
 
     # Register application service providers
     from app.Providers.AppServiceProvider import AppServiceProvider
-    from app.Providers.AuthServiceProvider import AuthServiceProvider as AppAuthServiceProvider
     from app.Providers.EventServiceProvider import EventServiceProvider as AppEventServiceProvider
-    from app.Providers.PanelServiceProvider import PanelServiceProvider
     from app.Providers.RouteServiceProvider import RouteServiceProvider
 
     app.register_provider(AppServiceProvider)
-    app.register_provider(AppAuthServiceProvider)
     app.register_provider(AppEventServiceProvider)
-    # Declares the control panel's menu. Registered after the auth provider
-    # because every menu item is guarded by the same roles, permissions and
-    # groups the routes are, resolved through the `access` binding.
-    app.register_provider(PanelServiceProvider)
     app.register_provider(RouteServiceProvider)
 
     # Wire facades to the app before booting providers
@@ -115,8 +49,6 @@ app = create_app()
 
 # Build the ASGI application
 from craft.http.kernel import Kernel
-from app.Http.Middleware.DatabaseLoggingMiddleware import DatabaseLoggingMiddleware
-from app.Http.Middleware.TenantMiddleware import TenantMiddleware
 
 from craft.http.middleware import (
     Authenticate,
@@ -144,7 +76,6 @@ _global_middleware = [
     SetLocale,
     VerifyCsrfToken,
     Authenticate,
-    DatabaseLoggingMiddleware,
 ]
 
 # `MULTI_TENANCY_ENABLED` used to be decorative: TenantMiddleware ran on every
@@ -162,6 +93,10 @@ if _config.get("framework.MULTI_TENANCY_ENABLED", False):
     if _strategy == "rls":
         _global_middleware.append(ScopeTenant)
     elif _strategy == "schema":
+        # Imported here, not at module scope: the schema strategy needs
+        # PostgreSQL, and a project that never selects it never loads it.
+        from craft.http.tenant_schema import TenantMiddleware
+
         _global_middleware.append(TenantMiddleware)
     else:
         raise ValueError(
@@ -171,5 +106,11 @@ if _config.get("framework.MULTI_TENANCY_ENABLED", False):
         )
 
 kernel.with_middleware(*_global_middleware)
+
+# Record the framework's own routes - the health probes, the metrics scrape,
+# the MSR manifest, the static-asset mount - on the router, so `route:list`
+# and the panel's route audit account for every path that answers. Each is
+# governed by its own configuration flag and none of them is on by default.
+kernel.register_engine_routes()
 
 asgi_app = kernel.get_starlette_app()

@@ -1,9 +1,4 @@
-"""Refusal of schema-wide destructive operations on permanent databases.
-
-NR-02 bans wiping a database in every environment. A database counts as
-disposable only when it is in-memory SQLite, its name ends in `_test`, or it is
-listed in `database.disposable_databases` (`DB_DISPOSABLE_DATABASES`). Anything
-else is permanent by default, and production is always permanent.
+"""Refusal of schema-wide destructive operations in every environment.
 
 Category: Core Framework (Migrations).
 Relations:
@@ -19,12 +14,9 @@ References:
 
 from __future__ import annotations
 
-import os
 from collections.abc import Iterable
 from typing import Any
-
-DISPOSABLE_SUFFIX = "_test"
-IN_MEMORY_DATABASES = frozenset({"", ":memory:"})
+import os
 
 
 class DestructiveOperationRefused(RuntimeError):
@@ -50,7 +42,7 @@ class DestructiveOperationRefused(RuntimeError):
 
 
 def is_disposable_database(driver: str, database: str, allowlist: Iterable[str] = ()) -> bool:
-    """Return whether a database may be wiped.
+    """Return false: database names and allowlists never authorize a wipe.
 
     Args:
         driver: Normalized driver name (`sqlite`, `postgresql`, `mysql`).
@@ -58,13 +50,9 @@ def is_disposable_database(driver: str, database: str, allowlist: Iterable[str] 
         allowlist: Extra database names declared disposable.
 
     Returns:
-        `True` only for in-memory SQLite, a `_test` suffix, or an allowlisted name.
+        Always false under the absolute persistence policy.
     """
-    name = str(database or "").strip()
-    if driver == "sqlite" and name in IN_MEMORY_DATABASES:
-        return True
-    stem = os.path.splitext(os.path.basename(name))[0] if driver == "sqlite" else name
-    return stem.endswith(DISPOSABLE_SUFFIX) or name in {item.strip() for item in allowlist if item.strip()}
+    return False
 
 
 def _config_value(app: Any, key: str, default: Any) -> Any:
@@ -75,7 +63,7 @@ def _config_value(app: Any, key: str, default: Any) -> Any:
 
 
 def assert_disposable(app: Any, db: Any, operation: str) -> None:
-    """Raise unless the database behind `db` is disposable outside production.
+    """Refuse a destructive schema operation regardless of database name.
 
     Args:
         app: The application container, used to read configuration.
@@ -83,12 +71,8 @@ def assert_disposable(app: Any, db: Any, operation: str) -> None:
         operation: Name of the operation being attempted.
 
     Raises:
-        DestructiveOperationRefused: When the target database is permanent.
+        DestructiveOperationRefused: Always.
     """
     environment = str(_config_value(app, "app.APP_ENV", os.environ.get("APP_ENV", "local")))
-    raw = _config_value(app, "database.disposable_databases", os.environ.get("DB_DISPOSABLE_DATABASES", ""))
-    allowlist = raw.split(",") if isinstance(raw, str) else list(raw or ())
-    driver = str(getattr(db, "driver", "sqlite"))
     database = str(db.write_connection.config.get("database") or "")
-    if environment == "production" or not is_disposable_database(driver, database, allowlist):
-        raise DestructiveOperationRefused(operation, database, environment)
+    raise DestructiveOperationRefused(operation, database, environment)

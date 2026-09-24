@@ -33,19 +33,19 @@ class TestAggregatesValidateTheirColumn:
 
     @pytest.mark.parametrize("method", ["sum", "avg", "max", "min"])
     def test_an_injected_column_is_rejected(self, migrated_database, method):
-        from app.Models.User import User
+        from tests.support.models import User
 
         builder = User.query()
         with pytest.raises(Exception):
             getattr(builder, method)("id) FROM users; DROP TABLE users --")
 
     def test_count_star_still_works(self, migrated_database):
-        from app.Models.User import User
+        from tests.support.models import User
 
         assert isinstance(User.query().count(), int)
 
     def test_count_rejects_an_injected_column(self, migrated_database):
-        from app.Models.User import User
+        from tests.support.models import User
 
         with pytest.raises(Exception):
             User.query().count("*) FROM users; DROP TABLE users --")
@@ -66,17 +66,21 @@ class TestRbacLivesOnTheRightModels:
         assert not hasattr(PlainItem, "has_role")
         assert not hasattr(PlainItem, "has_permission")
 
-    def test_the_user_model_still_does(self):
-        from app.Models.User import User
+    def test_the_configured_user_model_still_does(self, migrated_database):
+        """Read through the registry rather than importing a model directly:
+        what has to answer RBAC is whichever class the project configured."""
+        from craft.auth.registry import model_for
 
-        assert hasattr(User, "roles")
-        assert hasattr(User, "has_role")
-        assert hasattr(User, "has_permission")
+        user_model = model_for("user", migrated_database.make("config"))
 
-    def test_permissions_belongs_to_role(self):
-        from app.Models.Role import Role
+        assert hasattr(user_model, "roles")
+        assert hasattr(user_model, "has_role")
+        assert hasattr(user_model, "has_permission")
 
-        assert hasattr(Role, "permissions")
+    def test_permissions_belongs_to_the_configured_role_model(self, migrated_database):
+        from craft.auth.registry import model_for
+
+        assert hasattr(model_for("role", migrated_database.make("config")), "permissions")
 
     def test_the_engine_no_longer_imports_application_models(self):
         """The base model importing `app.Models.Role` pointed the framework at

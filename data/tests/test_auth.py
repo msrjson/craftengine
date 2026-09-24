@@ -83,7 +83,7 @@ class TestAuthManager:
 
     @pytest.fixture
     def user(self):
-        from app.Models.User import User
+        from tests.support.models import User
 
         from craft.facades import DB
 

@@ -23,6 +23,7 @@ scaling from a blog to multi-tenant, and what is not implemented yet? That is
 |---|---|
 | [Service container](container.md) | Binding, resolution, autowiring, service providers |
 | [Routing](routing.md) | Routes, groups, resources, route middleware |
+| [Authentication](authentication.md) | Login routes, session flow, and route protection |
 | [Controllers](controllers.md) | Controllers, requests, responses |
 | [Views](views.md) | The Forge engine, Forge directives, layouts |
 | [Validation](validation.md) | Rules, FormRequest, error handling |

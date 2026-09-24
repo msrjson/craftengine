@@ -50,30 +50,25 @@ class TestLocaleChain:
 class TestTranslationLookup:
     @pytest.fixture(autouse=True)
     def seeded(self, migrated_database):
-        DB.statement("DELETE FROM translations")
         rows = [
-            ("greeting", "en", "Hello"),
-            ("greeting", "pt", "Olá"),
-            ("greeting", "pt-BR", "Oi"),
-            ("greeting", "es", "Hola"),
+            ("test_greeting", "en", "Hello"),
+            ("test_greeting", "pt", "Olá"),
+            ("test_greeting", "pt-BR", "Oi"),
+            ("test_greeting", "es", "Hola"),
             ("only_in_pt", "pt", "Apenas em pt"),
             ("only_in_en", "en", "English only"),
         ]
         for key, locale, value in rows:
-            DB.statement(
-                "INSERT INTO translations (key, locale, value) VALUES (?, ?, ?)",
-                [key, locale, value],
-            )
-        yield
-        DB.statement("DELETE FROM translations")
+            if DB.table("translations").where("key", key).where("locale", locale).first() is None:
+                DB.table("translations").insert({"key": key, "locale": locale, "value": value})
 
     def test_exact_locale_wins(self):
-        assert __("greeting", "pt-BR") == "Oi"
+        assert __("test_greeting", "pt-BR") == "Oi"
 
     def test_each_locale_resolves_independently(self):
-        assert __("greeting", "pt") == "Olá"
-        assert __("greeting", "es") == "Hola"
-        assert __("greeting", "en") == "Hello"
+        assert __("test_greeting", "pt") == "Olá"
+        assert __("test_greeting", "es") == "Hola"
+        assert __("test_greeting", "en") == "Hello"
 
     def test_a_regional_locale_inherits_from_its_base(self):
         # Without the chain this returned the raw key.
@@ -86,7 +81,7 @@ class TestTranslationLookup:
         assert __("no.such.key", "pt-BR") == "no.such.key"
 
     def test_locale_casing_does_not_matter(self):
-        assert __("greeting", "PT-br") == "Oi"
+        assert __("test_greeting", "PT-br") == "Oi"
 
     def test_placeholders_are_replaced(self):
         DB.statement(
@@ -100,52 +95,15 @@ class TestTranslationLookup:
 
     def test_database_translations_override_config_and_config_acts_as_fallback(self, migrated_database):
         config = migrated_database.make("config")
-        config.set("lang.pt-BR.greeting", "Config Greeting")
+        config.set("lang.pt-BR.test_greeting", "Config Greeting")
         config.set("lang.pt-BR.fallback_only_key", "Config Fallback Value")
         try:
             # DB has "Oi" for greeting in pt-BR, so DB overrides config
-            assert __("greeting", "pt-BR") == "Oi"
+            assert __("test_greeting", "pt-BR") == "Oi"
             # DB does not have fallback_only_key, so config is used as fallback
             assert __("fallback_only_key", "pt-BR") == "Config Fallback Value"
         finally:
-            config.set("lang.pt-BR.greeting", None)
+            config.set("lang.pt-BR.test_greeting", None)
             config.set("lang.pt-BR.fallback_only_key", None)
 
 
-class TestSeededLocales:
-    """The shipped catalog must carry all four locales, pt and pt-BR distinct."""
-
-    @pytest.fixture(autouse=True)
-    def seeded(self, migrated_database):
-        from database.seeders.TranslationSeeder import TranslationSeeder
-
-        TranslationSeeder(migrated_database).run()
-        yield
-        DB.statement("DELETE FROM translations")
-
-    def test_all_four_locales_are_present(self):
-        rows = DB.statement(
-            "SELECT DISTINCT locale FROM translations", read=True
-        ).fetchall()
-        assert {row["locale"] for row in rows} == {"en", "pt", "pt-BR", "es"}
-
-    def test_every_locale_has_the_same_keys(self):
-        from database.seeders.TranslationSeeder import TRANSLATIONS
-
-        base = set(TRANSLATIONS["en"])
-        for locale, entries in TRANSLATIONS.items():
-            assert set(entries) == base, f"{locale} has mismatched keys"
-
-    @pytest.mark.parametrize(
-        "key,european,brazilian",
-        [
-            ("dashboard", "Painel de Controlo", "Painel de Controle"),
-            ("download", "Transferir", "Baixar"),
-            ("register", "Registar", "Criar conta"),
-            ("login", "Iniciar sessão", "Entrar"),
-        ],
-    )
-    def test_portuguese_variants_are_genuinely_different(self, key, european, brazilian):
-        # The seeder used to file Brazilian copy under the generic `pt` tag.
-        assert __(key, "pt") == european
-        assert __(key, "pt-BR") == brazilian

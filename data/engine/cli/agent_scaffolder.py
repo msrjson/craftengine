@@ -4,8 +4,8 @@ AgentScaffolder: AI agent discovery and integration scaffolding for Craft Engine
 Category: Core Framework (CLI).
 Relations:
   - Invoked from `dev.py agent:scaffold` (`engine/cli/app.py`).
-  - Generates `.cursorrules`, `.claude/rules/AGENTS.md`, `.agents/rules/AGENTS.md`,
-    `llms.txt`, `llms-full.txt`, and `.agents/mcp.json`.
+  - Generates `.cursorrules`, `AGENTS.md`, `.claude/rules/AGENTS.md`,
+    `.agents/rules/AGENTS.md`, `llms.txt`, and `llms-full.txt`.
   - Installs the development agent catalog (`engine/cli/agent_catalog/`) into `.claude/`.
 References:
   - Guide: `documentation/ai_agents.md`
@@ -35,10 +35,10 @@ def cursorrules_content() -> str:
     return """# Craft Engine — AI Assistant Rules (.cursorrules)
 
 You are an expert full-stack developer working on a Craft Engine project.
-Craft Engine is an async-first Python web framework inspired by Laravel, featuring Active Record ORM, Typer CLI, Forge template engine, and Facades.
+Craft Engine is a Python web framework delivered as a bare engine: a synchronous Active Record ORM, a Starlette ASGI runtime, the `craft` CLI, Forge templates, and Facades. A project starts with no application code to reuse; generators add what it needs.
 
 ## 1. CORE ARCHITECTURAL INVARIANTS
-- Framework: Craft Engine (Python 3.11+, async-first).
+- Framework: Craft Engine (Python 3.14+; Starlette ASGI with synchronous request handlers).
 - CLI Entrypoint: `python dev.py <command>` (never use artisan or django-admin).
 - Absolute Data Persistence: NEVER execute destructive database commands (`migrate:fresh`, `migrate:reset`, `db:wipe`, `db:drop`). Schema evolution is strictly forward-only (`python dev.py migrate`).
 - Language: 100% English code, identifiers, docstrings, and commits. Responses to the user should follow the user's language (e.g. Portuguese pt-BR if requested).
@@ -51,6 +51,10 @@ Craft Engine is an async-first Python web framework inspired by Laravel, featuri
 - `database/migrations/` — Forward-only schema migrations.
 - `resources/views/` — Forge templates (`.forge.py` or `.html`).
 - `routes/web.py` & `routes/api.py` — Route definitions using `craft.facades.Route`.
+- A project has no login route until `craft make:auth` has run; after it the
+  canonical route is `/login` and `GET /signin` redirects there. Inspect
+  `craft route:list --json` before suggesting a route: it lists every route
+  that answers, the engine's own included.
 
 ## 3. FACADES & DEPENDENCY INJECTION
 Import facades directly:
@@ -91,38 +95,43 @@ from craft.facades import Route, DB, Auth, AntiSpam, View, Cache, Firewall
 
 def llms_txt_content() -> str:
     return """# Craft Engine
-> High-performance async Python web framework designed with Laravel elegance, Active Record ORM, Typer CLI, and native AI coding agent ergonomics.
+> Python web framework on Starlette, delivered as a bare engine: Active Record ORM, generators for what a project needs, and native AI coding agent guidance.
 
 ## Core Architectural Primitives
-- **Active Record ORM**: Async Python models inheriting `craft.orm.model.Model` with fluent query builder, relationships, casts, and soft deletes.
+- **Active Record ORM**: Synchronous Python models inheriting `craft.orm.model.Model` with fluent query builder, relationships, casts, and soft deletes.
 - **Facades**: Global static accessors (`Route`, `DB`, `Auth`, `AntiSpam`, `Cache`, `Firewall`, `View`).
 - **Forge Template Engine**: High-velocity server-rendered views supporting `@extends`, `@section`, `@csrf`, `@honeypot`, `@antispam`, and `@error('field')`.
 - **Form Validation & AntiSpam**: Zero-dependency `Validator` supporting 30+ rules (`required`, `email`, `url`, `file`, `image`, `mimes`, `max_file_size`, `alpha_spaces`, `no_html`, `spam_free`, `honeypot`), with `MessageBag` and `redirect.back().with_errors()`.
 - **Forward-Only Database Evolution**: Schema safety enforced by `python dev.py migrate`. Banned destructive operations protect data persistence.
+- **Nothing To Reuse**: `craft new` writes a project with one route and no models, controllers, theme or seeded data. `craft make:auth`, `craft make:admin` and `craft make:crud` add authentication, the RBAC panel and resources on request.
+- **No Undeclared Routes**: every route that answers appears in `craft route:list`. Health probes, metrics and the MSR manifest stay off until a flag in `config/` enables them.
 
-## Key CLI Commands (`python dev.py <cmd>`)
+## Key CLI Commands (`craft <cmd>`, or `python dev.py <cmd>` without installing)
+- `craft new <name>` — Generate a bare project: one route, nothing to reuse.
 - `python dev.py serve [--port 9000]` — Launch ASGI development server.
 - `python dev.py migrate` — Apply forward-only schema migrations.
 - `python dev.py make:model <Name> [-m]` — Generate Active Record model and optional migration.
 - `python dev.py make:controller <Name> [--resource]` — Generate HTTP controller.
 - `python dev.py make:request <Name>` — Generate FormRequest validator.
 - `python dev.py make:crud <Entity> --fields "<spec>"` — Generate full vertical slice (model, migration, controller, request, resource, views, routes).
-- `python dev.py make:auth` — Scaffold login, registration, dashboard, requests, and Forge templates.
-- `python dev.py agent:scaffold` — Bootstrap AI agent context files (.cursorrules, llms.txt, AGENTS.md, mcp.json).
+- `python dev.py make:auth` — Scaffold the User model and migration, sign-in, registration, sign-out and their Forge templates.
+- `python dev.py make:admin` — Scaffold role, permission and group management under `/admin`, with its models and migration.
+- `python dev.py agent:scaffold` — Bootstrap AI agent context files (.cursorrules, llms.txt, AGENTS.md).
 - `python dev.py agent:list` / `python dev.py agent:install <name>... | --all` — Install development agents, skills and commands into `.claude/`.
 
 ## Documentation Links
 - [Complete Architecture Guide](llms-full.txt)
-- [Form Validation & AntiSpam](documentation/forms_and_validation.md)
+- [Form Validation & AntiSpam](documentation/validation.md)
 - [CLI Reference](documentation/cli.md)
 - [AI Agents Standard](documentation/ai_agents.md)
+- [Authentication and Routes](documentation/authentication.md)
 """
 
 
 def llms_full_txt_content() -> str:
     return """# Craft Engine — Full Specification for LLMs & AI Coding Agents
 
-Craft Engine is a full-stack Python web framework with Laravel-like syntax, async ASGI runtime, Active Record ORM, and integrated security and AI tooling.
+Craft Engine is a Python web framework delivered as a bare engine, with a Starlette ASGI runtime, a synchronous Active Record ORM, and integrated security and AI tooling. A new project has one route and nothing to reuse; generators add authentication, an RBAC panel and resources on request.
 
 ---
 
@@ -154,6 +163,9 @@ first = Article.find(1)
 
 ## 2. HTTP Routing & Controllers
 File location: `routes/web.py`
+There is no login route until `craft make:auth` has run; after it the canonical
+URL is `/login`, and `GET /signin` is a navigation redirect only. Verify
+application routes with `craft route:list --json`.
 ```python
 from craft.facades import Route
 from app.Http.Controllers.ArticleController import ArticleController
@@ -242,28 +254,13 @@ Craft Engine includes a built-in zero-dependency AntiSpam system:
 """
 
 
-def mcp_config_content() -> str:
-    return """{
-  "mcpServers": {
-    "craft-engine": {
-      "command": "python",
-      "args": ["dev.py", "route:list"],
-      "env": {
-        "APP_ENV": "development"
-      }
-    }
-  }
-}
-"""
-
-
 def agents_md_content() -> str:
     return """# AGENTS.md — Contract for every contributor, human or model
 
 > Loaded automatically by every AI coding agent session (.claude/rules/AGENTS.md).
 > Full rationale: `LANGUAGE_AND_I18N_STANDARD.md` and `CRAFT_ENGINEERING_GOVERNANCE.md`.
 
-**Stack:** Craft Engine (Python 3.11+, async-first) · **Team language:** pt-BR · **Code language:** English
+**Stack:** Craft Engine (Python 3.14+, Starlette ASGI) · **Team language:** pt-BR · **Code language:** English
 **CLI:** `python dev.py <command>`
 **Gate:** Forward-only migrations, banned destructive commands, clean ruff linter, pytest suite.
 
@@ -291,9 +288,36 @@ def agents_md_content() -> str:
 """
 
 
+def project_agents_content() -> str:
+    """Return the short, tool-neutral entry point for generated projects."""
+    return """# Craft Engine project instructions
+
+Application behavior is defined by this project's Python code, verified in
+its source rather than recalled from another framework. Inspect routes before
+proposing a URL.
+
+- Read `documentation/authentication.md` and `routes/web.py` for login behavior.
+- There is no login until `craft make:auth` has run. After it, `GET /login` is
+  canonical, `POST /login` submits credentials, and `GET /signin` only
+  redirects to `/login`.
+- Use `python dev.py route list --json` to inspect route names and middleware.
+- `Authenticate` resolves the session globally; `auth` requires login on a
+  route; roles, permissions, groups, or Gate authorize privileged actions.
+- Preserve all database data. Never reset, wipe, drop, truncate, or physically
+  delete records, including in tests and seeders.
+- Read `.claude/rules/AGENTS.md` when present. Keep code and documentation in
+  English, update `CHANGELOG.md`, and run relevant verification gates.
+"""
+
+
 def scaffold_agent_stack(base_path: str, force: bool = False) -> Dict[str, Any]:
-    """Scaffold all AI Agent context files (.cursorrules, llms.txt, AGENTS.md, mcp.json)."""
+    """Scaffold the AI Agent context files and development catalog."""
     result: Dict[str, Any] = {"files": {}}
+
+    project_agents = os.path.join(base_path, "AGENTS.md")
+    if not os.path.exists(project_agents) or force:
+        _write_file(project_agents, project_agents_content(), force=force)
+    result["files"]["project_agents"] = project_agents
 
     # 1. .cursorrules in project root
     cursorrules_path = os.path.join(base_path, ".cursorrules")
@@ -318,25 +342,20 @@ def scaffold_agent_stack(base_path: str, force: bool = False) -> Dict[str, Any]:
     _write_file(llms_full_docs, llms_full_txt_content(), force=force)
     result["files"]["llms_full_docs"] = llms_full_docs
 
-    # 4. .agents/mcp.json
-    mcp_path = os.path.join(base_path, ".agents", "mcp.json")
-    _write_file(mcp_path, mcp_config_content(), force=force)
-    result["files"]["mcp"] = mcp_path
-
-    # 5. .claude/rules/AGENTS.md
+    # 4. .claude/rules/AGENTS.md
     claude_agents_md = os.path.join(base_path, ".claude", "rules", "AGENTS.md")
     if not os.path.exists(claude_agents_md) or force:
         _write_file(claude_agents_md, agents_md_content(), force=force)
     result["files"]["agents_md"] = claude_agents_md
 
-    # 6. .agents/rules/AGENTS.md pointer
+    # 5. .agents/rules/AGENTS.md pointer
     agents_pointer = os.path.join(base_path, ".agents", "rules", "AGENTS.md")
     pointer_content = "# AGENTS.md\n\nThe contract is a single file, loaded automatically by every Claude Code session:\n\n> **`.claude/rules/AGENTS.md`**\n"
     if not os.path.exists(agents_pointer) or force:
         _write_file(agents_pointer, pointer_content, force=force)
     result["files"]["agents_pointer"] = agents_pointer
 
-    # 7. Development agents, skills, commands and references in .claude/
+    # 6. Development agents, skills, commands and references in .claude/
     result["catalog"] = agent_catalog.install(base_path, force=force)
 
     return result

@@ -210,9 +210,7 @@ class TestRelationships:
         assert relation.first().get_attribute("name") == "Jane"
 
     def test_belongs_to_many_uses_the_pivot(self):
-        from app.Models.Permission import Permission
-        from app.Models.Role import Role
-        from app.Models.User import User
+        from tests.support.models import Permission, Role, User
 
         DB.statement("DELETE FROM permission_role")
         DB.statement("DELETE FROM role_user")

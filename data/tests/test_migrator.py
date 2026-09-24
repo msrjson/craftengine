@@ -10,6 +10,7 @@ import pytest
 
 from craft.container.application import Application
 from craft.migrations.migrator import Migrator, migration_filename
+from craft.migrations.safety import DestructiveOperationRefused
 from craft.orm.db import DatabaseManager
 
 MIGRATION_A = '''
@@ -117,32 +118,28 @@ class TestRunning:
 
 
 class TestRollback:
-    def test_rollback_reverts_the_last_batch(self, migrator):
+    def test_rollback_is_refused_after_migration(self, migrator):
         migrator.run()
-        migrator.rollback()
-        assert not migrator.db.table_exists("alpha")
-        assert not migrator.db.table_exists("beta")
-
-    def test_rollback_only_touches_the_last_batch(self, migrator):
-        migrator.run(step=1)   # batch 1: alpha
-        migrator.run()         # batch 2: beta
-        migrator.rollback()
+        with pytest.raises(DestructiveOperationRefused):
+            migrator.rollback()
         assert migrator.db.table_exists("alpha")
-        assert not migrator.db.table_exists("beta")
+        assert migrator.db.table_exists("beta")
 
-    def test_rollback_with_nothing_applied_is_a_no_op(self, migrator):
-        assert migrator.rollback() == []
-        assert "Nothing to rollback." in migrator.notes
+    def test_rollback_is_refused_even_with_nothing_applied(self, migrator):
+        with pytest.raises(DestructiveOperationRefused):
+            migrator.rollback()
 
-    def test_reset_reverts_everything(self, migrator):
+    def test_reset_preserves_everything(self, migrator):
         migrator.run(step=1)
         migrator.run()
-        migrator.reset()
-        assert migrator.applied() == []
+        with pytest.raises(DestructiveOperationRefused):
+            migrator.reset()
+        assert len(migrator.applied()) == 2
 
-    def test_refresh_reruns_after_reset(self, migrator):
+    def test_refresh_is_refused(self, migrator):
         migrator.run()
-        migrator.refresh()
+        with pytest.raises(DestructiveOperationRefused):
+            migrator.refresh()
         assert len(migrator.applied()) == 2
         assert migrator.db.table_exists("alpha")
 
@@ -158,8 +155,9 @@ class TestStatus:
         migrator.ensure_repository()
         assert migrator.db.table_exists("migrations")
 
-    def test_drop_all_tables_clears_the_schema(self, migrator):
+    def test_drop_all_tables_is_refused(self, migrator):
         migrator.run()
-        migrator.drop_all_tables()
-        assert not migrator.db.table_exists("alpha")
-        assert not migrator.db.table_exists("migrations")
+        with pytest.raises(DestructiveOperationRefused):
+            migrator.drop_all_tables()
+        assert migrator.db.table_exists("alpha")
+        assert migrator.db.table_exists("migrations")

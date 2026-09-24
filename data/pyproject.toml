@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "craft"
-version = "3.23.0"
+version = "4.0.0"
 description = "A batteries-included Python web framework built on Starlette"
 readme = "README.md"
 requires-python = ">=3.14"
@@ -80,6 +80,11 @@ redis = ["redis>=5.0"]
 ai = ["httpx>=0.25"]
 
 [project.scripts]
+# `craft` is the name the framework goes by, and the command a developer or an
+# agent reaches for first. `dev` is kept because every existing project, script
+# and CI job calls it, and because a generated project ships a `dev.py` that
+# works without the package being installed at all.
+craft = "engine.cli.app:main"
 dev = "engine.cli.app:main"
 
 [tool.setuptools.packages.find]
@@ -89,6 +94,12 @@ include = ["engine*"]
 [tool.setuptools.package-data]
 # Markdown definitions installed by `dev.py agent:install`.
 "engine.cli.agent_catalog" = ["**/*.md"]
+# The project templates `craft new` copies. Without this the command installs
+# fine and then generates an empty project, because the templates live outside
+# any Python package and setuptools ships only modules by default. The bug is
+# invisible when running from a source checkout, where the files are simply on
+# disk - it appears only in an installed package.
+"engine.cli" = ["skeleton/**/*", "admin_templates/**/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

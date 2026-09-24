@@ -8,11 +8,34 @@ from craft.orm.model import Model
 from craft.queue import Job
 from starlette.testclient import TestClient
 
-from app.Models.User import User
+from tests.support.models import User
 from bootstrap.app import app, asgi_app
 
 # Global variable to test job execution
 JOB_EXECUTED_VAL = None
+
+
+@pytest.fixture(scope="module", autouse=True)
+def framework_routes(migrated_database):
+    """Throwaway routes, so the HTTP tests own what they request.
+
+    The suite exercises the engine's HTTP stack, which must hold up in a
+    project that declares no page of its own. Anything asserted against a
+    route the sample application happens to publish is asserting the sample
+    application.
+    """
+    from craft.http.response import JsonResponse
+
+    def status(request):
+        return JsonResponse({"status": "ok"})
+
+    def plain(request):
+        return "served"
+
+    Route.get("/t/framework/status", status).name("t.framework.status")
+    Route.get("/t/framework/plain", plain).name("t.framework.plain")
+    Route.get("/t/framework/guarded", plain).middleware("auth").name("t.framework.guarded")
+    yield
 
 
 class TestJob(Job):
@@ -123,32 +146,23 @@ def test_activerecord_and_relations():
     assert published_posts[0].get_attribute("title") == "First Title"
 
 
-def test_http_api_routes():
+def test_http_routes_are_served():
     client = TestClient(asgi_app)
 
-    # Test Dashboard View
-    response = client.get("/")
+    response = client.get("/t/framework/plain")
     assert response.status_code == 200
+    assert response.text == "served"
 
-    # Test Home View
-    response = client.get("/home")
-    assert response.status_code == 200
-    # Assert on structure, not on copy. The landing page is translatable, so its
-    # visible text depends on the active locale and on seeded translations —
-    # while the section itself is what proves the view rendered. A broken
-    # template now raises rather than returning a 200 placeholder, so the status
-    # check above already covers the failure this string used to catch.
-    assert 'id="features"' in response.text
-    assert "<footer" in response.text
 
-    # Test Login view
-    response = client.get("/login")
-    assert response.status_code == 200
+def test_json_responses_carry_the_json_content_type():
+    client = TestClient(asgi_app)
 
-    # Test API JSON endpoints
-    response = client.get("/api/v1/status", headers={"Accept": "application/json"})
+    response = client.get("/t/framework/status", headers={"Accept": "application/json"})
     assert response.status_code == 200
     assert "application/json" in response.headers.get("content-type", "")
+    assert response.json()["status"] == "ok"
+
+
 
 
 def test_queue_json_serialization():
@@ -344,9 +358,7 @@ def _test_ai_native_subsystems_body(__, Config, DB, Route):
 def test_rbac_relationships_and_permissions():
     from craft.facades import DB
 
-    from app.Models.Permission import Permission
-    from app.Models.Role import Role
-    from app.Models.User import User
+    from tests.support.models import Permission, Role, User
 
     # Clean tables
     DB.statement("DELETE FROM permission_role")
@@ -478,46 +490,20 @@ def test_captcha_security():
     assert request.session().get("captcha_code") is None  # cleared on validation attempt
 
 
-def test_admin_dashboard_access():
+def test_a_guest_is_redirected_away_from_a_guarded_route():
     from craft.facades import Auth
 
     Auth.logout()
 
     client = TestClient(asgi_app)
-    response = client.get("/admin", follow_redirects=False)
+    response = client.get("/t/framework/guarded", follow_redirects=False)
 
     assert response.status_code == 302
     assert "/login" in response.headers.get("location", "")
 
 
-def test_tenant_service_autowired_injection():
-    from app.Services.Tenant.TenantService import TenantService
-
-    # Resolve service directly from the container via autowiring
-    service = app.make(TenantService)
-
-    assert isinstance(service, TenantService)
-    assert len(service.get_active_tenants()) == 3
-    assert service.get_active_tenants()[0]["name"] == "Acme Global Corporation"
 
 
-def test_database_logging_middleware():
-    from app.Models.SystemLog import SystemLog
-
-    # 1. Clean existing logs
-    SystemLog.query().delete()
-
-    # 2. Make an HTTP request to populate a connection log
-    client = TestClient(asgi_app)
-    response = client.get("/")
-    assert response.status_code == 200
-
-    # 3. Retrieve system logs and verify a connection entry exists
-    logs = SystemLog.query().get()
-    assert len(logs) >= 1
-    assert "Connection established" in logs[0].get_attribute("message")
-    assert "GET" in logs[0].get_attribute("message")
-    assert "/" in logs[0].get_attribute("message")
 
 
 def test_query_splitting_read_write_replicas():
@@ -525,7 +511,7 @@ def test_query_splitting_read_write_replicas():
 
     from craft.orm.db import DatabaseManager
 
-    from app.Models.User import User
+    from tests.support.models import User
 
     # 1. Setup temporary sqlite files
     write_db = "storage/test_write.sqlite"

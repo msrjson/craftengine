@@ -1,0 +1,48 @@
+# Workspace-level composition: the two deliverables are built and served as
+# separate containers, because they are separate products.
+#
+#   website    the craftengine.org presentation site (static HTML). Lives in
+#              its own repository under website/ and is NOT part of what a
+#              developer downloads with the framework.
+#   framework  the engine a developer downloads and builds on. Clean: no
+#              presentation site, no demo application, no bundled theme.
+#
+# Keeping them apart in development is what stops the site leaking back into
+# the framework the way the landing page, the docs controller and the theme
+# did. If a change needs both containers to be rebuilt, it is a change that
+# has crossed a boundary that should not be crossed.
+name: craftengine
+
+include:
+  # The framework keeps owning its own compose file: its Postgres version,
+  # volume names and upgrade notes are framework concerns, not workspace ones.
+  - path: data/docker-compose.yml
+
+services:
+  # What a developer gets from `craft new`, served on its own port with no
+  # database service and nothing added. Kept alongside `framework` so the two
+  # can be compared directly: :9000 still carries the demo application,
+  # :9001 carries one route.
+  skeleton:
+    build:
+      context: .
+      dockerfile: Dockerfile.skeleton
+    container_name: craftengine-skeleton
+    ports:
+      - "9001:9001"
+    restart: unless-stopped
+
+  website:
+    # The site's Dockerfile is build-only by design: DigitalOcean App Platform
+    # runs it to produce /site and then serves those files itself, with no
+    # runtime. Locally there is no platform to do the serving, so the command
+    # below supplies it. The site repository is deliberately not modified to
+    # add a CMD it does not need in production.
+    build: ./website
+    container_name: craftengine-website
+    command: python -m http.server 8090 --directory /site
+    ports:
+      # 8080 belongs to another workspace on this machine; 8090 keeps the two
+      # from fighting over the port when both are up.
+      - "8090:8090"
+    restart: unless-stopped

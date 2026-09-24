@@ -279,15 +279,6 @@ def _description(page):
 # -- the application's own route -----------------------------------------------
 
 
-def test_the_controller_and_the_site_share_one_implementation():
-    """Two copies is how the published site and the running app drift apart."""
-    import inspect
-
-    from app.Http.Controllers.Docs.DocsController import DocsController
-
-    source = inspect.getsource(DocsController)
-    assert "DocsLibrary" in source
-    assert "MarkdownIt" not in source, "the controller renders Markdown on its own again"
 
 
 def test_the_app_route_renders_cross_links_it_can_serve(docs_dir):

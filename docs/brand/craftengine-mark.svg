@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="CraftEngine">
+  <title>CraftEngine</title>
+  <!--
+    The gear is what gets built; the ignition is what the engine does. The bolt
+    breaks out of the ring rather than sitting inside it, which is also what
+    keeps this from reading as the universal "settings" icon.
+
+    Two tones: the gear in the darker orange so the bolt, in the brighter one,
+    stays the figure and the gear stays the ground.
+  -->
+  <g fill="#ea580c">
+    <path d="M32 9a23 23 0 0 0-23 23 23 23 0 0 0 23 23v-8a15 15 0 0 1-15-15 15 15 0 0 1 15-15z"/>
+    <rect x="28.5" y="2" width="7" height="10" rx="1.5" transform="rotate(200 32 32)"/>
+    <rect x="28.5" y="2" width="7" height="10" rx="1.5" transform="rotate(245 32 32)"/>
+    <rect x="28.5" y="2" width="7" height="10" rx="1.5" transform="rotate(290 32 32)"/>
+    <rect x="28.5" y="2" width="7" height="10" rx="1.5" transform="rotate(335 32 32)"/>
+  </g>
+  <path d="M38 12 L24 34 L33 34 L31 54 L48 29 L38 29 Z" fill="#f97316"/>
+</svg>

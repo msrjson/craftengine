@@ -296,9 +296,11 @@ class Migrator:
 
     def rollback(self, step: int = 1) -> List[str]:
         """Revert the last `step` batches."""
+        assert_disposable(self.app, self.db, "rollback")
         return self.with_lock(lambda: self._rollback(step))
 
     def _rollback(self, step: int = 1) -> List[str]:
+        assert_disposable(self.app, self.db, "rollback")
         self.ensure_repository()
         batch = self.last_batch()
         if batch == 0:

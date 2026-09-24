@@ -1,0 +1,35 @@
+# Builds and serves a project exactly as `craft new` writes it, with nothing
+# added afterwards.
+#
+# Its only purpose is validation: this container answers with what a developer
+# actually gets after generating a project, on a port of its own, next to the
+# `framework` container that still carries the demo application. Comparing the
+# two is the point - :9000 serves the landing page, the admin panel, the docs
+# site and the login screen; :9001 serves one route.
+#
+# The engine is installed as a package rather than mounted, so the generated
+# project imports it the way a real installation would, and so nothing from
+# this repository's application leaks in through a bind mount.
+FROM python:3.14-slim
+
+COPY data/ /engine-src/
+# The checkout carries a craft.egg-info from local editable installs; leaving
+# it in place makes setuptools fail when it cannot update its timestamp.
+RUN rm -rf /engine-src/craft.egg-info && pip install --no-cache-dir /engine-src
+
+WORKDIR /srv
+RUN craft new app
+
+WORKDIR /srv/app
+# SQLite keeps the validation container free of a database service: the point
+# is to show the skeleton boots on its own, with no infrastructure attached.
+ENV PYTHONPATH=/srv/app \
+    DB_CONNECTION=sqlite \
+    DB_DATABASE=/srv/app/storage/database.sqlite \
+    APP_ENV=local \
+    APP_DEBUG=true
+
+RUN cp .env.example .env && craft key:generate && craft migrate
+
+EXPOSE 9001
+CMD ["python", "dev.py", "serve", "--host", "0.0.0.0", "--port", "9001", "--no-reload"]

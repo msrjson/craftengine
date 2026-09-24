@@ -11,36 +11,21 @@ The default target is SQLite in memory.
 
 ## Three targets
 
-A change is only verified when it passes all three. Dialect bugs and
-version bugs only appear on the target that exercises them.
+A change needs validation on all supported dialects and Python versions.
+Database tests must not target an existing database or remove records. The
+current PostgreSQL fixture and legacy tests still require a non-destructive
+isolation redesign; do not run the full suite against a persistent server.
 
 ```bash
 # 1. SQLite, your local Python
 python -m pytest
 
-# 2. PostgreSQL
-docker exec framework-db psql -U craft -d craft_db -p 5499 \
-  -c "CREATE DATABASE craft_validation;"
-
-CRAFT_TEST_DB=pgsql DB_HOST=127.0.0.1 DB_PORT=5499 \
-  DB_DATABASE=craft_validation DB_USERNAME=craft DB_PASSWORD=secretpassword \
-  python -m pytest
-
-# 3. Python 3.14, the minimum supported version
-docker exec framework python -m pytest
-```
-
-PowerShell:
-
-```powershell
-$env:CRAFT_TEST_DB="pgsql"; $env:DB_HOST="127.0.0.1"; $env:DB_PORT="5499"
-$env:DB_DATABASE="craft_validation"; $env:DB_USERNAME="craft"; $env:DB_PASSWORD="secretpassword"
-python -m pytest
+# 2. Python 3.14, the minimum supported version
+python3.14 -m pytest
 ```
 
 Python 3.14 evaluates annotations lazily (PEP 649). Code with a broken
-annotation — a missing import, say — runs fine there. Target 3 exercises
-the test suite directly on the containerized Python 3.14 environment.
+annotation — a missing import, say — runs fine there.
 
 ## The schema comes from migrations
 
@@ -74,14 +59,12 @@ runs on SQLite and PostgreSQL alike:
 @pytest.fixture(autouse=True)
 def tables(migrated_database):
     schema = migrated_database.make("schema")
-    schema.drop_table("gadgets")
     schema.create_table("gadgets", lambda t: (
         t.id(),
         t.string("name").nullable(),
         t.timestamps(),
     ))
     yield
-    schema.drop_table("gadgets")
 ```
 
 ## HTTP tests

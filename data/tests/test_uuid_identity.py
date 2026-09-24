@@ -259,7 +259,7 @@ class TestFrameworkTables:
         assert migrated_database.make("db").table_has_column("users", "uuid")
 
     def test_a_new_user_gets_one(self, migrated_database):
-        from app.Models.User import User
+        from tests.support.models import User
 
         DB.statement("DELETE FROM users WHERE email = 'uuid@craft.local'")
         user = User.create(

@@ -19,8 +19,44 @@ from bootstrap.app import app, asgi_app
 from craft.support.shutdown import ShutdownSignal
 
 
+#: Bearer token the probe fixture configures, so the detailed readiness payload
+#: can be asserted on. Never a real secret: it exists only inside this suite.
+READINESS_TOKEN = "readiness-token-for-tests"
+
+#: Header a caller entitled to the detailed payload sends.
+DETAILED = {"Authorization": f"Bearer {READINESS_TOKEN}"}
+
+
 @pytest.fixture
-def client(migrated_database):
+def probes_enabled(migrated_database):
+    """Turn the probe routes on for the duration of a test.
+
+    They are opt-in since 4.0.0: an application that never asked for them does
+    not answer on /health or /ready. Enabling one is a configuration change
+    plus a re-registration, because the route table is built from config. The
+    readiness result cache is switched off so each test sees its own run.
+    """
+    from bootstrap.app import kernel
+
+    config = app.make("config")
+    names = (
+        "framework.HEALTH_ROUTES_ENABLED",
+        "framework.HEALTH_READINESS_TOKEN",
+        "framework.HEALTH_READINESS_CACHE_SECONDS",
+    )
+    saved = {name: config.get(name) for name in names}
+    config.set("framework.HEALTH_ROUTES_ENABLED", True)
+    config.set("framework.HEALTH_READINESS_TOKEN", READINESS_TOKEN)
+    config.set("framework.HEALTH_READINESS_CACHE_SECONDS", 0)
+    kernel.register_engine_routes(refresh=True)
+    yield config
+    for name, value in saved.items():
+        config.set(name, value)
+    kernel.register_engine_routes(refresh=True)
+
+
+@pytest.fixture
+def client(probes_enabled):
     return TestClient(asgi_app)
 
 
@@ -36,7 +72,8 @@ class TestHealthProbes:
         assert "checks" not in payload
 
     def test_readiness_reports_each_dependency(self, client):
-        response = client.get("/ready")
+        """The detailed payload, which only a caller holding the token gets."""
+        response = client.get("/ready", headers=DETAILED)
         assert response.status_code == 200
         checks = response.json()["checks"]
         assert checks["database"]["status"] == "pass"

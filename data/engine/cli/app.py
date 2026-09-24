@@ -18,6 +18,7 @@ References:
 from __future__ import annotations
 
 import os
+import json
 import sys
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -79,8 +80,19 @@ def base_path() -> str:
     return os.getcwd()
 
 
-def get_app(boot_http: bool = False) -> Any:
-    """Boot (once) and return the Craft application."""
+def get_app() -> Any:
+    """Boot (once) and return the Craft application.
+
+    The application `bootstrap.app` builds at import time is the one every
+    command uses. Calling `create_app()` again here built a *second*
+    application: a second container, a second database manager and a second
+    physical connection to the same database. The first one keeps the global
+    container (`Container.getInstance()`), so anything resolving through it -
+    the module-level `Schema` migration files import - ran its statements on
+    the first connection while the migrator held its transaction on the
+    second. On file-backed SQLite that is a writer against a writer, and
+    `migrate` died with "database is locked".
+    """
     global _app_instance
     if _app_instance is not None:
         return _app_instance
@@ -90,12 +102,7 @@ def get_app(boot_http: bool = False) -> Any:
 
     import engine  # registers the `craft.*` module aliases  # noqa: F401
 
-    if boot_http:
-        from bootstrap.app import app as booted
-    else:
-        from bootstrap.app import create_app
-
-        booted = create_app()
+    from bootstrap.app import app as booted
 
     _app_instance = booted
     return _app_instance
@@ -106,6 +113,35 @@ def get_migrator() -> Any:
 
     return Migrator(get_app())
 
+
+
+def _identity_model(kind: str) -> Any:
+    """Resolve one of the project's identity models, or stop with guidance.
+
+    The engine does not ship `User`, `Role`, `Permission` or `Group`; a project
+    generates them (`make:auth`, `make:admin`) and declares them in
+    `config/auth.py`. These commands used to import `app.Models.*` directly,
+    which meant the framework could not run its own CLI in a project laid out
+    any other way, and a project without an admin panel got a raw
+    ModuleNotFoundError halfway through a command.
+
+    Args:
+        kind: One of `user`, `role`, `permission`, `group`.
+
+    Returns:
+        The model class the project declared.
+
+    Raises:
+        typer.Exit: If the project has not declared that model.
+    """
+    from engine.auth import registry
+
+    try:
+        return registry.model_for(kind, get_app().make("config"))
+    except registry.IdentityModelNotConfigured as exc:
+        remedy = "craft make:auth" if kind == "user" else "craft make:admin"
+        echo(f"{exc.code}: {registry.config_key(kind)} is not set. Run `{remedy}` first.", "red")
+        raise typer.Exit(code=1) from None
 
 def echo(message: str, color: Optional[str] = None, bold: bool = False) -> None:
     if color or bold:
@@ -145,9 +181,9 @@ def _destructive_guard() -> Iterator[None]:
     try:
         yield
     except DestructiveOperationRefused as refused:
-        echo(f"Refused: {refused.params['operation']} on permanent database "
-             f"'{refused.params['database']}'. Only in-memory SQLite, '*_test' or "
-             "DB_DISPOSABLE_DATABASES may be wiped (NR-02).", "red")
+        echo(f"Refused: {refused.params['operation']} on database "
+             f"'{refused.params['database']}'. Destructive database operations "
+             "are disabled in every environment (NR-02).", "red")
         raise typer.Exit(code=1) from refused
 
 
@@ -155,7 +191,8 @@ def _destructive_guard() -> Iterator[None]:
 def migrate_rollback(step: int = typer.Option(1, help="How many batches to revert.")) -> None:
     """Roll back the last batch of migrations."""
     migrator = get_migrator()
-    migrator.rollback(step=step)
+    with _destructive_guard():
+        migrator.rollback(step=step)
     for note in migrator.notes:
         echo(note, "yellow")
 
@@ -681,6 +718,10 @@ def make_auth(
         echo(f"Authentication file already exists: {exc}. Use --force to overwrite.", "red")
         raise typer.Exit(code=1) from None
 
+    if result.get("already_configured"):
+        echo("Authentication is already configured; existing routes and files were preserved.", "green")
+        return
+
     echo("Authentication scaffolding generated successfully:", "green", bold=True)
     for kind, path in result["files"].items():
         echo(f"  -> {kind:<18} {path}", "green")
@@ -688,6 +729,36 @@ def make_auth(
     echo("\nNext steps:", bold=True)
     echo("  1. Access the login screen at: http://127.0.0.1:9000/login", "cyan")
     echo("  2. Access the registration screen at: http://127.0.0.1:9000/register", "cyan")
+
+
+@make_app.command("admin")
+def make_admin(
+    force: bool = typer.Option(False, "--force", "-f", help="Overwrite existing files."),
+) -> None:
+    """Scaffold the RBAC admin panel: controllers, models, migration, views, and routes."""
+    from engine.cli import admin_scaffolder
+
+    try:
+        result = admin_scaffolder.build_admin(base_path(), force=force)
+    except FileExistsError as exc:
+        echo(f"An admin panel file already exists: {exc}. Use --force to overwrite.", "red")
+        raise typer.Exit(code=1) from None
+
+    if result.get("already_configured"):
+        echo("The admin panel is already registered; existing routes and files were preserved.", "green")
+        return
+
+    echo("Admin panel scaffolding generated successfully:", "green", bold=True)
+    for kind, path in result["files"].items():
+        echo(f"  -> {kind:<48} {path}", "green")
+
+    echo("\nNext steps:", bold=True)
+    echo("  1. Create the RBAC tables:", "cyan")
+    echo("     python dev.py migrate", bold=True)
+    echo("  2. Give an account the admin role:", "cyan")
+    echo("     python dev.py role:assign <email> admin", bold=True)
+    echo("  3. Open the panel at: http://127.0.0.1:9000/admin", "cyan")
+    echo("  4. The views extend layouts.app and layouts.panel; provide them if absent.", "cyan")
 
 
 def _simple_generator(kind: str, label: str):
@@ -729,24 +800,33 @@ for _kind, _label in [
 def route_list(
     method: Optional[str] = typer.Option(None, help="Filter by HTTP method."),
     path_filter: Optional[str] = typer.Option(None, "--path", help="Filter by URI substring."),
+    as_json: bool = typer.Option(False, "--json", help="Print routes and middleware as JSON."),
 ) -> None:
     """List every registered route."""
-    app = get_app(boot_http=True)
+    app = get_app()
     router = app.make("router")
+    from bootstrap.app import kernel
 
-    echo(f"{'METHOD':<16} {'URI':<44} NAME")
-    echo("-" * 96)
-    count = 0
+    global_middleware = [middleware.__name__ for middleware in kernel.middleware_classes]
+    routes = []
     for route in router.routes:
         methods = "|".join(m for m in route.methods if m != "HEAD")
         if method and method.upper() not in route.methods:
             continue
         if path_filter and path_filter not in route.uri:
             continue
-        echo(f"{methods:<16} {route.uri:<44} {route._name or '-'}")
-        count += 1
-    echo("-" * 96)
-    echo(f"{count} route(s).")
+        middleware = [entry if isinstance(entry, str) else entry.__name__ for entry in route.middleware_list]
+        routes.append({"method": methods, "uri": route.uri, "name": route._name or None, "middleware": middleware})
+    if as_json:
+        echo(json.dumps({"global_middleware": global_middleware, "routes": routes}, indent=2))
+        return
+    echo("Global middleware: " + ", ".join(global_middleware))
+    echo(f"{'METHOD':<16} {'URI':<40} {'NAME':<25} MIDDLEWARE")
+    echo("-" * 112)
+    for route in routes:
+        echo(f"{route['method']:<16} {route['uri']:<40} {route['name'] or '-':<25} {','.join(route['middleware']) or '-'}")
+    echo("-" * 112)
+    echo(f"{len(routes)} route(s).")
 
 
 # -- docs -----------------------------------------------------------------------
@@ -1110,7 +1190,7 @@ def plugin_sync() -> None:
 def role_list() -> None:
     """List every role and the permissions granted to it."""
     get_app()
-    from app.Models.Role import Role
+    Role = _identity_model("role")
 
     roles = Role.query().get()
     echo(f"{'SLUG':<20} {'NAME':<24} PERMISSIONS")
@@ -1123,7 +1203,7 @@ def role_list() -> None:
 @role_app.command("create")
 def role_create(name: str, slug: str) -> None:
     """Create a role."""
-    from app.Models.Role import Role
+    Role = _identity_model("role")
 
     get_app()
     Role.create({"name": name, "slug": slug})
@@ -1134,8 +1214,8 @@ def role_create(name: str, slug: str) -> None:
 def role_grant(role_slug: str, permission_slug: str) -> None:
     """Attach a permission to a role."""
     get_app()
-    from app.Models.Role import Role
-    from app.Models.Permission import Permission
+    Role = _identity_model("role")
+    Permission = _identity_model("permission")
 
     role = Role.query().where("slug", role_slug).first()
     if role is None:
@@ -1168,7 +1248,7 @@ def role_grant(role_slug: str, permission_slug: str) -> None:
 def permission_list() -> None:
     """List every permission."""
     get_app()
-    from app.Models.Permission import Permission
+    Permission = _identity_model("permission")
 
     echo(f"{'SLUG':<24} NAME")
     echo("-" * 60)
@@ -1179,7 +1259,7 @@ def permission_list() -> None:
 @permission_app.command("create")
 def permission_create(name: str, slug: str) -> None:
     """Create a permission."""
-    from app.Models.Permission import Permission
+    Permission = _identity_model("permission")
 
     get_app()
     Permission.create({"name": name, "slug": slug})
@@ -1230,7 +1310,7 @@ CONDITIONS_HELP = (
 def group_list() -> None:
     """List every group with its members, roles and direct permissions."""
     get_app()
-    from app.Models.Group import Group
+    Group = _identity_model("group")
 
     echo(f"{'SLUG':<20} {'NAME':<24} {'MEMBERS':<8} ROLES / PERMISSIONS")
     echo("-" * 100)
@@ -1248,7 +1328,7 @@ def group_list() -> None:
 @group_app.command("create")
 def group_create(name: str, slug: str, description: str = typer.Option("", help="Optional description.")) -> None:
     """Create a group."""
-    from app.Models.Group import Group
+    Group = _identity_model("group")
 
     get_app()
     Group.create({"name": name, "slug": slug, "description": description or None})
@@ -1259,8 +1339,8 @@ def group_create(name: str, slug: str, description: str = typer.Option("", help=
 def group_add_user(group_slug: str, email: str) -> None:
     """Add a user to a group."""
     get_app()
-    from app.Models.Group import Group
-    from app.Models.User import User
+    Group = _identity_model("group")
+    User = _identity_model("user")
 
     group = _require(Group, group_slug, "group")
     user = User.query().where("email", email).first()
@@ -1289,8 +1369,8 @@ def group_add_user(group_slug: str, email: str) -> None:
 def group_remove_user(group_slug: str, email: str) -> None:
     """Remove a user from a group."""
     get_app()
-    from app.Models.Group import Group
-    from app.Models.User import User
+    Group = _identity_model("group")
+    User = _identity_model("user")
 
     group = _require(Group, group_slug, "group")
     user = User.query().where("email", email).first()
@@ -1319,8 +1399,8 @@ def group_grant_role(
 ) -> None:
     """Grant a role to every member of a group."""
     get_app()
-    from app.Models.Group import Group
-    from app.Models.Role import Role
+    Group = _identity_model("group")
+    Role = _identity_model("role")
 
     group = _require(Group, group_slug, "group")
     role = _require(Role, role_slug, "role")
@@ -1351,8 +1431,8 @@ def group_grant_permission(
 ) -> None:
     """Grant a permission straight to a group, without inventing a role."""
     get_app()
-    from app.Models.Group import Group
-    from app.Models.Permission import Permission
+    Group = _identity_model("group")
+    Permission = _identity_model("permission")
 
     group = _require(Group, group_slug, "group")
     permission = _require(Permission, permission_slug, "permission")
@@ -1388,8 +1468,8 @@ def user_grant_permission(
     recording it honestly.
     """
     get_app()
-    from app.Models.Permission import Permission
-    from app.Models.User import User
+    Permission = _identity_model("permission")
+    User = _identity_model("user")
 
     user = User.query().where("email", email).first()
     if user is None:
@@ -1423,7 +1503,7 @@ def user_access(email: str) -> None:
     five pivot tables by hand.
     """
     app = get_app()
-    from app.Models.User import User
+    User = _identity_model("user")
 
     user = User.query().where("email", email).first()
     if user is None:
@@ -1447,8 +1527,8 @@ def user_access(email: str) -> None:
 def user_assign_role(email: str, role_slug: str) -> None:
     """Assign a role to a user by email."""
     get_app()
-    from app.Models.User import User
-    from app.Models.Role import Role
+    User = _identity_model("user")
+    Role = _identity_model("role")
 
     user = User.query().where("email", email).first()
     if user is None:
@@ -1551,6 +1631,35 @@ def security_audit(limit: int = typer.Option(20, help="Number of audit logs to d
 
 
 # -- top-level commands ---------------------------------------------------------
+
+
+@cli.command("new")
+def new_project(
+    name: str = typer.Argument(..., help="Directory to generate the project into."),
+    force: bool = typer.Option(False, "--force", "-f", help="Generate into a non-empty directory."),
+) -> None:
+    """Create a new, bare Craft project.
+
+    The generated project boots, answers one route and contains nothing to
+    reuse. Add authentication with `make:auth`, the admin panel with
+    `make:admin` and resources with `make:crud`.
+    """
+    from engine.cli import project_scaffolder
+
+    try:
+        result = project_scaffolder.build_project(os.path.join(base_path(), name), force=force)
+    except project_scaffolder.ProjectDirectoryNotEmpty as exc:
+        echo(f"Directory is not empty: {exc.path}. Use --force to generate into it anyway.", "red")
+        raise typer.Exit(code=1) from None
+
+    files = result["files"]
+    echo(f"Created a bare Craft project at {result['path']}", "green", bold=True)
+    echo(f"  {len(files)} files written, no application code and no theme.", "green")
+    echo("\nNext steps:", bold=True)
+    echo(f"  cd {name}", "cyan")
+    echo("  craft key:generate", "cyan")
+    echo("  craft migrate", "cyan")
+    echo("  craft serve", "cyan")
 
 
 @cli.command("serve")

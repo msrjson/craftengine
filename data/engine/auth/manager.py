@@ -1,5 +1,5 @@
 """
-AuthManager — Resolves, authenticates, and remembers the current user via the
+AuthManager - Resolves, authenticates, and remembers the current user via the
 session; login rotates the session id to close session fixation.
 Category: Core Framework (Auth).
 Relations:
@@ -19,6 +19,7 @@ import importlib
 import threading
 from typing import Any, Dict, Optional
 
+from engine.auth import registry
 from engine.auth.password import Hash
 
 
@@ -27,7 +28,7 @@ class AuthManager:
 
     The manager is a container singleton, but "the current user" and "the
     current session" belong to the request being served. Once requests are
-    handled on a thread pool, two of them share this object — so that state is
+    handled on a thread pool, two of them share this object - so that state is
     kept per-thread. Storing it on the instance would mean one visitor's
     request could observe, or overwrite, another visitor's identity.
     """
@@ -65,7 +66,7 @@ class AuthManager:
             return None
 
     def provider_name(self, guard: Optional[str] = None) -> str:
-        """Provider backing a guard — `auth.defaults.guard` when none is given.
+        """Provider backing a guard - `auth.defaults.guard` when none is given.
 
         `auth.defaults.guard` and the `provider` key of each guard used to be
         decorative: the user model was read straight from
@@ -79,13 +80,34 @@ class AuthManager:
         return config.get(f"auth.guards.{guard}.provider", "users") or "users"
 
     def user_model(self, guard: Optional[str] = None) -> Any:
-        """Resolve the user model class of a guard's provider."""
+        """Resolve the user model class of a guard's provider.
+
+        The guard's own `provider.model` wins. When it names nothing, the
+        project's `auth.models.user` answers instead.
+
+        There is deliberately no hardcoded fallback. This used to default to
+        `app.Models.User.User`, which silently required every project to
+        reproduce the demo application's directory layout, and turned a
+        missing configuration key into a confusing ImportError deep in a
+        request instead of a named configuration failure.
+
+        Args:
+            guard: The guard to resolve for, or None for the default guard.
+
+        Returns:
+            The user model class.
+
+        Raises:
+            IdentityModelNotConfigured: If neither the guard's provider nor
+                `auth.models.user` names an importable class.
+        """
         config = self._config()
         path = None
         if config is not None:
             provider = self.provider_name(guard)
             path = config.get(f"auth.providers.{provider}.model")
-        path = path or "app.Models.User.User"
+        if not path:
+            return registry.model_for("user", config)
         module_path, _, class_name = path.rpartition(".")
         return getattr(importlib.import_module(module_path), class_name)
 
@@ -116,7 +138,7 @@ class AuthManager:
     def set_user(self, user: Any) -> Any:
         """Set the user for this request only, without touching the session.
 
-        Used when rehydrating from an existing session — writing back would
+        Used when rehydrating from an existing session - writing back would
         rotate the session id on every request.
         """
         self._user = user
@@ -132,7 +154,7 @@ class AuthManager:
         self._user = None
 
     def logout(self) -> None:
-        """End the session — clears memory and forgets the stored user."""
+        """End the session - clears memory and forgets the stored user."""
         from engine.events.lifecycle import UserLoggedOut, fire
 
         # Captured before the reset, so listeners still see who left.
@@ -160,11 +182,11 @@ class AuthManager:
         session = self._current_session()
         if session is None or user is None:
             return
-        # Rotate the id on login — otherwise a session fixed before login stays
+        # Rotate the id on login - otherwise a session fixed before login stays
         # valid afterwards (session fixation).
         session.regenerate()
         session.put(self._session_key(), user.get_attribute(self.primary_key_name()))
-        # Step-up auth's freshness clock — every login (including a step-up
+        # Step-up auth's freshness clock - every login (including a step-up
         # re-authentication that calls this indirectly) resets it.
         from engine.auth.step_up import StepUpAuth
 
@@ -198,7 +220,7 @@ class AuthManager:
 
         if user is None:
             # Compare against a dummy hash so a missing user costs the same as a
-            # wrong password — otherwise timing reveals which emails exist.
+            # wrong password - otherwise timing reveals which emails exist.
             Hash.check(str(password), Hash.make("timing-equalizer"))
             return None
 
@@ -260,7 +282,7 @@ class AuthManager:
     def once(self, credentials: Dict[str, Any]) -> bool:
         """Authenticate for this request only, without touching the session.
 
-        It used to be `validate(...) is not None` — it checked the credentials
+        It used to be `validate(...) is not None` - it checked the credentials
         and authenticated nobody, so after a `True` return `Auth.check()` was
         still False and `Auth.user()` still None. That is `validate()` under a
         name that promises a login. The user is now set in memory; `login()`

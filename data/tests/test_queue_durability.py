@@ -8,6 +8,9 @@ else — but every guarantee asserted here holds on both.
 # Copyright (c) 2026 Antonio Santos <snarthost@gmail.com>
 # Licensed under the MIT License. See LICENSE in the project root.
 
+import os
+import pathlib
+import tempfile
 import threading
 
 import pytest
@@ -101,7 +104,28 @@ def test_a_delayed_job_is_not_claimable_yet(manager):
     assert manager.pop("phase2") is None
 
 
-def test_claiming_is_exclusive_under_concurrency(tmp_path):
+@pytest.fixture
+def fast_sqlite_dir(tmp_path):
+    """Yield a directory for a file-backed SQLite database, on tmpfs when available.
+
+    The claim test checks exclusivity, not durability. On a disk-backed
+    filesystem every autocommitted write pays an fsync, which made the test take
+    seconds and serialized the workers so only one of them ever claimed a job.
+
+    Args:
+        tmp_path: Pytest's per-test directory, used when no tmpfs is writable.
+
+    Yields:
+        The directory to create the database in.
+    """
+    if not os.access("/dev/shm", os.W_OK):
+        yield tmp_path
+        return
+    with tempfile.TemporaryDirectory(dir="/dev/shm") as path:
+        yield pathlib.Path(path)
+
+
+def test_claiming_is_exclusive_under_concurrency(fast_sqlite_dir):
     """Every job is claimed exactly once, however the threads interleave.
 
     On its own database rather than the suite's, because the suite runs on
@@ -116,7 +140,7 @@ def test_claiming_is_exclusive_under_concurrency(tmp_path):
 
     db = DatabaseManager(config={
         "driver": "sqlite",
-        "database": str(tmp_path / "queue.sqlite"),
+        "database": str(fast_sqlite_dir / "queue.sqlite"),
         "pool_size": 8,
     })
     SchemaBuilder(db).create_table("jobs", lambda t: (
@@ -142,9 +166,13 @@ def test_claiming_is_exclusive_under_concurrency(tmp_path):
 
     claimed = []
     guard = threading.Lock()
+    workers = 6
+    # Release every worker at once, so the claims actually overlap.
+    start = threading.Barrier(workers)
 
     def worker():
         try:
+            start.wait(timeout=30)
             while True:
                 batch = driver.claim("phase2", count=1)
                 if not batch:
@@ -154,7 +182,7 @@ def test_claiming_is_exclusive_under_concurrency(tmp_path):
         finally:
             db.release()
 
-    threads = [threading.Thread(target=worker) for _ in range(6)]
+    threads = [threading.Thread(target=worker) for _ in range(workers)]
     for thread in threads:
         thread.start()
     for thread in threads:
