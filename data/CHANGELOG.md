@@ -18,6 +18,8 @@ full policy (categories to use, what counts as security-relevant, how
 
 ## [Unreleased]
 
+## [4.0.1] r00018 — 2026-09-24
+
 ### Fixed
 
 - Make the origin-based CSRF test independent of the developer's `.env`. It sent
