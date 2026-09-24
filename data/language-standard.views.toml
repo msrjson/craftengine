@@ -9,16 +9,11 @@
 # Run both passes; see `.pre-commit-config.yaml` and the CI workflow.
 
 [language_standard]
-# Phased exactly like the code pass: the scope that is green today, widened one
-# screen group per change. Backlog measured with this config:
-#   admin           29
-#   panel           36
-#   home.forge.py   35
-#   auth            11
-#   layouts          9
-#   posts            6
-#   api              1
-roots = ["resources/views/access", "resources/views/dashboard", "resources/views/docs"]
+# Scope is every view in the repository. Since 4.0.0 the repository ships no
+# demo screens, so resources/views holds only the starter page and the whole
+# directory is in scope and clean. It was previously phased screen group by
+# screen group across admin, panel, auth and layouts; those screens are gone.
+roots = ["resources/views"]
 exclude_dirs    = ["dist", "storage", "public", "node_modules"]
 exempt_globs    = ["*/lang/*", "*/locales/*", "*/translations/*"]
 strict_strings  = false

@@ -98,7 +98,7 @@
             static assets, and this page is meant to be deleted whole. The
             source of truth for it is docs/brand/ in the framework repository.
         -->
-        <svg class="mark" viewBox="0 0 64 64" role="img" aria-label="CraftEngine">
+        <svg class="mark" viewBox="0,0,64,64" role="img" aria-label="CraftEngine">
             <g fill="#ea580c">
                 <path d="M32 9a23 23 0 0 0-23 23 23 23 0 0 0 23 23v-8a15 15 0 0 1-15-15 15 15 0 0 1 15-15z"/>
                 <rect x="28.5" y="2" width="7" height="10" rx="1.5" transform="rotate(200 32 32)"/>
