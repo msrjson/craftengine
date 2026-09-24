@@ -18,6 +18,12 @@ full policy (categories to use, what counts as security-relevant, how
 
 ## [Unreleased]
 
+## [4.0.0] r00017 — 2026-09-24
+
+The framework is now delivered as a bare engine. A new project starts from `craft new`
+with nothing to reuse, and generators add what it needs. This is a breaking release for
+any project that relied on the bundled demo application; see Removed.
+
 ### Added
 
 - Record every route the framework attaches on the router itself, marked with its origin
@@ -31,8 +37,7 @@ full policy (categories to use, what counts as security-relevant, how
   existed with no switch anywhere in the project to find it by.
 
 - Add `craft make:admin`, which generates the RBAC admin panel on request: admin controllers, the panel shell, `Role`, `Permission` and `Group` models, one migration holding every RBAC and ABAC table, the Forge views, the `/admin/*` routes appended to `routes/web.py` behind `auth` and `role:admin`, and the identity model entries in `config/auth.py`.
-- Redirect `GET /signin` to the canonical `/login` route so mistaken sign-in links reach the login form.
-- Add an authentication contract, root agent instructions, and route listing with middleware details and JSON output.
+- Add root agent instructions (`AGENTS.md`) and a route listing with middleware details and JSON output.
 - Add a CI check that rejects destructive SQL in seeders and forward migrations.
 - Give every published documentation page a meta description taken from its own opening
   paragraph, plus Open Graph and Twitter metadata; `docs:build --base-url` adds canonical
@@ -42,6 +47,22 @@ full policy (categories to use, what counts as security-relevant, how
   keeps its `User`, `Role`, `Permission` and `Group`.
 - Add `engine/support/branding.py`, holding the Craft Engine wordmark and brand palette as
   the single source for the console banner and a generated project's starter page.
+
+- `craft new <name>` generates a bare project: configuration, three empty providers, one
+  route and the migrations the engine itself needs - no models, controllers, theme or seeded
+  data. The console is also installed as `craft`; `dev` keeps working.
+- `make:auth` writes the `User` model, its migration and the `config/auth.py` entries, so the
+  screens it generates work in a project that has no user model yet.
+- `craft.auth.models.AuthenticatableMixin` (password hashing on every insert path) and
+  `AuthorizableMixin` (`has_role`, `has_permission`, `can`, delegating to the AccessResolver
+  and denying when none is available). The `role:` and `permission:` middleware call these.
+- `engine/providers/engine_providers.py`: the one list of engine providers every bootstrap
+  registers, so a generated project can no longer fall behind this repository's.
+- The schema tenancy strategy (`MULTI_TENANCY_STRATEGY=schema`) now lives in the engine as
+  `craft.http.tenant_schema`, beside the rls strategy; it lived in the demo application.
+- `make:auth`, `make:admin` and `make:crud` write a bare `layouts/app.forge.py` when the
+  project has none - a valid document with a title and a content slot, and no theme.
+- The CraftEngine mark and palette in `docs/brand/`.
 
 ### Changed
 
@@ -55,18 +76,38 @@ full policy (categories to use, what counts as security-relevant, how
   and the manifest publishes the exact version of the installation.
 
 - Preserve existing authentication routes and controllers when `make:auth` runs; generated applications also receive the `/signin` navigation alias.
-- Seed only missing framework accounts, grants, and translations without clearing existing records or overwriting edited values.
+- Seed only missing translations, without clearing existing records or overwriting edited values.
 - Refuse schema-wide migration reset and rollback operations regardless of database name or environment.
 - Pause persistent-database test execution until its legacy fixtures can isolate data without physical deletion.
 
 ### Fixed
 
+- The code `make:auth` generated did not run in a generated project: sign-in answered 500
+  (AntiSpam and Honeypot were not registered, and the controller called `Validator.make` and
+  `AntiSpam.verify(..., ip_address=...)`, neither of which exists), old input was flashed as an
+  empty dict, and the dashboard called Python's `hasattr` inside a template.
+- `make:admin` generated a panel nobody could enter: `role:admin` found no `has_role` on the
+  generated user and refused everyone, `/admin` redirected to a `/panel` that only the demo had,
+  and the views extended a `layouts.panel` that nothing generated.
+- `make:crud` skipped registering its JSON API when `routes/api.py` was absent, while still
+  printing the API's URL; it now creates the file. Its screens no longer carry theme classes.
+- `craft new` generated an empty project from an installed package: the templates were not
+  declared as package data, and setuptools' globs drop hidden files such as `.env.example`.
+- `make:auth` registered no routes when `routes/web.py` did not exist yet.
+- The bundled `plugins/audit-log` imported the demo's `SystemLog` model and silently wrote
+  nothing without it; it writes through the `DB` facade.
+- `documentation/ai_agents.md` taught `Validator.make(data, rules)`, which does not exist.
 - Boot the console against a single application, so `craft migrate` no longer fails with "database is locked" on a file-backed SQLite database: the second application kept its own database connection, and migration DDL ran on it while the migrator held its transaction on the other.
 - Stop deleting duplicate cooldown history during unique-index migration; fail with an explicit reconciliation error instead.
 - Correct agent context that described the synchronous ORM as asynchronous or the runtime as supporting Python 3.11.
 
 ### Removed
 
+- **Breaking:** the demo application. The admin and control panels, the login and
+  registration screens, the documentation-site controller, the demo models, services and
+  seeders, and the bundled theme are gone; generate what a project needs with `make:auth`,
+  `make:admin` and `make:crud`. `v3.23.0-r00016` is the last release carrying them.
+  Migrations are all kept, because they have already run on existing databases.
 - Stop scaffolding a non-functional MCP configuration that launched `route:list` as though it were an MCP server.
 
 ### Security
