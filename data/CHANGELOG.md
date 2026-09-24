@@ -24,6 +24,9 @@ full policy (categories to use, what counts as security-relevant, how
   `Origin: http://localhost:9000` while the configured default `APP_URL` is port 8000, so it
   passed only where a local `.env` set 9000 and failed on every clean checkout, CI included.
   It now derives the origin from `app.APP_URL`. Test-only; the engine is unchanged.
+- Stop tracking `.coverage`. The binary data file `pytest --cov` writes on every run was
+  committed with 4.0.0 and changed in every commit since. It is now ignored, and removed from
+  the index only - a local copy is left in place.
 
 ## [4.0.0] r00017 — 2026-09-24
 

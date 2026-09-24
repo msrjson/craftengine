@@ -30,6 +30,10 @@ storage/app/*
 scratch/
 *.log
 
+# Test coverage data, written by `pytest --cov` on every run
+.coverage
+.coverage.*
+
 # Agent harness state
 .claude/
 
