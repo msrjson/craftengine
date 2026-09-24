@@ -163,22 +163,6 @@ def test_json_responses_carry_the_json_content_type():
     assert response.json()["status"] == "ok"
 
 
-def test_the_sample_application_pages_render():
-    """DEMO-ONLY: asserts the pages under `resources/views/` that ship with the
-    sample application, not engine behaviour. Delete with the sample."""
-    client = TestClient(asgi_app)
-
-    assert client.get("/").status_code == 200
-
-    response = client.get("/home")
-    assert response.status_code == 200
-    # Assert on structure, not on copy. The landing page is translatable, so its
-    # visible text depends on the active locale and on seeded translations —
-    # while the section itself is what proves the view rendered.
-    assert 'id="features"' in response.text
-    assert "<footer" in response.text
-
-    assert client.get("/login").status_code == 200
 
 
 def test_queue_json_serialization():
@@ -518,40 +502,8 @@ def test_a_guest_is_redirected_away_from_a_guarded_route():
     assert "/login" in response.headers.get("location", "")
 
 
-def test_tenant_service_autowired_injection():
-    """DEMO-ONLY: the three tenants asserted here are static data inside the
-    sample application's `TenantService`. Container autowiring itself is
-    covered by `tests/test_container.py`."""
-    from app.Services.Tenant.TenantService import TenantService
-
-    # Resolve service directly from the container via autowiring
-    service = app.make(TenantService)
-
-    assert isinstance(service, TenantService)
-    assert len(service.get_active_tenants()) == 3
-    assert service.get_active_tenants()[0]["name"] == "Acme Global Corporation"
 
 
-def test_database_logging_middleware():
-    """DEMO-ONLY: `DatabaseLoggingMiddleware` lives in the sample application
-    (`app/Http/Middleware/`) and is wired in `bootstrap/app.py`; the engine
-    ships no such middleware."""
-    from tests.support.models import SystemLog
-
-    # 1. Clean existing logs
-    SystemLog.query().delete()
-
-    # 2. Make an HTTP request to populate a connection log
-    client = TestClient(asgi_app)
-    response = client.get("/t/framework/plain")
-    assert response.status_code == 200
-
-    # 3. Retrieve system logs and verify a connection entry exists
-    logs = SystemLog.query().get()
-    assert len(logs) >= 1
-    assert "Connection established" in logs[0].get_attribute("message")
-    assert "GET" in logs[0].get_attribute("message")
-    assert "/t/framework/plain" in logs[0].get_attribute("message")
 
 
 def test_query_splitting_read_write_replicas():
