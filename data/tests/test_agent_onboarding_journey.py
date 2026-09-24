@@ -264,3 +264,58 @@ class TestGeneratedAuthenticationAndAdminPanel:
         assert report["ANON"] == "[302]", report
         # The password reached the database hashed.
         assert report["HASHED"] == "True", report
+
+
+_CRUD_PROBE = """
+import re, sys
+sys.path[:0] = [%(project)r, %(repository)r]
+from starlette.testclient import TestClient
+from bootstrap.app import asgi_app
+from app.Models.User import User
+
+User.create({"name": "Ada", "email": "ada@crud.test", "password": "correct-horse"})
+client = TestClient(asgi_app)
+token = lambda html: re.search(r'name="_token" value="([^"]+)"', html).group(1)
+client.post("/login", data={"email": "ada@crud.test", "password": "correct-horse", "_token": token(client.get("/login").text)})
+form = client.get("/admin/products/create")
+stored = client.post("/admin/products", data={"name": "Widget", "price_cents": "1290", "_token": token(form.text)}, follow_redirects=False)
+index = client.get("/admin/products").text
+print("INDEX", client.get("/admin/products").status_code)
+print("STORE", stored.status_code)
+print("LISTED", "Widget" in index)
+print("API", TestClient(asgi_app).get("/api/v1/products").status_code)
+print("THEME", len(re.findall(r'class="', index)))
+"""
+
+
+class TestGeneratedCrud:
+    """`make:crud` in a bare project yields a working screen and a working API.
+
+    It used to write views extending a layout nothing had generated, and to
+    skip registering the API when routes/api.py did not exist - while still
+    printing the API's URL, which then answered 404.
+    """
+
+    def test_screens_and_api_work_without_a_theme(self, generated_project):
+        database = os.path.join(generated_project, "storage", "database.sqlite")
+        crud = ("make:crud", "Product", "--fields", "name:string:required,price_cents:integer:required")
+        for command in (("make:auth",), crud, ("migrate",)):
+            result = run_console(*command, cwd=generated_project, database=database)
+            assert result.returncode == 0, result.stdout + result.stderr
+
+        environment = dict(os.environ)
+        environment.update({"DB_CONNECTION": "sqlite", "DB_DATABASE": database})
+        probe = _CRUD_PROBE % {"project": generated_project, "repository": REPOSITORY_ROOT}
+        result = subprocess.run(
+            [sys.executable, "-c", probe], cwd=generated_project, env=environment,
+            capture_output=True, text=True, timeout=180,
+        )
+        assert result.returncode == 0, result.stdout + result.stderr
+        report = dict(line.split(" ", 1) for line in result.stdout.splitlines() if " " in line)
+
+        assert report["INDEX"] == "200", report
+        assert report["STORE"] == "302", report
+        assert report["LISTED"] == "True", report
+        assert report["API"] == "200", report
+        # Generated markup carries no styling hooks: there is no theme to hook.
+        assert report["THEME"] == "0", report

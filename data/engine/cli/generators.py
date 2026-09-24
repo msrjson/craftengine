@@ -275,47 +275,42 @@ def _field_input_html(field: dict, value_expr: str) -> str:
     type_ = field.get("type", "string")
     required = "required" in (field.get("rules") or [])
     required_attr = " required" if required else ""
-    input_classes = (
-        "w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none "
-        "focus:border-orange-500 focus:ring-1 focus:ring-orange-500"
-    )
 
     if type_ == "boolean":
         return (
-            '        <div class="flex items-center">\n'
+            '        <div>\n'
             f'            <input type="checkbox" name="{name}" id="{name}" value="1" '
-            f'{{% if {value_expr} %}}checked{{% endif %}} class="h-4 w-4 text-orange-600 '
-            'focus:ring-orange-500 border-slate-300 rounded">\n'
-            f'            <label for="{name}" class="ml-2 block text-sm text-slate-700 font-medium">{label}</label>\n'
+            f'{{% if {value_expr} %}}checked{{% endif %}}>\n'
+            f'            <label for="{name}">{label}</label>\n'
             '        </div>'
         )
 
     if type_ in ("text", "long_text"):
         return (
-            '        <div class="space-y-2">\n'
-            f'            <label for="{name}" class="block text-sm font-semibold text-slate-700">{label}</label>\n'
-            f'            <textarea name="{name}" id="{name}" rows="6" class="{input_classes}"{required_attr}>'
+            '        <div>\n'
+            f'            <label for="{name}">{label}</label>\n'
+            f'            <textarea name="{name}" id="{name}" rows="6"{required_attr}>'
             f'{{{{ {value_expr} }}}}</textarea>\n'
             '        </div>'
         )
 
     if type_ == "json":
         return (
-            '        <div class="space-y-2">\n'
-            f'            <label for="{name}" class="block text-sm font-semibold text-slate-700">{label}</label>\n'
+            '        <div>\n'
+            f'            <label for="{name}">{label}</label>\n'
             f'            <textarea name="{name}" id="{name}" rows="4" placeholder=\'{{"key": "value"}}\' '
-            f'class="{input_classes} font-mono text-xs"{required_attr}>{{{{ {value_expr} }}}}</textarea>\n'
-            '            <p class="text-xs text-slate-400">JSON formatted data.</p>\n'
+            f'{required_attr}>{{{{ {value_expr} }}}}</textarea>\n'
+            '            <p>JSON formatted data.</p>\n'
             '        </div>'
         )
 
     html_type = _HTML_INPUT_TYPES.get(type_, "text")
     step_attr = ' step="any"' if type_ in ("float", "decimal") else ""
     return (
-        '        <div class="space-y-2">\n'
-        f'            <label for="{name}" class="block text-sm font-semibold text-slate-700">{label}</label>\n'
+        '        <div>\n'
+        f'            <label for="{name}">{label}</label>\n'
         f'            <input type="{html_type}" name="{name}" id="{name}" value="{{{{ {value_expr} }}}}"{step_attr} '
-        f'class="{input_classes}"{required_attr}>\n'
+        f'{required_attr}>\n'
         '        </div>'
     )
 
@@ -328,7 +323,7 @@ def admin_index_stub(entity: str, slug: str, fields: Optional[List[dict]] = None
     are zero records."""
     fields = fields or []
     header_cells = "\n".join(
-        f'                            <th class="px-6 py-3.5">{f["name"].replace("_", " ").title()}</th>'
+        f'                            <th>{f["name"].replace("_", " ").title()}</th>'
         for f in fields
     )
     row_cells_lines = []
@@ -338,12 +333,12 @@ def admin_index_stub(entity: str, slug: str, fields: Optional[List[dict]] = None
             # Long free-text fields are truncated in the list view — the full
             # value belongs on the edit form, not a table cell.
             row_cells_lines.append(
-                f'                                <td class="px-6 py-4 text-slate-600">'
+                f'                                <td>'
                 f'{{{{ ({expr} or "")|string|truncate(80) }}}}</td>'
             )
         else:
             row_cells_lines.append(
-                f'                                <td class="px-6 py-4 text-slate-600">{{{{ {expr} }}}}</td>'
+                f'                                <td>{{{{ {expr} }}}}</td>'
             )
     row_cells_body = "\n".join(row_cells_lines)
 
@@ -352,39 +347,39 @@ def admin_index_stub(entity: str, slug: str, fields: Optional[List[dict]] = None
 @section("title", "{entity} Records")
 
 @section("content")
-<div class="space-y-8">
-    <div class="flex items-center justify-between">
+<div>
+    <div>
         <div>
-            <h1 class="text-3xl font-bold text-slate-900 tracking-tight">{entity} Records</h1>
-            <p class="text-sm text-slate-500 mt-1">Manage {entity} records</p>
+            <h1>{entity} Records</h1>
+            <p>Manage {entity} records</p>
         </div>
-        <a href="/admin/{slug}/create" class="bg-orange-600 hover:bg-orange-700 text-white font-bold px-5 py-2.5 rounded-xl shadow-md transition duration-150 text-sm">
+        <a href="/admin/{slug}/create">
             New {entity}
         </a>
     </div>
 
     @if(records is defined and records is not none and records|length > 0)
-        <div class="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
-            <div class="overflow-x-auto">
-                <table class="w-full text-left border-collapse">
+        <div>
+            <div>
+                <table>
                     <thead>
-                        <tr class="bg-slate-50/75 border-b border-slate-200 text-xs font-bold uppercase text-slate-500 font-mono">
-                            <th class="px-6 py-3.5">ID</th>
+                        <tr>
+                            <th>ID</th>
 {header_cells}
-                            <th class="px-6 py-3.5">Actions</th>
+                            <th>Actions</th>
                         </tr>
                     </thead>
-                    <tbody class="divide-y divide-slate-100 text-sm text-slate-700">
+                    <tbody>
                         @foreach(records as record)
                             <tr>
-                                <td class="px-6 py-4 font-mono">{{{{ record.get_attribute('id') }}}}</td>
+                                <td>{{{{ record.get_attribute('id') }}}}</td>
 {row_cells_body}
-                                <td class="px-6 py-4 space-x-3">
-                                    <a href="/admin/{slug}/{{{{ record.get_attribute('id') }}}}/edit" class="text-orange-600 hover:text-orange-700 font-semibold">Edit</a>
-                                    <form action="/admin/{slug}/{{{{ record.get_attribute('id') }}}}" method="POST" class="inline">
+                                <td>
+                                    <a href="/admin/{slug}/{{{{ record.get_attribute('id') }}}}/edit">Edit</a>
+                                    <form action="/admin/{slug}/{{{{ record.get_attribute('id') }}}}" method="POST">
                                         @csrf
                                         <input type="hidden" name="_method" value="DELETE">
-                                        <button type="submit" class="text-rose-600 hover:text-rose-700 font-semibold" onclick="return confirm('Delete this record?')">Delete</button>
+                                        <button type="submit" onclick="return confirm('Delete this record?')">Delete</button>
                                     </form>
                                 </td>
                             </tr>
@@ -394,13 +389,13 @@ def admin_index_stub(entity: str, slug: str, fields: Optional[List[dict]] = None
             </div>
         </div>
     @else
-        <div class="text-center py-16 bg-white border border-dashed border-slate-200 rounded-3xl text-slate-400 max-w-lg mx-auto">
-            <svg class="w-12 h-12 text-slate-300 mx-auto mb-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+        <div>
+            <svg fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M12 7.5h1.5m-1.5 3h1.5m-7.5 3h7.5m-7.5 3h7.5m3-9h3.375c.621 0 1.125.504 1.125 1.125V18a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 18V6A2.25 2.25 0 015.25 3.75h9L18 7.5zm-3 0h.008v.008H15V7.5z"></path>
             </svg>
-            <p class="text-sm font-semibold">No {entity} records yet.</p>
-            <p class="text-xs text-slate-400 mt-1 mb-4">Be the first to create one!</p>
-            <a href="/admin/{slug}/create" class="bg-orange-600 hover:bg-orange-700 text-white font-bold px-4 py-2 rounded-xl shadow-md transition duration-150 text-xs">
+            <p>No {entity} records yet.</p>
+            <p>Be the first to create one!</p>
+            <a href="/admin/{slug}/create">
                 New {entity}
             </a>
         </div>
@@ -440,11 +435,11 @@ def admin_form_stub(entity: str, slug: str, fields: Optional[List[dict]] = None,
 @section("title", "{title}")
 
 @section("content")
-<div class="max-w-2xl bg-white border border-slate-200/80 rounded-3xl p-8 shadow-sm">
-    <h1 class="text-2xl font-bold text-slate-900 mb-6">{title}</h1>
+<div>
+    <h1>{title}</h1>
 
     @if(errors|length > 0)
-    <div class="mb-6 p-4 rounded-xl bg-rose-50 border border-rose-100 text-rose-700 text-sm space-y-1">
+    <div>
         @foreach(errors.values() as messages)
             @foreach(messages as message)
                 <p>{{{{ message }}}}</p>
@@ -453,16 +448,16 @@ def admin_form_stub(entity: str, slug: str, fields: Optional[List[dict]] = None,
     </div>
     @endif
 
-    <form action="{action}" method="POST" class="space-y-6">
+    <form action="{action}" method="POST">
         @csrf{method_field}
 
 {inputs_body}
 
-        <div class="flex items-center space-x-4 pt-2">
-            <button type="submit" class="bg-orange-600 hover:bg-orange-700 text-white font-bold px-6 py-2.5 rounded-xl shadow-md transition duration-150 text-sm">
+        <div>
+            <button type="submit">
                 {submit_label}
             </button>
-            <a href="/admin/{slug}" class="text-sm font-semibold text-slate-500 hover:text-slate-700">
+            <a href="/admin/{slug}">
                 Cancel
             </a>
         </div>
