@@ -87,18 +87,11 @@ def create_app() -> Application:
 
     # Register application service providers
     from app.Providers.AppServiceProvider import AppServiceProvider
-    from app.Providers.AuthServiceProvider import AuthServiceProvider as AppAuthServiceProvider
     from app.Providers.EventServiceProvider import EventServiceProvider as AppEventServiceProvider
-    from app.Providers.PanelServiceProvider import PanelServiceProvider
     from app.Providers.RouteServiceProvider import RouteServiceProvider
 
     app.register_provider(AppServiceProvider)
-    app.register_provider(AppAuthServiceProvider)
     app.register_provider(AppEventServiceProvider)
-    # Declares the control panel's menu. Registered after the auth provider
-    # because every menu item is guarded by the same roles, permissions and
-    # groups the routes are, resolved through the `access` binding.
-    app.register_provider(PanelServiceProvider)
     app.register_provider(RouteServiceProvider)
 
     # Wire facades to the app before booting providers
@@ -115,8 +108,6 @@ app = create_app()
 
 # Build the ASGI application
 from craft.http.kernel import Kernel
-from app.Http.Middleware.DatabaseLoggingMiddleware import DatabaseLoggingMiddleware
-from app.Http.Middleware.TenantMiddleware import TenantMiddleware
 
 from craft.http.middleware import (
     Authenticate,
@@ -144,7 +135,6 @@ _global_middleware = [
     SetLocale,
     VerifyCsrfToken,
     Authenticate,
-    DatabaseLoggingMiddleware,
 ]
 
 # `MULTI_TENANCY_ENABLED` used to be decorative: TenantMiddleware ran on every
@@ -162,6 +152,10 @@ if _config.get("framework.MULTI_TENANCY_ENABLED", False):
     if _strategy == "rls":
         _global_middleware.append(ScopeTenant)
     elif _strategy == "schema":
+        # Imported here, not at module scope: the schema strategy needs
+        # PostgreSQL, and a project that never selects it never loads it.
+        from craft.http.tenant_schema import TenantMiddleware
+
         _global_middleware.append(TenantMiddleware)
     else:
         raise ValueError(

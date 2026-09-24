@@ -94,23 +94,28 @@ _global_middleware = [
     Authenticate,
 ]
 
-# Multi-tenancy is opt-in, and the middleware is imported inside the branch so
-# a single-tenant application never loads it.
+# Multi-tenancy is opt-in, and each middleware is imported inside its branch so
+# a single-tenant application loads neither.
 #
-# Only the row-level-security strategy ships with the engine. The schema
-# strategy needs a middleware that knows how this application maps a host to a
-# schema, which is application knowledge: write it under
-# app/Http/Middleware/ and append it here.
+#   rls     row-level security, enforced by the database. The default, and the
+#           right choice for most applications.
+#   schema  one PostgreSQL schema per tenant, for the few that need physical
+#           separation. Scopes users whose `type` attribute is "tenant".
 _config = app.make("config")
 if _config.get("framework.MULTI_TENANCY_ENABLED", False):
-    from craft.http.middleware import ScopeTenant
-
     _strategy = str(_config.get("framework.MULTI_TENANCY_STRATEGY", "rls")).lower()
-    if _strategy != "rls":
+    if _strategy == "rls":
+        from craft.http.middleware import ScopeTenant
+
+        _global_middleware.append(ScopeTenant)
+    elif _strategy == "schema":
+        from craft.http.tenant_schema import TenantMiddleware
+
+        _global_middleware.append(TenantMiddleware)
+    else:
         # Refuse rather than degrade: an unrecognised strategy that fell
         # through would serve every tenant from the same tables.
         raise ValueError(_strategy)
-    _global_middleware.append(ScopeTenant)
 
 kernel.with_middleware(*_global_middleware)
 
