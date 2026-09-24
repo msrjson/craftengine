@@ -114,6 +114,35 @@ def get_migrator() -> Any:
     return Migrator(get_app())
 
 
+
+def _identity_model(kind: str) -> Any:
+    """Resolve one of the project's identity models, or stop with guidance.
+
+    The engine does not ship `User`, `Role`, `Permission` or `Group`; a project
+    generates them (`make:auth`, `make:admin`) and declares them in
+    `config/auth.py`. These commands used to import `app.Models.*` directly,
+    which meant the framework could not run its own CLI in a project laid out
+    any other way, and a project without an admin panel got a raw
+    ModuleNotFoundError halfway through a command.
+
+    Args:
+        kind: One of `user`, `role`, `permission`, `group`.
+
+    Returns:
+        The model class the project declared.
+
+    Raises:
+        typer.Exit: If the project has not declared that model.
+    """
+    from engine.auth import registry
+
+    try:
+        return registry.model_for(kind, get_app().make("config"))
+    except registry.IdentityModelNotConfigured as exc:
+        remedy = "craft make:auth" if kind == "user" else "craft make:admin"
+        echo(f"{exc.code}: {registry.config_key(kind)} is not set. Run `{remedy}` first.", "red")
+        raise typer.Exit(code=1) from None
+
 def echo(message: str, color: Optional[str] = None, bold: bool = False) -> None:
     if color or bold:
         typer.echo(typer.style(message, fg=color, bold=bold))
@@ -1161,7 +1190,7 @@ def plugin_sync() -> None:
 def role_list() -> None:
     """List every role and the permissions granted to it."""
     get_app()
-    from app.Models.Role import Role
+    Role = _identity_model("role")
 
     roles = Role.query().get()
     echo(f"{'SLUG':<20} {'NAME':<24} PERMISSIONS")
@@ -1174,7 +1203,7 @@ def role_list() -> None:
 @role_app.command("create")
 def role_create(name: str, slug: str) -> None:
     """Create a role."""
-    from app.Models.Role import Role
+    Role = _identity_model("role")
 
     get_app()
     Role.create({"name": name, "slug": slug})
@@ -1185,8 +1214,8 @@ def role_create(name: str, slug: str) -> None:
 def role_grant(role_slug: str, permission_slug: str) -> None:
     """Attach a permission to a role."""
     get_app()
-    from app.Models.Role import Role
-    from app.Models.Permission import Permission
+    Role = _identity_model("role")
+    Permission = _identity_model("permission")
 
     role = Role.query().where("slug", role_slug).first()
     if role is None:
@@ -1219,7 +1248,7 @@ def role_grant(role_slug: str, permission_slug: str) -> None:
 def permission_list() -> None:
     """List every permission."""
     get_app()
-    from app.Models.Permission import Permission
+    Permission = _identity_model("permission")
 
     echo(f"{'SLUG':<24} NAME")
     echo("-" * 60)
@@ -1230,7 +1259,7 @@ def permission_list() -> None:
 @permission_app.command("create")
 def permission_create(name: str, slug: str) -> None:
     """Create a permission."""
-    from app.Models.Permission import Permission
+    Permission = _identity_model("permission")
 
     get_app()
     Permission.create({"name": name, "slug": slug})
@@ -1281,7 +1310,7 @@ CONDITIONS_HELP = (
 def group_list() -> None:
     """List every group with its members, roles and direct permissions."""
     get_app()
-    from app.Models.Group import Group
+    Group = _identity_model("group")
 
     echo(f"{'SLUG':<20} {'NAME':<24} {'MEMBERS':<8} ROLES / PERMISSIONS")
     echo("-" * 100)
@@ -1299,7 +1328,7 @@ def group_list() -> None:
 @group_app.command("create")
 def group_create(name: str, slug: str, description: str = typer.Option("", help="Optional description.")) -> None:
     """Create a group."""
-    from app.Models.Group import Group
+    Group = _identity_model("group")
 
     get_app()
     Group.create({"name": name, "slug": slug, "description": description or None})
@@ -1310,8 +1339,8 @@ def group_create(name: str, slug: str, description: str = typer.Option("", help=
 def group_add_user(group_slug: str, email: str) -> None:
     """Add a user to a group."""
     get_app()
-    from app.Models.Group import Group
-    from app.Models.User import User
+    Group = _identity_model("group")
+    User = _identity_model("user")
 
     group = _require(Group, group_slug, "group")
     user = User.query().where("email", email).first()
@@ -1340,8 +1369,8 @@ def group_add_user(group_slug: str, email: str) -> None:
 def group_remove_user(group_slug: str, email: str) -> None:
     """Remove a user from a group."""
     get_app()
-    from app.Models.Group import Group
-    from app.Models.User import User
+    Group = _identity_model("group")
+    User = _identity_model("user")
 
     group = _require(Group, group_slug, "group")
     user = User.query().where("email", email).first()
@@ -1370,8 +1399,8 @@ def group_grant_role(
 ) -> None:
     """Grant a role to every member of a group."""
     get_app()
-    from app.Models.Group import Group
-    from app.Models.Role import Role
+    Group = _identity_model("group")
+    Role = _identity_model("role")
 
     group = _require(Group, group_slug, "group")
     role = _require(Role, role_slug, "role")
@@ -1402,8 +1431,8 @@ def group_grant_permission(
 ) -> None:
     """Grant a permission straight to a group, without inventing a role."""
     get_app()
-    from app.Models.Group import Group
-    from app.Models.Permission import Permission
+    Group = _identity_model("group")
+    Permission = _identity_model("permission")
 
     group = _require(Group, group_slug, "group")
     permission = _require(Permission, permission_slug, "permission")
@@ -1439,8 +1468,8 @@ def user_grant_permission(
     recording it honestly.
     """
     get_app()
-    from app.Models.Permission import Permission
-    from app.Models.User import User
+    Permission = _identity_model("permission")
+    User = _identity_model("user")
 
     user = User.query().where("email", email).first()
     if user is None:
@@ -1474,7 +1503,7 @@ def user_access(email: str) -> None:
     five pivot tables by hand.
     """
     app = get_app()
-    from app.Models.User import User
+    User = _identity_model("user")
 
     user = User.query().where("email", email).first()
     if user is None:
@@ -1498,8 +1527,8 @@ def user_access(email: str) -> None:
 def user_assign_role(email: str, role_slug: str) -> None:
     """Assign a role to a user by email."""
     get_app()
-    from app.Models.User import User
-    from app.Models.Role import Role
+    User = _identity_model("user")
+    Role = _identity_model("role")
 
     user = User.query().where("email", email).first()
     if user is None:
