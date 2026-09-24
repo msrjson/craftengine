@@ -118,12 +118,24 @@ class TestCsrf:
         assert response.status_code == 200
 
     def test_a_matching_origin_header_is_accepted(self, client):
-        """Origin-based CSRF (Slice 2): the app's own origin, present and correct."""
+        """Origin-based CSRF (Slice 2): the app's own origin, present and correct.
+
+        The origin is derived from `app.APP_URL`, the value the middleware
+        compares against. It used to be written as `http://localhost:9000`,
+        which matched only a developer whose local `.env` set that port: the
+        configured default is 8000, so the test failed on every clean checkout,
+        CI included.
+        """
+        from urllib.parse import urlsplit
+
+        from craft.facades import Config
+
+        configured = urlsplit(str(Config.get("app.APP_URL")))
         token = csrf_for(client)
         response = client.post(
             "/t/echo",
             data={"a": "1", "_token": token},
-            headers={"origin": "http://localhost:9000"},
+            headers={"origin": f"{configured.scheme}://{configured.netloc}"},
         )
         assert response.status_code == 200
 

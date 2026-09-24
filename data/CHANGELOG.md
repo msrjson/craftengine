@@ -18,6 +18,13 @@ full policy (categories to use, what counts as security-relevant, how
 
 ## [Unreleased]
 
+### Fixed
+
+- Make the origin-based CSRF test independent of the developer's `.env`. It sent
+  `Origin: http://localhost:9000` while the configured default `APP_URL` is port 8000, so it
+  passed only where a local `.env` set 9000 and failed on every clean checkout, CI included.
+  It now derives the origin from `app.APP_URL`. Test-only; the engine is unchanged.
+
 ## [4.0.0] r00017 — 2026-09-24
 
 The framework is now delivered as a bare engine. A new project starts from `craft new`
