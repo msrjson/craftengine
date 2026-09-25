@@ -526,6 +526,14 @@ class ScheduleManager:
             # a genuine connectivity failure would also land here, and
             # skipping this window is the safer failure mode either way —
             # missing one run is recoverable, running it twice may not be.
+            # A missing table is neither: it skips every window forever, so
+            # it is reported instead of read as "already claimed".
+            if not db.table_exists("scheduler_runs"):
+                logger.error(
+                    "scheduler_runs_table_missing window=%s hint=run craft migrate; "
+                    "a project generated before the scheduler migration shipped needs one creating scheduler_runs",
+                    window_key,
+                )
             return False
 
     def run_due_with_catchup(

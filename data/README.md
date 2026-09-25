@@ -117,12 +117,12 @@ extra tables:
 |---|---|
 | `users`, `roles`, `permissions`, `role_user`, `permission_role`, `groups`, `group_user`, `group_role`, `permission_group`, `permission_user` | `craft make:auth` and `craft make:admin` |
 | `tenants` | the project's own migration, when it is multi-tenant |
-| `auth_audit_logs`, `auth_cooldowns`, `firewall_rules`, `security_events` | not generated; honeypot, anti-spam and firewall degrade without them |
-| `scheduler_runs` | not generated; only `run_due_with_catchup()` needs it |
 | `plugins`, `modules`, `media`, `system_logs` | not generated |
 
-Both trees share `jobs`, `failed_jobs`, `sessions`, `translations` and
-`settings`. When comparing behaviour, compare against a project from
+Both trees share `jobs`, `failed_jobs`, `sessions`, `translations`,
+`settings`, the security tables (`auth_audit_logs`, `auth_cooldowns`,
+`firewall_rules`, `security_events`) and `scheduler_runs`. `craft doctor`
+reports any table the engine needs that a project lacks. When comparing behaviour, compare against a project from
 `craft new`, not against this tree: code that works here because a demo
 table exists can fail in a fresh project.
 

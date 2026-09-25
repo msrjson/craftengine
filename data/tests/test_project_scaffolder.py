@@ -121,3 +121,15 @@ class TestBuildProject:
 
         assert "bootstrap/app.py" in result["files"]
         assert (target / "existing.py").exists()
+
+
+def test_new_projects_create_the_tables_the_engine_writes_to(tmp_path):
+    """Security services and the catch-up scheduler need their tables from day one."""
+    import os
+
+    from craft.cli import project_scaffolder
+
+    project_scaffolder.build_project(str(tmp_path / "app"))
+    migrations = os.listdir(tmp_path / "app" / "database" / "migrations")
+    assert any(name.endswith("_create_security_tables.py") for name in migrations)
+    assert any(name.endswith("_create_scheduler_runs_table.py") for name in migrations)

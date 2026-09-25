@@ -454,3 +454,21 @@ class TestPerTenant:
         task = manager.job(object()).every_minute()
         with pytest.raises(ValueError):
             task.per_tenant()
+
+
+class TestClaimWithoutTheTable:
+    """A missing scheduler_runs table is reported, not read as "already claimed"."""
+
+    class _NoTableDb:
+        def table(self, name):
+            raise RuntimeError("no such table: scheduler_runs")
+
+        def table_exists(self, name):
+            return False
+
+    def test_the_missing_table_is_logged_as_an_error(self, caplog):
+        app = type("_App", (), {"make": lambda self, key: TestClaimWithoutTheTable._NoTableDb()})()
+        manager = ScheduleManager(app)
+        with caplog.at_level("ERROR", logger="craft"):
+            assert manager.claim_window("2026-09-25 10:00") is False
+        assert "scheduler_runs_table_missing" in caplog.text

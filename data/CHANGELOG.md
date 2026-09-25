@@ -52,6 +52,15 @@ full policy (categories to use, what counts as security-relevant, how
 
 ### Fixed
 
+- `craft new` projects create the tables the engine writes to by default: `auth_audit_logs`,
+  `auth_cooldowns` (with the unique index the honeypot's atomic upsert needs),
+  `firewall_rules`, `security_events` and `scheduler_runs`. Without them the sign-in form
+  `make:auth` generates ran its honeypot and anti-spam checks against missing tables and
+  swallowed the errors, and `run_due_with_catchup()` ran nothing. Both migrations are
+  forward-only. Existing generated projects: `craft doctor` lists the missing tables.
+- `ScheduleManager.claim_window()` logs `scheduler_runs_table_missing` when the claim fails
+  because the table does not exist, instead of reading it as "already claimed".
+
 - `IdentityModelNotConfigured` reads as a sentence naming the model, the reason and the fix
   instead of only its code. The console no longer says "`auth.models.X` is not set, run
   make:auth" when the path is set but does not import, and `AuthManager` reports a bad
