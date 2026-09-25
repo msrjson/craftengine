@@ -26,6 +26,16 @@ full policy (categories to use, what counts as security-relevant, how
 
 ### Fixed
 
+- Route middleware parameters are declared, typed and checked when routes are built. Engine
+  middleware lists the constructor parameters its alias accepts in `alias_parameters`, and
+  values are converted to each default's type. `throttle:10` passed the string `"10"` and
+  raised `TypeError` from the second request on; it now yields `max_attempts=10`, and
+  `throttle:30,120` also sets `decay_seconds`. A parameter on an alias that takes none
+  (`auth:api`, `session:x`, `csrf:x`, `firewall:x`) raises `MiddlewareAliasError` instead
+  of turning into a relative redirect or a bogus setting; so does `role:admin,editor`,
+  which denied everyone. `MiddlewareAliasError` is a `KeyError`. Project middleware that
+  declares nothing keeps the old rule.
+- `documentation/security.md` taught `auth:api`; token authentication is the `api` alias.
 - `model.column = value` followed by `save()` now writes the column. `Model` had no
   `__setattr__`, so the value landed on the instance, `save()` saw nothing dirty and wrote
   nothing, while later reads still returned the new value. Private names and names the

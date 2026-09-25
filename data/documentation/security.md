@@ -203,7 +203,7 @@ Attach the `firewall` middleware alias to any route or group:
 
 ```python
 Route.post("/api/v1/orders", [OrderController, "store"]) \
-    .middleware("firewall", "auth:api")
+    .middleware("firewall", "api")
 ```
 
 ### Threat Signatures Detected in Real Time

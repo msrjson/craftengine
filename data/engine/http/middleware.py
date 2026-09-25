@@ -21,11 +21,19 @@ from __future__ import annotations
 import fnmatch
 import logging
 import secrets
-from typing import Any, Callable, List, Optional
+from typing import Any, Callable, List, Optional, Tuple
 
 
 class Middleware:
     """Base middleware - pass the request through untouched."""
+
+    #: Constructor parameters a route alias may set, in order: `"throttle:30,60"`
+    #: fills `max_attempts` then `decay_seconds`, each converted to the type of
+    #: its default. An empty tuple means the alias takes no parameter, and one
+    #: given is refused at boot. `None` (the default for classes outside the
+    #: engine) keeps the original rule: the value goes, as a string, to the
+    #: first constructor parameter after `app`.
+    alias_parameters: Optional[Tuple[str, ...]] = None
 
     def handle(self, request: Any, next_callable: Callable) -> Any:
         return next_callable(request)
@@ -127,6 +135,8 @@ class RequestContext(Middleware):
 
 class StartSession(Middleware):
     """Load the session before the request, persist it after."""
+
+    alias_parameters = ()
 
     COOKIE_NAME = "craft_session"
 
@@ -294,6 +304,8 @@ class SetLocale(Middleware):
 
 class VerifyCsrfToken(Middleware):
     """Reject state-changing requests that carry no valid CSRF token."""
+
+    alias_parameters = ()
 
     #: Methods that are safe by definition and never checked.
     READ_METHODS = ("GET", "HEAD", "OPTIONS", "TRACE")
@@ -601,6 +613,8 @@ class ScopeTenant(Middleware):
 class RequireAuth(Middleware):
     """Terminate the request when nobody is authenticated."""
 
+    alias_parameters = ()
+
     def __init__(self, app: Any = None, redirect_to: str = "/login"):
         self.app = app
         self.redirect_to = redirect_to
@@ -625,6 +639,8 @@ class RequireRole(Middleware):
     Resolved from the `role:<slug>` route middleware alias - see
     `Kernel.resolve_route_middleware`.
     """
+
+    alias_parameters = ("role",)
 
     def __init__(self, role: str, app: Any = None, redirect_to: str = "/login"):
         self.role = role
@@ -664,6 +680,8 @@ class RequireFreshAuth(Middleware):
     redirect rather than a confusing "please re-authenticate."
     """
 
+    alias_parameters = ("max_age_seconds",)
+
     def __init__(self, max_age_seconds: Any = None, app: Any = None, redirect_to: str = "/login"):
         from engine.auth.step_up import DEFAULT_MAX_AGE_SECONDS
 
@@ -696,6 +714,8 @@ class RequireGroup(Middleware):
     team ("the support console"), where naming the team is more honest than
     inventing a permission that means "is on the support team".
     """
+
+    alias_parameters = ("group",)
 
     def __init__(self, group: str, app: Any = None, redirect_to: str = "/login"):
         self.group = group
@@ -735,6 +755,8 @@ class RequirePermission(Middleware):
     Guard those in the controller with `Gate.authorize(ability, user, record)`
     once the record exists.
     """
+
+    alias_parameters = ("permission",)
 
     def __init__(self, permission: str, app: Any = None, redirect_to: str = "/login"):
         self.permission = permission
@@ -779,6 +801,8 @@ class AuthenticateApiToken(Middleware):
     Use `RequireAuth`/`Authenticate` if what you actually want is "resolve the
     user if one is present, but let guests through".
     """
+
+    alias_parameters = ()
 
     def __init__(self, app: Any = None, column: Optional[str] = None):
         self.app = app
@@ -884,6 +908,8 @@ class ThrottleRequests(Middleware):
     """Fixed-window per-IP+route rate limit - closes the "no rate limiting
     on authentication endpoints" gap called out in SECURITY.md. Backed by
     the cache store, so it works with the array/file/redis driver alike."""
+
+    alias_parameters = ("max_attempts", "decay_seconds")
 
     def __init__(self, app: Any = None, max_attempts: int = 10, decay_seconds: int = 60):
         self.app = app

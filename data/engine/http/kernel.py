@@ -566,9 +566,13 @@ class Kernel:
         if "app" in signature.parameters:
             kwargs["app"] = self.app
 
-        if param is not None:
-            # First declared parameter after `self`/`app` receives the value
-            # from the `alias:param` route middleware string.
+        declared = getattr(mw_cls, "alias_parameters", None)
+        if param is not None and declared is not None:
+            kwargs.update(_alias_arguments(mw_cls, declared, param, signature))
+        elif param is not None:
+            # Legacy rule for middleware that does not declare its alias
+            # parameters: the first parameter after `self`/`app` gets the raw
+            # string.
             positional = [name for name in signature.parameters if name not in ("self", "app")]
             if positional:
                 kwargs[positional[0]] = param
@@ -687,3 +691,59 @@ class Kernel:
     def _render_exception(self, request: Any, exc: Exception) -> StarletteResponse:
         """Turn an exception into a response via the registered handler."""
         return render_exception(self.app, request, exc)
+
+
+class MiddlewareAliasError(KeyError):
+    """A route middleware string the kernel cannot turn into a middleware.
+
+    A `KeyError` so existing handlers keep catching it; `str()` is the plain
+    message rather than the quoted repr `KeyError` prints.
+    """
+
+    def __str__(self) -> str:
+        return str(self.args[0]) if self.args else ""
+
+
+def _alias_arguments(mw_cls: Any, declared: Any, param: str, signature: Any) -> dict:
+    """Map the `alias:value[,value]` parameter onto the declared constructor names.
+
+    Args:
+        mw_cls: The middleware class the alias resolved to.
+        declared: Its `alias_parameters`, in order.
+        param: The text after the colon.
+        signature: `inspect.signature(mw_cls.__init__)`.
+
+    Returns:
+        Keyword arguments for the constructor, converted to each default's type.
+
+    Raises:
+        MiddlewareAliasError: The alias takes no parameter, too many values
+            were given, or a value does not convert.
+    """
+    name = mw_cls.__name__
+    if not declared:
+        raise MiddlewareAliasError(
+            f"{name} takes no route parameter, but got ':{param}'. Remove it. "
+            f"Authentication by API token is the 'api' alias, not 'auth:api'."
+        )
+    values = [value.strip() for value in param.split(",")]
+    if len(values) > len(declared):
+        raise MiddlewareAliasError(
+            f"{name} takes {len(declared)} route parameter(s) ({', '.join(declared)}), got "
+            f"{len(values)}: ':{param}'. To require any of several roles or permissions, "
+            f"check them in a Gate or policy instead of listing them in one alias."
+        )
+    arguments = {}
+    # Fewer values than declared is fine: the rest keep their defaults.
+    for key, value in zip(declared, values, strict=False):
+        default = signature.parameters[key].default
+        if isinstance(default, int) and not isinstance(default, bool):
+            try:
+                arguments[key] = int(value)
+            except ValueError:
+                raise MiddlewareAliasError(
+                    f"{name} parameter '{key}' must be an integer, got '{value}'."
+                ) from None
+        else:
+            arguments[key] = value
+    return arguments

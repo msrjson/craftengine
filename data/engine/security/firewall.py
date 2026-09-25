@@ -269,6 +269,8 @@ class Firewall:
 class FirewallMiddleware:
     """Synchronous middleware that inspects requests against WAF and reputation rules."""
 
+    alias_parameters: tuple = ()
+
     def __init__(self, app: Any = None):
         self.app = app
         self._firewall = Firewall(app)
