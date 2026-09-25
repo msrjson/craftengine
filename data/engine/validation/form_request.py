@@ -32,9 +32,12 @@ References:
 
 from __future__ import annotations
 
+import logging
 from typing import Any, Dict, List, Optional
 
 from engine.validation.validator import Validator
+
+_logger = logging.getLogger("craft.validation")
 
 
 class FormRequest:
@@ -74,7 +77,11 @@ class FormRequest:
         if hasattr(request, "all"):
             try:
                 return dict(request.all() or {})
-            except Exception:
+            except (ValueError, TypeError):
+                # A body that does not parse (malformed JSON) validates as empty,
+                # so the rules report what is missing. It is logged, because
+                # "every field is required" otherwise hides the real cause.
+                _logger.warning("form_request_body_unreadable form=%s", type(self).__name__, exc_info=True)
                 return {}
         return {}
 

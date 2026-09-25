@@ -57,6 +57,10 @@ full policy (categories to use, what counts as security-relevant, how
 
 ### Fixed
 
+- `FormRequest.data()` treats only an unparseable body (`ValueError`, `TypeError`) as empty
+  input, and logs `form_request_body_unreadable`. Any other exception propagates; it used to
+  be swallowed, and every field was then reported as required.
+
 - A validation rule declared without the argument it needs (`min`, `max`, `regex`, `in`,
   `between:1`, `unique`, ...) raises `ValueError` naming the rule and field instead of
   accepting every value. An unknown rule's error names the closest known rule.

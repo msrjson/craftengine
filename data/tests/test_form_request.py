@@ -91,9 +91,21 @@ class TestInputSources:
     def test_no_request_means_no_data(self):
         assert StoreThing().data() == {}
 
-    def test_a_broken_request_degrades_to_empty(self):
+    def test_an_unparseable_body_degrades_to_empty_and_is_logged(self, caplog):
+        class MalformedJson:
+            def all(self):
+                raise ValueError("Expecting value: line 1 column 1")
+
+        with caplog.at_level("WARNING", logger="craft.validation"):
+            assert StoreThing(MalformedJson()).data() == {}
+        assert "form_request_body_unreadable" in caplog.text
+
+    def test_any_other_failure_reading_the_request_propagates(self):
+        # Swallowing it validated `{}` and reported every field as required,
+        # hiding the real fault.
         class BrokenRequest:
             def all(self):
                 raise RuntimeError("boom")
 
-        assert StoreThing(BrokenRequest()).data() == {}
+        with pytest.raises(RuntimeError, match="boom"):
+            StoreThing(BrokenRequest()).data()
