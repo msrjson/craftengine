@@ -21,12 +21,10 @@ View names use dot notation: `posts.index` resolves to
 > directive raises `TemplateSyntaxError` naming it and its line, and with
 > `APP_DEBUG` on an undefined variable raises `UndefinedError` when it is
 > printed, iterated or has an attribute read (`{% if flash %}` on a missing
-> name is still simply false). The exception handler turns each into a 500. Forge used to swallow every error and return a placeholder — a broken
-> view looked like a working page.
->
-> That legacy behaviour survives in one place: the standalone `view()` helper
-> in `craft.support` still swallows rendering errors and returns a stub
-> response. Use `self.view()` in controllers instead.
+> name is still simply false). The exception handler turns each into a 500.
+> Forge used to swallow every error and return a placeholder, so a broken view
+> looked like a working page; the standalone `view()` helper in `craft.support`
+> now propagates errors the same way `self.view()` does.
 
 ## Layouts
 
