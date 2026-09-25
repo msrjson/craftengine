@@ -75,6 +75,13 @@ CATALOG = {
         "The route action {action} returned None. Return a response, a View, a dict or list "
         "(sent as JSON) or a string (sent as HTML) - usually a missing return."
     ),
+    "VALIDATION_RULE_UNKNOWN": (
+        "Unknown validation rule [{rule}] on field [{field}]. Closest: {closest}."
+    ),
+    "VALIDATION_RULE_NEEDS_ARGUMENT": (
+        "Validation rule {rule} on field [{field}] needs {count} argument(s), "
+        "e.g. {rule}:<value>; without them it would accept anything."
+    ),
     "USER_MODEL_NOT_AUTHORIZABLE": (
         "The {alias}: route middleware calls {model}.{method}(), which does not exist. "
         "Mix craft.auth.models.AuthorizableMixin into {model}."

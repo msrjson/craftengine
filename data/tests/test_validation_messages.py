@@ -63,3 +63,14 @@ def test_every_code_formats_with_its_placeholders():
     for code, texts in TRANSLATIONS.items():
         for text in texts:
             assert "{" not in format_message(text, params, locale="en"), (code, text)
+
+
+@pytest.mark.parametrize("rule", ["min", "max:", "regex", "between:1", "in"])
+def test_a_rule_without_its_argument_is_refused(rule):
+    with pytest.raises(ValueError, match="needs"):
+        Validator({"age": 5}, {"age": [rule]}).passes()
+
+
+def test_an_unknown_rule_names_the_closest_one():
+    with pytest.raises(ValueError, match="Closest: required"):
+        Validator({"age": 5}, {"age": ["requried"]}).passes()

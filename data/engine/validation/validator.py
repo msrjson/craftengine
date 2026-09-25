@@ -29,6 +29,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 # and column arguments into SQL, so they need the same allowlist the query
 # builder applies to every identifier it writes.
 from engine.orm.query_builder import _assert_identifier
+from engine.support.diagnostics import closest, describe
 
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 URL_RE = re.compile(r"^https?://[^\s/$.?#].[^\s]*$", re.IGNORECASE)
@@ -80,6 +81,30 @@ class Validator:
             return [r for r in rule_list.split("|") if r]
         return [r for r in rule_list if r]
 
+    #: Rules that mean nothing without their argument(s), and how many they need.
+    #: `min` alone used to pass every value, which reads as validated and is not.
+    REQUIRED_ARGUMENTS = {
+        "regex": 1, "min": 1, "max": 1, "size": 1, "between": 2, "digits_between": 2,
+        "same": 1, "different": 1, "max_file_size": 1, "min_file_size": 1, "starts_with": 1,
+        "ends_with": 1, "in": 1, "not_in": 1, "mimes": 1, "unique": 1, "exists": 1,
+        "required_if": 2, "required_with": 1, "required_without": 1, "required_without_all": 1,
+        "prohibited_if": 2, "prohibited_unless": 2, "decimal": 0, "digits": 0,
+    }
+
+    def _require_arguments(self, field: str, rule: str, args: List[str]) -> None:
+        """Refuse a rule declared without the argument(s) it needs.
+
+        Raises:
+            ValueError: `rule` needs more arguments than it was given.
+        """
+        needed = self.REQUIRED_ARGUMENTS.get(rule, 0)
+        if len([arg for arg in args if arg]) < needed:
+            raise ValueError(describe("VALIDATION_RULE_NEEDS_ARGUMENT", rule=rule, field=field, count=needed))
+
+    def _known_rules(self) -> List[str]:
+        builtin = [attr[len("_rule_"):] for attr in dir(self) if attr.startswith("_rule_")]
+        return sorted(builtin + list(self._custom_rules) + ["nullable", "sometimes"])
+
     @staticmethod
     def _split(rule: str):
         name, _, argument = str(rule).partition(":")
@@ -114,6 +139,7 @@ class Validator:
 
                 handler: Optional[Callable] = getattr(self, f"_rule_{name}", None)
                 if handler is not None:
+                    self._require_arguments(field, name, args)
                     handler(field, value, args)
                 elif name in self._custom_rules:
                     callback, default_msg = self._custom_rules[name]
@@ -127,10 +153,11 @@ class Validator:
                             self._add_error(field, name, code="invalid")
                 else:
                     # A typo'd rule that silently does nothing is worse than a
-                    # loud failure — the field looks validated but is not.
-                    raise ValueError(
-                        f"Unknown validation rule [{name}] on field [{field}]."
-                    )
+                    # loud failure - the field looks validated but is not.
+                    raise ValueError(describe(
+                        "VALIDATION_RULE_UNKNOWN", rule=name, field=field,
+                        closest=closest(name, self._known_rules()),
+                    ))
 
     def _add_error(self, field: str, rule: str, code: Optional[str] = None, **params: Any) -> None:
         """Record a failure of `rule` on `field`.

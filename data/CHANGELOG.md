@@ -57,6 +57,10 @@ full policy (categories to use, what counts as security-relevant, how
 
 ### Fixed
 
+- A validation rule declared without the argument it needs (`min`, `max`, `regex`, `in`,
+  `between:1`, `unique`, ...) raises `ValueError` naming the rule and field instead of
+  accepting every value. An unknown rule's error names the closest known rule.
+
 - Validation messages follow the request locale. Every `Validator` failure is the translation
   key `validation.<code>` with ICU placeholders (`{field}` and the rule's values), seeded in
   `en`, `pt-BR` and `es` by a forward-only migration in both `craft new` projects and this
