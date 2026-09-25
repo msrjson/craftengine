@@ -22,6 +22,10 @@ full policy (categories to use, what counts as security-relevant, how
 
 - `craft.exceptions.MisconfigurationError(code, hint, **params)`: an HTTP 500 carrying a
   stable code and the exact fix, raised where the engine used to degrade silently.
+- A route action parameter annotated with a `FormRequest` subclass receives an instance that
+  has already been authorized and validated (403/422 before the action runs). Before, a
+  parameter named `request` got the raw request, so `request.input(...)` skipped every rule,
+  and any other name was left unbound. `validated()` caches its result.
 
 ### Security
 

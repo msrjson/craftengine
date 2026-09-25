@@ -184,6 +184,20 @@ def store(self, request):
 validates, raising `ValidationException` (422). Both are rendered by the
 exception handler.
 
+Or declare it in the action's signature. The kernel builds it from the request
+and runs `validated()` before the action is called, so the action cannot run on
+input that failed the rules:
+
+```python
+def store(self, form: StorePostRequest):
+    post = Post.create(form.validated())
+    return self.json(PostResource(post).to_array(), status=201)
+```
+
+The injection follows the annotation, whatever the parameter is called:
+`request: StorePostRequest` receives the form, not the raw request. Calling
+`validated()` again returns the cached result without re-running the checks.
+
 > `validated()` used to return the request body untouched, so every rule
 > declared on a FormRequest was silently ignored. If you are upgrading, expect
 > requests that previously slipped through to now be rejected.

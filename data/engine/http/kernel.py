@@ -129,10 +129,36 @@ def _is_request_parameter(position: int, name: str, param: inspect.Parameter, pa
     return position == 0 and name not in path_params and param.annotation is inspect.Parameter.empty
 
 
+def _signature(target: Any) -> inspect.Signature:
+    """Return the signature with string annotations resolved where possible.
+
+    Controllers written with `from __future__ import annotations` carry their
+    annotations as strings; a FormRequest parameter is only recognisable once
+    the name is resolved.
+    """
+    try:
+        return inspect.signature(target, eval_str=True)
+    except (NameError, SyntaxError, TypeError):
+        return inspect.signature(target)
+
+
+def _form_request_class(annotation: Any) -> Any:
+    """Return `annotation` when it is a FormRequest subclass, else None."""
+    from engine.validation.form_request import FormRequest
+
+    if isinstance(annotation, type) and issubclass(annotation, FormRequest):
+        return annotation
+    return None
+
+
 def bind_route_arguments(target: Any, request: Any) -> dict:
     """Build the keyword arguments for a route action.
 
-    Path parameters bind by name and are cast to the declared annotation. A
+    A parameter annotated with a `FormRequest` subclass receives an instance
+    built from the request that has already been authorized and validated, so
+    `def store(self, form: StorePostRequest)` cannot skip the rules; a failure
+    raises `AuthorizationException` or `ValidationException` before the action
+    runs. Path parameters bind by name and are cast to the declared annotation. A
     placeholder whose name matches no parameter binds positionally, and only to
     a parameter WITHOUT a default: a defaulted parameter such as `page=1` used
     to receive an unrelated path segment.
@@ -145,11 +171,16 @@ def bind_route_arguments(target: Any, request: Any) -> dict:
         Keyword arguments for `target`.
     """
     path_params = dict(getattr(request, "path_params", {}) or {})
-    parameters = inspect.signature(target).parameters
+    parameters = _signature(target).parameters
     spare = [key for key in path_params if key not in parameters]
     kwargs: dict = {}
     for position, (name, param) in enumerate(parameters.items()):
-        if _is_request_parameter(position, name, param, path_params):
+        form_class = _form_request_class(param.annotation)
+        if form_class is not None:
+            form = form_class(request)
+            form.validated()
+            kwargs[name] = form
+        elif _is_request_parameter(position, name, param, path_params):
             kwargs[name] = request
         elif name in path_params:
             kwargs[name] = cast_route_value(path_params[name], param.annotation)

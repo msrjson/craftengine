@@ -10,8 +10,13 @@ that needs them::
         def rules(self):
             return {"title": ["required", "string", "max:255"]}
 
-    def store(self, request):
-        data = StorePostRequest(request).validated()
+    def store(self, form: StorePostRequest):
+        data = form.validated()
+
+A route action parameter annotated with a FormRequest subclass receives an
+instance that has already been authorized and validated (see
+`engine/http/kernel.py::bind_route_arguments`); constructing one by hand from
+the request works the same way.
 
 Category: Core Framework (Validation).
 Relations:
@@ -118,6 +123,10 @@ class FormRequest:
         return the raw body without checking anything — every rule declared on a
         FormRequest was silently ignored.
         """
+        cached = self.__dict__.get("_validated")
+        if cached is not None:
+            return dict(cached)
+
         if not self.authorize():
             from engine.exceptions.handler import AuthorizationException
 
@@ -128,7 +137,8 @@ class FormRequest:
 
             raise ValidationException(self.validator().errors.to_dict())
 
-        return self.validator().validated()
+        self._validated = self.validator().validated()
+        return dict(self._validated)
 
 
 __all__ = ["FormRequest"]
