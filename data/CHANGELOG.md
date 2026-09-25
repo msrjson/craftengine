@@ -35,6 +35,14 @@ full policy (categories to use, what counts as security-relevant, how
 
 ### Fixed
 
+- The container no longer hides why a dotted path failed to resolve. An error raised while
+  importing a module that exists (a syntax error, a missing dependency inside it) propagates
+  instead of becoming "not bound"; only a module or class that does not exist is "not
+  bound". That message suggests the closest bound keys and, on the empty fallback container,
+  says no application has booted. An unresolvable constructor parameter names its type and
+  chains the underlying error, and only `KeyError`/`ValueError`/`TypeError` from resolving it
+  fall back to the default; anything else propagates.
+
 - A facade call to a method its service lacks names the facade, the service class and its
   container key, suggests the closest method with its signature and lists the public ones,
   instead of `'AntiSpamService' object has no attribute ...`. It is still an

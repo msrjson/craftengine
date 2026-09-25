@@ -154,17 +154,48 @@ class Container:
         if inspect.isclass(abstract):
             return self._build(abstract, parameters)
         elif isinstance(abstract, str):
-            try:
-                module_parts = abstract.rsplit(".", 1)
-                if len(module_parts) == 2:
-                    mod = __import__(module_parts[0], fromlist=[module_parts[1]])
-                    cls = getattr(mod, module_parts[1])
-                    if inspect.isclass(cls):
-                        return self._build(cls, parameters)
-            except Exception:
-                pass
+            cls = self._import_dotted(abstract)
+            if cls is not None:
+                return self._build(cls, parameters)
 
-        raise KeyError(f"Target [{key}] is not bound in container and cannot be resolved.")
+        raise KeyError(self._unbound_message(key))
+
+    @staticmethod
+    def _import_dotted(path: str) -> Any:
+        """Import the class a dotted path names, or None if there is no such class.
+
+        Only "this module or name does not exist" means "not resolvable". An
+        error raised while importing a module that does exist - a syntax error,
+        a failing import inside it - propagates: it used to be swallowed and
+        reported as "not bound", hiding the real fault.
+        """
+        module_name, _, class_name = path.rpartition(".")
+        if not module_name:
+            return None
+        try:
+            module = __import__(module_name, fromlist=[class_name])
+        except ModuleNotFoundError as exc:
+            if exc.name and (module_name == exc.name or module_name.startswith(exc.name + ".")):
+                return None
+            raise
+        cls = getattr(module, class_name, None)
+        return cls if inspect.isclass(cls) else None
+
+    def _unbound_message(self, key: str) -> str:
+        """Describe an unresolvable key, with the closest bound names."""
+        import difflib
+
+        known = sorted(set(self._bindings) | set(self._instances) | set(self._aliases))
+        message = f"Target [{key}] is not bound in container and cannot be resolved."
+        close = difflib.get_close_matches(key, known, n=3)
+        if close:
+            message += f" Did you mean: {', '.join(close)}?"
+        if not isinstance(self, Application):
+            message += (
+                " No application has booted: this is the empty fallback container, which is"
+                " what a facade used at import time, before bootstrap/app.py runs, resolves from."
+            )
+        return message
 
     def _build(self, concrete: Type, parameters: Optional[Dict[str, Any]] = None) -> Any:
         parameters = parameters or {}
@@ -188,18 +219,22 @@ class Container:
                 kwargs[param_name] = parameters[param_name]
                 continue
 
+            cause: Optional[Exception] = None
             if param.annotation != inspect.Parameter.empty:
                 param_type = param.annotation
                 try:
                     kwargs[param_name] = self.make(param_type)
                     continue
-                except Exception:
-                    pass
+                except (KeyError, ValueError, TypeError) as exc:
+                    cause = exc
 
             if param.default != inspect.Parameter.empty:
                 kwargs[param_name] = param.default
             else:
-                raise ValueError(f"Cannot resolve parameter [{param_name}] for class [{concrete.__name__}].")
+                raise ValueError(
+                    f"Cannot resolve parameter [{param_name}: {getattr(param.annotation, '__name__', param.annotation)}] "
+                    f"for class [{concrete.__name__}]. Bind it in a service provider or give it a default."
+                ) from cause
 
         return concrete(*args, **kwargs)
 
