@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "craft"
-version = "4.0.1"
+version = "4.1.0"
 description = "A batteries-included Python web framework built on Starlette"
 readme = "README.md"
 requires-python = ">=3.14"

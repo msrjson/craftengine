@@ -18,6 +18,8 @@ full policy (categories to use, what counts as security-relevant, how
 
 ## [Unreleased]
 
+## [4.1.0] r00019 — 2026-09-25
+
 ### Added
 
 - `craft doctor` checks a project's wiring and reports each mistake with a code, a location
