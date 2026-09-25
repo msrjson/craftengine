@@ -34,6 +34,23 @@ for the goal of agents working without error.
   project passes `lint_language.py` for both the code and the views pass; the
   onboarding journey test asserts it.
 
+- **Measured 2026-09-25:** 18 strings in `auth_scaffolder.py` stubs, 91 across
+  the 15 `admin_templates` files (CRUD Builder index 28, groups 32, roles 9,
+  result 9, permissions 4, controllers 9; two JS strings in the CRUD Builder,
+  one of them concatenated). No test asserts any of this copy.
+- **Prerequisites found:** Forge registers only `__()` (`engine/view/forge.py:380`);
+  `t()`/`trans()` are in the gate config but raise `UndefinedError` in a
+  template. A generated project has no `locales` table, no unique
+  `(key, locale)` index, no translation seeder, and defaults to `en` with a
+  stray `pt` (the `pt` part is fixed, see Done automatically). A missing key
+  returns the raw key with no log (`engine/support/translation.py:121`). The
+  gate never sees the stubs (`*.stub` matches no glob, `engine/` is not a
+  root), a generated project receives no gate or config, and the template
+  rule needs 8+ characters on one line, so a stricter test than the gate is
+  needed to prove the conversion.
+- **Unrendered copy:** `heading`/`subheading` in the admin controllers never
+  reach the generated layout, and `?error=conditions` is never shown.
+
 ### P2. PostgreSQL is not tested in CI
 
 - **Problem:** the framework is developed against PostgreSQL, but the CI job
