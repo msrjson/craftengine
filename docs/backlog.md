@@ -49,6 +49,26 @@ for the goal of agents working without error.
 - **Done when:** every fixture isolates data without physical deletion (NR-02),
   the guard is removed, the PostgreSQL job is green, and the `release` job runs
   on its own for the next release.
+- **Measured 2026-09-25:** about 190 destructive statements across 30 test
+  files (largest: `test_security_firewall_honeypot.py` 30, `test_postgres_integration.py` 20,
+  `test_framework.py` 14, `test_tenancy_rls.py` 13, `test_tenancy_wiring.py` 12,
+  `test_rbac.py` 9). The conftest fixtures `two_tenants` and
+  `unprivileged_postgres_role` delete/drop and are used by no test.
+- **Chosen approach:** a fresh, uniquely named database per session
+  (`craft_test_<utc>_<uuid8>_<worker>`), created with `CREATE DATABASE` before
+  `import engine` and never dropped; `DB_DATABASE` becomes only the maintenance
+  database to connect through. Tests stop deleting: unique emails, slugs, IPs,
+  queue and task names per test; scratch tables get unique names; whole-table
+  counts are scoped to the test's own rows. Tests of the delete APIs themselves
+  (`QueryBuilder.delete`/`truncate`, `Model.delete`, `force_delete`) move to a
+  private in-memory SQLite manager, as `test_query_builder.py` already does.
+- **Rejected:** per-test transaction rollback. Connections are per thread, the
+  kernel serves requests through `run_in_threadpool`, and `Connection` has no
+  nested savepoints (`engine/orm/connection.py:927-938`), so every TestClient
+  test would see none of the fixture rows and commit its own writes.
+- **CI gap found on the way:** `config/database.py:49` defaults `sslmode` to
+  `require` and the `postgres:18` service has no TLS; the job needs
+  `DB_SSLMODE: disable` or it fails to connect even after the guard goes.
 
 ### P3. Decide the engine's scope: "bare" or "Slim"
 
@@ -93,22 +113,28 @@ out with a measured backlog of 252 violations. Every edit to `engine/` in the
 toml already exempts `tools/lint_language.py`), migrate the 252, or make the
 hook read the project's toml.
 
-### L4. `data/` is not identical to a generated project
+### L4. `data/` is not identical to a generated project - done 2026-09-25
 
-`data/` still runs the demo application's migrations - users, roles,
-permissions, groups, tenants, media and others - because they have already run
-on existing databases and NR-02 forbids rewriting applied migrations. Someone
-comparing this repository with the output of `craft new` will find tables the
-generated project does not have. Document the difference in `data/README.md`,
-or plan a forward-only consolidation.
+Documented in `data/README.md` ("This repository is not a generated project"):
+which extra tables this tree creates and where a generated project gets them.
+
+### L5. The engine writes to tables a generated project does not have
+
+Found while documenting L4. A project from `craft new` has no
+`scheduler_runs`, `security_events`, `auth_cooldowns`, `auth_audit_logs` or
+`firewall_rules`, yet the engine writes to them. `ScheduleManager.claim_window`
+(`engine/schedule/manager.py:524`) reads the missing-table error as "window
+already claimed", so `run_due_with_catchup()` silently runs nothing; honeypot,
+anti-spam and firewall swallow the same error. The CLI's `schedule run` uses
+`run_due()` and is unaffected.
+**Done when:** the skeleton ships the migrations these subsystems need, or each
+subsystem distinguishes a missing table from its expected failure and says so
+loudly, with a test in a generated project.
 
 ---
 
 ## Also open
 
-- **Locale drift:** `data/database/seeders/TranslationSeeder.py` seeds a `pt`
-  locale alongside `pt-BR`; the governance file requires collapsing `pt` into
-  `pt-BR`.
 - **Third-party comparison document:** `data/documentation/market_evaluation.md`
   is a comparison with other frameworks in its entirety, against the project
   rule not to cite them. Owner to decide whether it stays.
@@ -119,6 +145,13 @@ or plan a forward-only consolidation.
 ---
 
 ## 🤖 Done automatically
+
+**2026-09-25:**
+
+- Locale drift closed (aa84d45): `pt` collapsed into `pt-BR` in the seeder,
+  config, skeleton stubs and `SetLocale`; a request for `pt`/`pt-PT` now lands
+  on `pt-BR` instead of the default locale.
+
 
 Work done during the 4.0.0 cut that was not in the original request, recorded
 so it is not mistaken for unexplained change. Each was found by running the
