@@ -79,6 +79,23 @@ class TestTableNaming:
 
         assert Sprocket.get_table_name() == "sprockets"
 
+    @pytest.mark.parametrize("name,table", [
+        ("Category", "categories"), ("BlogPost", "blog_posts"), ("Address", "addresses"),
+    ])
+    def test_inference_matches_the_generated_migration(self, name, table):
+        from craft.cli.generators import table_for
+
+        model = type(name, (Model,), {})
+        assert model.get_table_name() == table == table_for(name)
+
+    def test_a_table_under_the_legacy_name_is_still_found(self, migrated_database, caplog):
+        schema = migrated_database.make("schema")
+        schema.create_table("widgetcategorys", lambda t: (t.id(),))
+        model = type("WidgetCategory", (Model,), {})
+        with caplog.at_level("WARNING", logger="craft.orm"):
+            assert model.get_table_name() == "widgetcategorys"
+        assert "__table__" in caplog.text
+
 
 class TestCreateAndRead:
     def test_create_assigns_an_id(self):

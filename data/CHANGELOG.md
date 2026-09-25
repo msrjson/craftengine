@@ -109,6 +109,12 @@ full policy (categories to use, what counts as security-relevant, how
 
 ### Changed
 
+- A model without `__table__` infers its table with the rule the generators use
+  (`Category` -> `categories`, `BlogPost` -> `blog_posts`, `Address` -> `addresses`), shared
+  from the new `craft.support.naming`. It used to lowercase the class name and add "s"
+  (`categorys`, `blogposts`, `address`), disagreeing with every generated migration. A table
+  that exists only under the old name is still used, with a `model_table_legacy_name`
+  warning to set `__table__`.
 - Collapse the `pt` locale into `pt-BR`. `APP_LOCALES`, `SUPPORTED_LOCALES`, the `SetLocale`
   fallback list and the `craft new` config stubs now offer `en`, `pt-BR` and `es` only, and
   `TranslationSeeder` no longer seeds `pt`. Rows an earlier run wrote stay in the database.

@@ -18,28 +18,12 @@ import os
 import re
 from typing import Dict, List, Optional, Tuple
 
+from engine.support.naming import plural, snake, table_for  # noqa: E402,F401  re-exported
+
 
 def studly(value: str) -> str:
     parts = re.split(r"[_\-\s]+", value)
     return "".join(p[:1].upper() + p[1:] for p in parts if p)
-
-
-def snake(value: str) -> str:
-    value = re.sub(r"[\-\s]+", "_", value)
-    value = re.sub(r"(?<!^)(?=[A-Z])", "_", value)
-    return re.sub(r"__+", "_", value).lower()
-
-
-def plural(word: str) -> str:
-    if word.endswith("y") and not word.endswith(("ay", "ey", "iy", "oy", "uy")):
-        return word[:-1] + "ies"
-    if word.endswith(("s", "x", "z", "ch", "sh")):
-        return word + "es"
-    return word + "s"
-
-
-def table_for(model: str) -> str:
-    return plural(snake(model))
 
 
 # -- stubs ---------------------------------------------------------------------

@@ -34,6 +34,32 @@ from engine.orm.relationships import (
 _logger = logging.getLogger("craft.orm")
 
 
+def _infer_table(model: type) -> str:
+    """Return the table for a model without `__table__`, honouring the legacy name."""
+    from engine.support.naming import table_for
+
+    canonical = table_for(model.__name__)
+    legacy = model.__name__.lower()
+    legacy = legacy if legacy.endswith("s") else legacy + "s"
+    if legacy == canonical or not _table_exists(legacy) or _table_exists(canonical):
+        return canonical
+    _logger.warning(
+        "model_table_legacy_name model=%s table=%s expected=%s hint=set __table__ = %r on the model",
+        model.__name__, legacy, canonical, legacy,
+    )
+    return legacy
+
+
+def _table_exists(table: str) -> bool:
+    """Return whether `table` exists; False when no database is reachable."""
+    from engine.container.application import Container
+
+    try:
+        return bool(Container.getInstance().make("schema").has_table(table))
+    except (KeyError, RuntimeError, OSError):
+        return False
+
+
 class Model:
     """Active Record Base Model."""
 
@@ -189,12 +215,20 @@ class Model:
 
     @classmethod
     def get_table_name(cls) -> str:
+        """Return `__table__`, or the name the generators use (`BlogPost` -> `blog_posts`).
+
+        Before, a model without `__table__` used the class name lowercased plus
+        an "s" (`categorys`, `blogposts`), which disagreed with the migrations
+        the generators write. A table that exists only under that old name is
+        still found, once per class, with a warning to set `__table__`.
+        """
         if cls.__table__:
             return cls.__table__
-        name = cls.__name__.lower()
-        if not name.endswith("s"):
-            name += "s"
-        return name
+        resolved = cls.__dict__.get("_resolved_table")
+        if resolved is None:
+            resolved = _infer_table(cls)
+            cls._resolved_table = resolved
+        return resolved
 
     @classmethod
     def _base_query(cls) -> QueryBuilder:
