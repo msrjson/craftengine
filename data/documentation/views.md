@@ -17,9 +17,11 @@ class PostController(Controller):
 View names use dot notation: `posts.index` resolves to
 `resources/views/posts/index.forge.py`.
 
-> Errors propagate. A missing template raises `TemplateNotFound`, an undefined
-> variable raises `UndefinedError`, and the exception handler turns either into
-> a 500. Forge used to swallow every error and return a placeholder — a broken
+> Errors propagate. A missing template raises `TemplateNotFound`, an unknown
+> directive raises `TemplateSyntaxError` naming it and its line, and with
+> `APP_DEBUG` on an undefined variable raises `UndefinedError` when it is
+> printed, iterated or has an attribute read (`{% if flash %}` on a missing
+> name is still simply false). The exception handler turns each into a 500. Forge used to swallow every error and return a placeholder — a broken
 > view looked like a working page.
 >
 > That legacy behaviour survives in one place: the standalone `view()` helper
@@ -62,7 +64,7 @@ View names use dot notation: `posts.index` resolves to
 | `@guest` … `@endguest` | Renders only when signed out |
 | `@can('ability', model)` … `@endcan` | Gate check |
 | `@if(cond)` `@elseif(cond)` `@else` `@endif` | Conditional |
-| `@foreach(items as item)` … `@endforeach` | Loop |
+| `@foreach(items as item)` or `@foreach(item in items)` … `@endforeach` | Loop |
 | `@extends("layouts.app")` | Template inheritance |
 | `@section("name")` … `@endsection` | Named block |
 | `@section("name", "value")` | Inline block |
@@ -70,7 +72,10 @@ View names use dot notation: `posts.index` resolves to
 | `@include("partials.nav")` | Include a template |
 
 Directives are rewritten before Jinja compiles the template, so Jinja syntax
-works alongside them.
+works alongside them. Anything else shaped like a directive - `@for`, `@push`,
+`@isset`, `@include` with data - is refused with the list above rather than sent
+to the browser as text. CSS at-rules such as `@media` and `@import` are left
+alone.
 
 ## Forms and CSRF
 

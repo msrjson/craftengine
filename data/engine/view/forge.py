@@ -7,8 +7,8 @@ Category: Core Framework (View).
 Relations:
   - Bound as `view`, exposed via the `View` facade; rendered by
     `Controller.view()` (`engine/http/controller.py`). Errors propagate as
-    `TemplateNotFound`/`UndefinedError` — the standalone `view()` helper in
-    `engine/support` still swallows them (legacy behaviour).
+    `TemplateNotFound`, `TemplateSyntaxError` (an unknown directive) and, with
+    `APP_DEBUG` on, `UndefinedError` (a missing variable).
 References:
   - Guide: `documentation/views.md`
 """
@@ -22,7 +22,15 @@ import os
 import re
 from typing import Any, Dict, Optional
 
-from jinja2 import BaseLoader, Environment, FileSystemLoader, TemplateNotFound
+from jinja2 import (
+    BaseLoader,
+    Environment,
+    FileSystemLoader,
+    StrictUndefined,
+    TemplateNotFound,
+    TemplateSyntaxError,
+    Undefined,
+)
 from markupsafe import Markup
 
 def resolve_view_path(name: str) -> str:
@@ -165,10 +173,14 @@ def _render_yield(args: str) -> Optional[str]:
 
 
 def _render_foreach(args: str) -> Optional[str]:
+    """Compile `@foreach(items as item)`, or the Jinja order `@foreach(item in items)`."""
     match = re.match(r"(.+?)\s+as\s+(.+)$", args, re.DOTALL)
-    if match is None:
-        return None
-    return "{% for " + match.group(2).strip() + " in " + match.group(1).strip() + " %}"
+    if match is not None:
+        return "{% for " + match.group(2).strip() + " in " + match.group(1).strip() + " %}"
+    match = re.match(r"(.+?)\s+in\s+(.+)$", args, re.DOTALL)
+    if match is not None:
+        return "{% for " + match.group(1).strip() + " in " + match.group(2).strip() + " %}"
+    return None
 
 
 def _render_error(args: str) -> Optional[str]:
@@ -197,6 +209,91 @@ def compile_directives(source: str) -> str:
     return source
 
 
+#: Every directive Forge compiles, for the message that lists them.
+SUPPORTED_DIRECTIVES = (
+    "@extends", "@include", "@section/@endsection", "@yield", "@if/@elseif/@else/@endif",
+    "@foreach/@endforeach", "@auth/@endauth", "@guest/@endguest", "@can/@endcan",
+    "@error/@enderror", "@csrf", "@method", "@honeypot", "@antispam",
+)
+
+#: CSS at-rules, which legitimately leave `@name` in a template's output.
+_CSS_AT_RULES = frozenset({
+    "media", "supports", "import", "container", "layer", "font-face", "keyframes",
+    "page", "charset", "namespace", "property", "scope", "starting-style", "document",
+    "counter-style", "font-feature-values", "-webkit-keyframes",
+})
+
+#: Directive-shaped text left after compiling: `@name(` anywhere, or `@name`
+#: opening a line (`@for x in items`, `@endfor`).
+_LEFTOVER_RE = re.compile(
+    r"(?<![\w@.])@([a-z][\w-]*)\s*\(|^[ \t]*@([a-z][\w-]*)\b", re.MULTILINE
+)
+
+
+def unknown_directives(compiled: str) -> list:
+    """Return `(name, offset)` for each directive Forge did not compile.
+
+    Args:
+        compiled: A template after `compile_directives`.
+
+    Returns:
+        The leftover directive names with their character offsets.
+    """
+    found = [
+        (match.group(1) or match.group(2), match.start())
+        for match in _LEFTOVER_RE.finditer(compiled)
+    ]
+    return [(name, offset) for name, offset in found if name not in _CSS_AT_RULES]
+
+
+def _check_directives(compiled: str, template: str, filename: Optional[str]) -> None:
+    """Refuse a template that still holds a directive Forge does not know.
+
+    An unknown directive used to be sent to the browser as literal text.
+
+    Raises:
+        TemplateSyntaxError: Naming the directive, its line and what is supported.
+    """
+    leftovers = unknown_directives(compiled)
+    if not leftovers:
+        return
+    name, offset = leftovers[0]
+    hint = (
+        " `@include` takes only a view name; set variables before it instead of passing data."
+        if name == "include" else ""
+    )
+    raise TemplateSyntaxError(
+        f"Unknown Forge directive @{name}.{hint} Supported: {', '.join(SUPPORTED_DIRECTIVES)}. "
+        f"Plain Jinja tags ({{% ... %}}) also work.",
+        compiled.count("\n", 0, offset) + 1,
+        template,
+        filename,
+    )
+
+
+class DebugUndefined(StrictUndefined):
+    """Fail loudly on a missing template variable, except in a truth test.
+
+    Printing, reading an attribute of, or iterating an undefined name raises,
+    so `{{ usr.name }}` is an error instead of an empty string. `{% if flash %}`
+    stays False, since testing for an optional value is the common and correct
+    use. Active only with `APP_DEBUG` on.
+    """
+
+    def __bool__(self) -> bool:
+        return False
+
+
+def _debug_enabled(app: Optional[Any]) -> bool:
+    """Return whether `APP_DEBUG` is on for `app`; False without an application."""
+    if app is None:
+        return False
+    try:
+        return bool(app.make("config").get("app.APP_DEBUG", False))
+    except (KeyError, AttributeError):
+        return False
+
+
 class DirectiveLoader(BaseLoader):
     """Wraps a loader, translating directives as each template is read."""
 
@@ -205,7 +302,9 @@ class DirectiveLoader(BaseLoader):
 
     def get_source(self, environment, template):
         source, filename, uptodate = self.inner.get_source(environment, template)
-        return compile_directives(source), filename, uptodate
+        compiled = compile_directives(source)
+        _check_directives(compiled, template, filename)
+        return compiled, filename, uptodate
 
     def list_templates(self):
         return self.inner.list_templates()
@@ -358,6 +457,7 @@ class Forge:
         self.env = Environment(
             loader=DirectiveLoader(FileSystemLoader(views_dir)),
             autoescape=True,
+            undefined=DebugUndefined if _debug_enabled(app) else Undefined,
         )
         self.env.globals.update(
             {

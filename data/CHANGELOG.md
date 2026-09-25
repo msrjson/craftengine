@@ -35,6 +35,17 @@ full policy (categories to use, what counts as security-relevant, how
 
 ### Fixed
 
+- The login and registration views written by `make:auth` listed errors with `@for` and
+  `@endfor`, which Forge does not compile, so a failed sign-in showed the directive as text.
+  They use `@foreach` now.
+- Forge refuses a directive it does not compile with `TemplateSyntaxError` naming it, its
+  line and the supported set, instead of sending it to the browser as text. CSS at-rules
+  are left alone. `@foreach(item in items)` is accepted alongside `@foreach(items as item)`.
+- With `APP_DEBUG` on, printing, iterating or reading an attribute of an undefined template
+  variable raises `UndefinedError` instead of rendering an empty string; a truth test on a
+  missing name is still false. Every template the engine ships and every view `make:auth`
+  writes is compiled by the suite and must hold no unknown directive.
+
 - A route action that returns `None` raises `MisconfigurationError`
   (`ROUTE_ACTION_RETURNED_NONE`) instead of answering 200 with a page reading "None". A
   model, or a list of models, is sent as JSON through `to_dict()` instead of its `repr`.

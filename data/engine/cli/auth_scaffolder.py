@@ -199,9 +199,9 @@ def login_view_stub() -> str:
 
     @if(errors.any())
         <ul role="alert">
-            @for err in errors.all()
+            @foreach(errors.all() as err)
                 <li>{{ err }}</li>
-            @endfor
+            @endforeach
         </ul>
     @endif
 
@@ -243,9 +243,9 @@ def register_view_stub() -> str:
 
     @if(errors.any())
         <ul role="alert">
-            @for err in errors.all()
+            @foreach(errors.all() as err)
                 <li>{{ err }}</li>
-            @endfor
+            @endforeach
         </ul>
     @endif
 
