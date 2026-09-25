@@ -42,8 +42,13 @@ def routes(migrated_database):
 
 
 @pytest.fixture
-def client():
-    return TestClient(asgi_app, raise_server_exceptions=False, headers={"Accept": "application/json"})
+def client(migrated_database):
+    """A JSON client with debug on: the developer's view of a failure, message included."""
+    config = migrated_database.make("config")
+    previous = config.get("app.APP_DEBUG")
+    config.set("app.APP_DEBUG", True)
+    yield TestClient(asgi_app, raise_server_exceptions=False, headers={"Accept": "application/json"})
+    config.set("app.APP_DEBUG", previous)
 
 
 def test_a_missing_return_is_an_error_not_a_page_reading_none(client):

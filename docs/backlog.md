@@ -181,8 +181,8 @@ Forge directives and undefined variables, facade/container/config/identity
 errors without the cause, table-name inference, missing translation keys
 untraced, template helpers hiding misconfiguration, and `craft doctor`.
 Still open:
-- **Validator messages are English f-strings** (`engine/validation/validator.py`
-  138, 179-265), so a generated form's field errors are not translated.
+- ~~Validator messages are English f-strings~~ - done: `validation.<code>` keys
+  seeded in three locales (`engine/validation/messages.py`).
 - **Validation rules without their argument pass silently:** `regex`, `min`,
   `max`, `max_file_size` with no value (`engine/validation/validator.py`
   244, 420, 465, 469); an unknown rule raises but suggests nothing.
@@ -194,14 +194,11 @@ Still open:
   and fails with a generic `AttributeError`; no hint that relations are
   methods.
 
-### L7. A 500 in production shows the exception message
+### L7. A 500 in production shows the exception message - done 2026-09-25
 
-`ExceptionHandler.to_payload` sends `str(exception)` as `message` for every
-status, debug or not (`engine/exceptions/handler.py`, `to_payload`). A
-database error's text, or a `MisconfigurationError` naming internal classes,
-reaches the visitor. Traces are already debug-only; the message should be too
-for 5xx. Security-relevant; not changed in this session because several tests
-and error views read that field.
+Without `APP_DEBUG`, a 5xx answers with the generic title; the `code` of a
+coded exception is still exposed. The test that asserted the leak now asserts
+its absence.
 
 ### L8. Flaky concurrency test
 

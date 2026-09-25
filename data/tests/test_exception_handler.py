@@ -118,9 +118,25 @@ class TestDebugLeakage:
         response = handler.render(AuthorizationException("no"), wants_json=True)
         assert response.status_code == 403
 
-    def test_json_render_carries_the_message(self, handler):
+    def test_a_server_error_hides_its_message_without_debug(self, handler):
+        # The text of a 5xx is the exception's own - a database error, a path.
         response = handler.render(CraftException("boom"), wants_json=True)
+        assert json.loads(response.body)["message"] != "boom"
+
+    def test_a_server_error_carries_its_message_with_debug(self):
+        response = ExceptionHandler(FakeApp(debug=True)).render(CraftException("boom"), wants_json=True)
         assert json.loads(response.body)["message"] == "boom"
+
+    def test_a_client_error_keeps_its_message(self, handler):
+        response = handler.render(AuthorizationException("no"), wants_json=True)
+        assert json.loads(response.body)["message"] == "no"
+
+    def test_a_coded_error_exposes_its_code_without_debug(self, handler):
+        from craft.exceptions import MisconfigurationError
+
+        error = MisconfigurationError("ROUTE_ACTION_RETURNED_NONE", action="A.b")
+        payload = json.loads(handler.render(error, wants_json=True).body)
+        assert payload["code"] == "ROUTE_ACTION_RETURNED_NONE" and "A.b" not in payload["message"]
 
     def test_html_render_hides_the_trace_without_debug(self, handler):
         response = handler.render(RuntimeError("boom"), wants_json=False)
@@ -129,9 +145,12 @@ class TestDebugLeakage:
     def test_html_render_escapes_the_message(self, handler):
         # The message is attacker-influenced (URLs, input echoes) — unescaped
         # interpolation was reflected XSS.
-        response = handler.render(
-            CraftException("<script>alert(1)</script>"), wants_json=False
-        )
+        # A 4xx shows its message to the visitor, so that is where it must be
+        # escaped; a 5xx message is hidden entirely without debug.
+        class Conflict(CraftException):
+            status_code = 409
+
+        response = handler.render(Conflict("<script>alert(1)</script>"), wants_json=False)
         assert b"<script>" not in response.body
         assert b"&lt;script&gt;" in response.body
 

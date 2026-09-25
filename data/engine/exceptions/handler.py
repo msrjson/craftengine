@@ -168,17 +168,24 @@ class ExceptionHandler:
 
     def to_payload(self, exception: BaseException) -> dict:
         status = self.status_for(exception)
-        payload: dict = {
-            "message": str(exception) or type(exception).__name__,
-            "status": status,
-        }
+        debug = self._debug()
+        # A 5xx message is the exception's own text - a database error, a path,
+        # an internal class name. Only debug mode shows it; a visitor gets the
+        # generic page title, and the log keeps the detail.
+        message = str(exception) or type(exception).__name__
+        if status >= 500 and not debug:
+            message = self.TITLES.get(500, "Server error")
+        payload: dict = {"message": message, "status": status}
+        code = getattr(exception, "code", None)
+        if isinstance(code, str):
+            payload["code"] = code
         if isinstance(exception, ValidationException):
             payload["errors"] = exception.errors
         # A trace belongs to a *failure*. A 403 or a 404 is the framework
         # working: the visitor asked for something they may not have, and
         # answering that with a stack dump is noise at best and a map of the
         # internals at worst. Traces are for 5xx, and only with debug on.
-        if self._debug() and status >= 500:
+        if debug and status >= 500:
             payload["exception"] = type(exception).__name__
             payload["trace"] = traceback.format_exception(
                 type(exception), exception, exception.__traceback__

@@ -46,6 +46,11 @@ full policy (categories to use, what counts as security-relevant, how
 
 ### Security
 
+- A 5xx response no longer shows the exception's text unless `APP_DEBUG` is on. The JSON
+  `message` and the default error page carried `str(exception)` for every status - a
+  database error, a file path or an internal class name reached the visitor. A 5xx now
+  answers with the generic page title; the detail stays in the log. An exception with a
+  stable `code` (such as `MisconfigurationError`) exposes that code in the payload.
 - Hash a changed password on update. `AuthenticatableMixin` hashed only on insert, so
   `user.update({"password": ...})`, `update_attributes()` and a reassigned `password`
   followed by `save()` wrote the plaintext to the column. It now hashes in `save()` too.
