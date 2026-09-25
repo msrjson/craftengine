@@ -122,6 +122,14 @@ generator re-runs with `--force` - are not covered end to end.
 
 ### L3. Two language gates disagree about `engine/`
 
+**Measured 2026-09-25:** `engine/cli/app.py` alone holds 84 violations under
+the global gate (78 LANG-C console sentences, 6 LANG-A). New engine code this
+session follows the pattern that passes both gates: developer messages live in
+`engine/support/diagnostics.py` (code -> template) and exceptions carry a code
+and params. Migrating the console output to the same catalog is the concrete
+plan if the owner chooses "migrate".
+
+
 The global hook reproves any `engine/` file it touches for pre-existing
 violations, while `data/language-standard.toml` deliberately scopes `engine/`
 out with a measured backlog of 252 violations. Every edit to `engine/` in the
@@ -135,18 +143,50 @@ hook read the project's toml.
 Documented in `data/README.md` ("This repository is not a generated project"):
 which extra tables this tree creates and where a generated project gets them.
 
-### L5. The engine writes to tables a generated project does not have
+### L5. The engine writes to tables a generated project does not have - done 2026-09-25
 
-Found while documenting L4. A project from `craft new` has no
-`scheduler_runs`, `security_events`, `auth_cooldowns`, `auth_audit_logs` or
-`firewall_rules`, yet the engine writes to them. `ScheduleManager.claim_window`
-(`engine/schedule/manager.py:524`) reads the missing-table error as "window
-already claimed", so `run_due_with_catchup()` silently runs nothing; honeypot,
-anti-spam and firewall swallow the same error. The CLI's `schedule run` uses
-`run_due()` and is unaffected.
-**Done when:** the skeleton ships the migrations these subsystems need, or each
-subsystem distinguishes a missing table from its expected failure and says so
-loudly, with a test in a generated project.
+`craft new` now ships forward-only migrations for the security tables and
+`scheduler_runs` (2aec34b); `claim_window` reports a missing table; `craft
+doctor` lists missing engine tables in projects generated earlier.
+
+### L6. Agent-resilience audit: what is left
+
+The 2026-09-25 audit of `engine/` ranked 20 places where a plausible agent
+mistake failed silently or late. Fixed this session: attribute assignment not
+saved, mass-assignment drops silent, password stored in plaintext on update,
+middleware parameters untyped (`throttle:10`, `auth:api`), role checks denying
+everyone without the mixin, FormRequest not injected, `make:crud`/`make:admin`
+printing wrong URLs and a nonexistent command, actions returning None, unknown
+Forge directives and undefined variables, facade/container/config/identity
+errors without the cause, table-name inference, missing translation keys
+untraced, template helpers hiding misconfiguration, and `craft doctor`.
+Still open:
+- **Validation rules without their argument pass silently:** `regex`, `min`,
+  `max`, `max_file_size` with no value (`engine/validation/validator.py`
+  244, 420, 465, 469); an unknown rule raises but suggests nothing.
+- **`FormRequest.data()` swallows every exception** and validates `{}`, which
+  produces misleading "required" errors (`engine/validation/form_request.py`).
+- **Translation lookups query per key.** One `SELECT` per string per locale
+  tried; the standard asks for a cached bundle per locale.
+- **Relations read as properties:** `post.user.name` reaches a bound method
+  and fails with a generic `AttributeError`; no hint that relations are
+  methods.
+
+### L7. A 500 in production shows the exception message
+
+`ExceptionHandler.to_payload` sends `str(exception)` as `message` for every
+status, debug or not (`engine/exceptions/handler.py`, `to_payload`). A
+database error's text, or a `MisconfigurationError` naming internal classes,
+reaches the visitor. Traces are already debug-only; the message should be too
+for 5xx. Security-relevant; not changed in this session because several tests
+and error views read that field.
+
+### L8. Flaky concurrency test
+
+`tests/test_connection_concurrency.py::TestInMemorySqliteSharesOneSession::
+test_threads_share_the_session_and_therefore_the_data` failed once with
+`IndexError: tuple index out of range` in about 20 runs on 2026-09-25, on a
+loaded machine, before and independent of that day's changes.
 
 ---
 
@@ -172,6 +212,17 @@ loudly, with a test in a generated project.
 ## 🤖 Done automatically
 
 **2026-09-25:**
+
+- Found by the new Forge check: the login and registration views `make:auth`
+  generates used `@for`/`@endfor`, which Forge does not compile, so failed
+  sign-ins showed the directive as text.
+- Found by the new documented-commands test: `make:admin` printed
+  `role:assign`, a command that does not exist.
+- Found while fixing attribute assignment: `AuthenticatableMixin` hashed
+  passwords only on insert, so every update path stored plaintext.
+- Found while writing the doctor check: the sign-in form `make:auth`
+  generates runs honeypot and anti-spam against tables no generated project
+  had.
 
 - Locale drift closed (aa84d45): `pt` collapsed into `pt-BR` in the seeder,
   config, skeleton stubs and `SetLocale`; a request for `pt`/`pt-PT` now lands
