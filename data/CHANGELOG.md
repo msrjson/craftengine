@@ -35,6 +35,13 @@ full policy (categories to use, what counts as security-relevant, how
 
 ### Fixed
 
+- A route action that returns `None` raises `MisconfigurationError`
+  (`ROUTE_ACTION_RETURNED_NONE`) instead of answering 200 with a page reading "None". A
+  model, or a list of models, is sent as JSON through `to_dict()` instead of its `repr`.
+- A route pointing at a controller method that does not exist raises
+  `MisconfigurationError` (`ROUTE_ACTION_NOT_FOUND`) naming the closest public method,
+  instead of a bare `AttributeError`.
+
 - `make:admin` told the developer to run `role:assign`, which does not exist; it now prints
   `user assign-role`. Its note about a `layouts.panel` layout, which nothing uses, is gone.
 - `make:crud` printed `/admin/<entity>s` and `/api/v1/<entity>s` (`/admin/categorys`) while

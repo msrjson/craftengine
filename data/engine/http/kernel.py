@@ -657,7 +657,7 @@ class Kernel:
                     controller_inst = (
                         self.app.make(controller_cls) if isinstance(controller_cls, type) else controller_cls()
                     )
-                    method = getattr(controller_inst, method_name)
+                    method = _controller_method(controller_inst, method_name)
 
                     result = method(**bind_route_arguments(method, req))
 
@@ -677,13 +677,7 @@ class Kernel:
 
                     result = asyncio.run(result)
 
-                if hasattr(result, "to_starlette"):
-                    return result.to_starlette()
-                if isinstance(result, StarletteResponse):
-                    return result
-                if isinstance(result, (dict, list)):
-                    return JSONResponse(result)
-                return HTMLResponse(str(result))
+                return _to_response(result, action)
 
             # Route middleware runs inside the global stack, so it can rely on
             # the session and resolved user that the global stack sets up.
@@ -722,6 +716,59 @@ class Kernel:
     def _render_exception(self, request: Any, exc: Exception) -> StarletteResponse:
         """Turn an exception into a response via the registered handler."""
         return render_exception(self.app, request, exc)
+
+
+def _controller_method(controller: Any, name: str) -> Any:
+    """Return the route's action method, naming the closest one when it is missing.
+
+    Raises:
+        MisconfigurationError: The controller has no method `name`.
+    """
+    method = getattr(controller, name, None)
+    if callable(method):
+        return method
+    import difflib
+
+    from engine.exceptions.handler import MisconfigurationError
+
+    public = [attr for attr in dir(controller) if not attr.startswith("_") and callable(getattr(controller, attr))]
+    close = difflib.get_close_matches(name, public, n=1)
+    hint = f" Did you mean '{close[0]}'?" if close else ""
+    raise MisconfigurationError(
+        "ROUTE_ACTION_NOT_FOUND",
+        f"{type(controller).__name__} has no method '{name}'.{hint} Public methods: {sorted(public)}.",
+        controller=type(controller).__name__, method=name,
+    )
+
+
+def _to_response(result: Any, action: Any) -> Any:
+    """Turn what an action returned into a response.
+
+    Raises:
+        MisconfigurationError: The action returned None, which used to be sent
+            as a 200 page reading "None".
+    """
+    if hasattr(result, "to_starlette"):
+        return result.to_starlette()
+    if isinstance(result, StarletteResponse):
+        return result
+    if result is None:
+        from engine.exceptions.handler import MisconfigurationError
+
+        label = f"{getattr(action[0], '__name__', action[0])}.{action[1]}" if isinstance(action, (list, tuple)) else getattr(action, "__name__", repr(action))
+        raise MisconfigurationError(
+            "ROUTE_ACTION_RETURNED_NONE",
+            f"The route action {label} returned None. Return a response, a View, a dict or list "
+            f"(sent as JSON) or a string (sent as HTML) - usually a missing `return`.",
+            action=label,
+        )
+    if hasattr(result, "to_dict"):
+        return JSONResponse(result.to_dict())
+    if isinstance(result, (list, tuple)):
+        return JSONResponse([item.to_dict() if hasattr(item, "to_dict") else item for item in result])
+    if isinstance(result, dict):
+        return JSONResponse(result)
+    return HTMLResponse(str(result))
 
 
 class MiddlewareAliasError(KeyError):
