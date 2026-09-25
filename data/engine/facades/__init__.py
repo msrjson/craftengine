@@ -273,3 +273,41 @@ class Mail(Facade):
     def get_facade_accessor(cls) -> str:
         return "mail"
 
+
+#: Names agents reach for in this module that live elsewhere.
+_ELSEWHERE = {
+    "Validator": "craft.validation.Validator(data, rules, messages)",
+    "FormRequest": "craft.validation.FormRequest",
+    "Request": "craft.http.request.Request",
+    "Response": "craft.http.response.Response",
+    "Model": "craft.orm.model.Model",
+    "Session": "request.session() inside an action",
+}
+
+
+def __getattr__(name: str) -> object:
+    """Explain an import of a facade that does not exist.
+
+    `from craft.facades import Validator` used to fail with a bare
+    ImportError; this names where the thing lives, or the closest facade.
+
+    An ImportError rather than an AttributeError: for `from ... import`,
+    Python replaces an AttributeError's message with its own generic one.
+
+    Raises:
+        AttributeError: For dunder names, so introspection behaves normally.
+        ImportError: For any other name, carrying the explanation.
+    """
+    import difflib
+
+    if name.startswith("__"):
+        raise AttributeError(name)
+    facades = sorted(
+        key for key, value in globals().items()
+        if isinstance(value, type) and issubclass(value, Facade) and value is not Facade
+    )
+    if name in _ELSEWHERE:
+        raise ImportError(f"craft.facades has no '{name}'; use {_ELSEWHERE[name]}.", name=name)
+    close = difflib.get_close_matches(name, facades, n=1)
+    hint = f" Did you mean '{close[0]}'?" if close else ""
+    raise ImportError(f"craft.facades has no '{name}'.{hint} Facades: {', '.join(facades)}.", name=name)

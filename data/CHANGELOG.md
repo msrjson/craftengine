@@ -35,6 +35,14 @@ full policy (categories to use, what counts as security-relevant, how
 
 ### Fixed
 
+- A facade call to a method its service lacks names the facade, the service class and its
+  container key, suggests the closest method with its signature and lists the public ones,
+  instead of `'AntiSpamService' object has no attribute ...`. It is still an
+  `AttributeError`, so `hasattr` keeps working.
+- `from craft.facades import X` for a name that is not a facade raises an `ImportError`
+  saying where it lives (`Validator` -> `craft.validation.Validator`) or naming the closest
+  facade, instead of the generic "cannot import name".
+
 - The login and registration views written by `make:auth` listed errors with `@for` and
   `@endfor`, which Forge does not compile, so a failed sign-in showed the directive as text.
   They use `@foreach` now.

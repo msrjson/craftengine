@@ -31,7 +31,38 @@ class FacadeMeta(type):
 
         app = getattr(cls, "_app", None) or Container.getInstance()
         service = app.make(cls.get_facade_accessor())
-        return getattr(service, name)
+        try:
+            return getattr(service, name)
+        except AttributeError:
+            raise AttributeError(_missing_method_message(cls, service, name)) from None
+
+
+def _missing_method_message(facade: Any, service: Any, name: str) -> str:
+    """Explain a call to a method the facade's service does not have.
+
+    Names the facade, the service class and its container key, suggests the
+    closest public method with its signature, and lists the rest - the facts
+    needed to fix the call without opening the source.
+    """
+    import difflib
+    import inspect
+
+    public = sorted(
+        attr for attr in dir(service)
+        if not attr.startswith("_") and callable(getattr(service, attr, None))
+    )
+    message = (
+        f"{facade.__name__} facade (-> {type(service).__name__}, container key "
+        f"'{facade.get_facade_accessor()}') has no method '{name}'."
+    )
+    close = difflib.get_close_matches(name, public, n=1)
+    if close:
+        try:
+            signature = str(inspect.signature(getattr(service, close[0])))
+        except (TypeError, ValueError):
+            signature = "(...)"
+        message += f" Did you mean {close[0]}{signature}?"
+    return message + f" Public methods: {', '.join(public)}."
 
 
 class Facade(metaclass=FacadeMeta):
