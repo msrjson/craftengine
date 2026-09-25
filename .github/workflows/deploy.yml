@@ -155,7 +155,7 @@ jobs:
         working-directory: data
         run: python dev.py docs:build --output public/docs --base-url https://craftengine.org/docs/
 
-      - uses: actions/configure-pages@v5
+      - uses: actions/configure-pages@v6
 
       - uses: actions/upload-pages-artifact@v3
         with:
