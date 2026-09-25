@@ -476,3 +476,69 @@ class TestGeneratedAdminWriteActions:
         assert report["CONDITIONS_STORED"] == "1", report
         assert report["BAD_CONDITIONS_SHOWN"] == "True", report
         assert report["MEMBER_INHERITS_ADMIN"] == "200", report
+
+
+#: Edge cases of the generated sign-in and registration forms.
+_AUTH_EDGE_PROBE = """
+import re, sys
+sys.path[:0] = [%(project)r, %(repository)r]
+from starlette.testclient import TestClient
+from bootstrap.app import asgi_app
+from craft.facades import DB
+
+def fresh(path):
+    client = TestClient(asgi_app, raise_server_exceptions=False)
+    token = re.search(r'name="_token" value="([^"]+)"', client.get(path).text).group(1)
+    return client, token
+
+client, token = fresh("/login")
+print("NO_CSRF", client.post("/login", data={"email": "a@edge.test", "password": "x"}, follow_redirects=False).status_code)
+invalid = client.post("/login", data={"email": "not-an-email", "password": "", "_token": token}, follow_redirects=True)
+print("INVALID_STATUS", invalid.status_code)
+print("INVALID_SHOWS_ERRORS", 'role="alert"' in invalid.text)
+
+form = {"name": "Dee", "email": "dee@edge.test", "password": "long-enough-secret"}
+first, first_token = fresh("/register")
+print("FIRST_REGISTRATION", first.post("/register", data={**form, "_token": first_token}, follow_redirects=False).status_code)
+second, second_token = fresh("/register")
+duplicate = second.post("/register", data={**form, "_token": second_token}, follow_redirects=True)
+print("DUPLICATE_STATUS", duplicate.status_code)
+print("DUPLICATE_SHOWS_ERROR", 'role="alert"' in duplicate.text)
+print("ONE_ACCOUNT", DB.statement("SELECT COUNT(*) FROM users WHERE email = ?", ["dee@edge.test"], read=True).fetchone()[0])
+"""
+
+
+class TestGeneratedAuthenticationEdges:
+    """Validation failures, duplicates, CSRF and generator re-runs, end to end."""
+
+    def test_the_forms_refuse_bad_input_without_erroring(self, generated_project):
+        database = os.path.join(generated_project, "storage", "database.sqlite")
+        for command in (("make:auth",), ("migrate",)):
+            result = run_console(*command, cwd=generated_project, database=database)
+            assert result.returncode == 0, result.stdout + result.stderr
+
+        environment = dict(os.environ)
+        environment.update({"DB_CONNECTION": "sqlite", "DB_DATABASE": database})
+        probe = _AUTH_EDGE_PROBE % {"project": generated_project, "repository": REPOSITORY_ROOT}
+        result = subprocess.run(
+            [sys.executable, "-c", probe], cwd=generated_project, env=environment,
+            capture_output=True, text=True, timeout=180,
+        )
+        assert result.returncode == 0, result.stdout + result.stderr
+        report = dict(line.split(" ", 1) for line in result.stdout.splitlines() if " " in line)
+
+        assert report["NO_CSRF"] in ("403", "419"), report
+        assert report["INVALID_STATUS"] == "200" and report["INVALID_SHOWS_ERRORS"] == "True", report
+        assert report["FIRST_REGISTRATION"] == "302", report
+        assert report["DUPLICATE_STATUS"] == "200" and report["DUPLICATE_SHOWS_ERROR"] == "True", report
+        assert report["ONE_ACCOUNT"] == "1", report
+
+    def test_rerunning_the_generators_changes_nothing(self, generated_project):
+        database = os.path.join(generated_project, "storage", "database.sqlite")
+        for command in (("make:auth",), ("make:admin",), ("make:auth",), ("make:admin",), ("migrate",)):
+            result = run_console(*command, cwd=generated_project, database=database)
+            assert result.returncode == 0, result.stdout + result.stderr
+        with open(os.path.join(generated_project, "routes", "web.py"), encoding="utf-8") as handle:
+            routes = handle.read()
+        assert routes.count('Route.get("/login"') == 1
+        assert routes.count('Route.get("/admin",') == 1

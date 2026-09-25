@@ -118,7 +118,7 @@ class RegisterRequest(FormRequest):
     def rules(self) -> dict:
         return {
             "name": ["required", "string", "min:2", "max:100"],
-            "email": ["required", "email"],
+            "email": ["required", "email", "unique:users,email"],
             "password": ["required", "min:8"],
         }
 '''
@@ -155,12 +155,12 @@ class AuthController(Controller):
     def login(self, request):
         form = LoginRequest(request)
         if not form.passes():
-            return self._back(request, form.errors)
+            return self._back(request, form.errors, "/login")
 
         credentials = {"email": request.get_input("email"), "password": request.get_input("password")}
         if Auth.attempt(credentials):
             return redirect(route="__SUCCESS_ROUTE__")
-        return self._back(request, {"email": [__("auth.login.failed")]})
+        return self._back(request, {"email": [__("auth.login.failed")]}, "/login")
 
     def show_register(self, request):
         return self.view("auth.register")
@@ -168,7 +168,7 @@ class AuthController(Controller):
     def register(self, request):
         form = RegisterRequest(request)
         if not form.passes():
-            return self._back(request, form.errors)
+            return self._back(request, form.errors, "/register")
 
         user = User.create({
             "name": (request.get_input("name") or "").strip(),
@@ -186,10 +186,15 @@ class AuthController(Controller):
         return self.view("auth.dashboard", {"user": Auth.user()})
 
     @staticmethod
-    def _back(request, errors):
-        """Return to the form with errors and every field except the password."""
+    def _back(request, errors, form_path):
+        """Return to the form with errors and every field except the password.
+
+        The form's own path is the fallback: without a Referer header - a
+        privacy setting, a script, a test client - going "back" landed on the
+        home page, and the errors were flashed to a page that never shows them.
+        """
         kept = {key: value for key, value in request.all().items() if "password" not in key}
-        return redirect.back(request).with_errors(errors).with_input(kept)
+        return redirect.back(request, fallback=form_path).with_errors(errors).with_input(kept)
 '''.replace("__SUCCESS_ROUTE__", success_route)
 
 

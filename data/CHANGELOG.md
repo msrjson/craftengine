@@ -52,6 +52,12 @@ full policy (categories to use, what counts as security-relevant, how
 
 ### Fixed
 
+- The registration form `make:auth` generates checks `unique:users,email`; a second
+  registration with the same address hit the database's unique constraint and answered 500.
+- The generated `AuthController` returns to its own form when the request has no `Referer`.
+  `redirect.back()` fell back to `/`, so a failed sign-in without that header - a privacy
+  setting, a script - flashed its errors to the home page, which never shows them.
+
 - The screens `make:auth` and `make:admin` generate carry translation keys instead of
   hardcoded English (13 keys for sign-in, registration and the dashboard; 74 for the admin
   panel), and each generator writes a forward-only migration seeding every key in `en`,

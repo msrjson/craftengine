@@ -128,7 +128,13 @@ permissions are not exercised.
 **Done when:** the journey test covers every write action the panel exposes,
 including a refused one for an account without the role.
 
-### L2. Thin coverage beyond the happy path
+### L2. Thin coverage beyond the happy path - done 2026-09-25
+
+`TestGeneratedAuthenticationEdges` covers CSRF rejection, validation failure,
+duplicate registration and generator re-runs end to end; it found the missing
+`unique:users,email` rule (500 on a duplicate) and errors lost without a
+`Referer`. `make:crud --force` re-runs stay covered by `test_crud_builder.py`.
+
 
 Coverage is 76%, with one journey test per generator. Error cases and edges -
 validation failures, duplicate registration, CSRF rejection on generated forms,
