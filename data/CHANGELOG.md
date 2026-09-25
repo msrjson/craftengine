@@ -18,6 +18,11 @@ full policy (categories to use, what counts as security-relevant, how
 
 ## [Unreleased]
 
+### Added
+
+- `craft.exceptions.MisconfigurationError(code, hint, **params)`: an HTTP 500 carrying a
+  stable code and the exact fix, raised where the engine used to degrade silently.
+
 ### Security
 
 - Hash a changed password on update. `AuthenticatableMixin` hashed only on insert, so
