@@ -167,11 +167,14 @@ class TestAdminUiGeneration:
         ) == 1
         assert source.count(crud_builder.WEB_ROUTES_MARKER) == 1
 
-    def test_build_crud_does_not_error_when_web_routes_file_is_missing(self, tmp_path):
+    def test_build_crud_creates_the_web_routes_file_when_missing(self, tmp_path):
+        # Skipping silently left the printed admin URL answering 404.
         _make_routes_file(str(tmp_path))
         result = crud_builder.build_crud("Product", FIELDS, str(tmp_path))
 
-        assert "admin_routes" not in result["files"]
+        web_routes = os.path.join(str(tmp_path), "routes", "web.py")
+        assert result["files"]["admin_routes"] == web_routes
+        assert 'Route.resource("products", ProductAdminController)' in open(web_routes, encoding="utf-8").read()
 
     def test_json_api_and_admin_ui_coexist_for_the_same_entity(self, tmp_path):
         """Generating one entity produces both a JSON API controller/route

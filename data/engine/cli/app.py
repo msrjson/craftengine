@@ -80,6 +80,15 @@ def base_path() -> str:
     return os.getcwd()
 
 
+def _app_url() -> str:
+    """Return the project's `APP_URL` without a trailing slash, for printed links.
+
+    Links used to be hardcoded to port 9000, the port of this repository's
+    development container, which a generated project does not listen on.
+    """
+    return str(get_app().make("config").get("app.APP_URL") or "http://localhost:8000").rstrip("/")
+
+
 def get_app() -> Any:
     """Boot (once) and return the Craft application.
 
@@ -698,10 +707,13 @@ def make_crud(
         echo("\nNext steps:", bold=True)
         echo("  1. Review the generated migration and run:", "cyan")
         echo("     python dev.py migrate", bold=True)
-        echo("  2. Access the Admin UI at:", "cyan")
-        echo(f"     http://127.0.0.1:9000/admin/{result['entity'].lower()}s", "cyan")
-        echo("  3. Access the JSON REST API at:", "cyan")
-        echo(f"     http://127.0.0.1:9000/api/v1/{result['entity'].lower()}s", "cyan")
+        url = _app_url()
+        if "admin_routes" in result["files"]:
+            echo("  2. Access the Admin UI at:", "cyan")
+            echo(f"     {url}/admin/{result['slug']}", "cyan")
+        if "routes" in result["files"]:
+            echo("  3. Access the JSON REST API at:", "cyan")
+            echo(f"     {url}/api/v1/{result['slug']}", "cyan")
 
 
 @make_app.command("auth")
@@ -726,9 +738,10 @@ def make_auth(
     for kind, path in result["files"].items():
         echo(f"  -> {kind:<18} {path}", "green")
 
+    url = _app_url()
     echo("\nNext steps:", bold=True)
-    echo("  1. Access the login screen at: http://127.0.0.1:9000/login", "cyan")
-    echo("  2. Access the registration screen at: http://127.0.0.1:9000/register", "cyan")
+    echo(f"  1. Access the login screen at: {url}/login", "cyan")
+    echo(f"  2. Access the registration screen at: {url}/register", "cyan")
 
 
 @make_app.command("admin")
@@ -756,9 +769,8 @@ def make_admin(
     echo("  1. Create the RBAC tables:", "cyan")
     echo("     python dev.py migrate", bold=True)
     echo("  2. Give an account the admin role:", "cyan")
-    echo("     python dev.py role:assign <email> admin", bold=True)
-    echo("  3. Open the panel at: http://127.0.0.1:9000/admin", "cyan")
-    echo("  4. The views extend layouts.app and layouts.panel; provide them if absent.", "cyan")
+    echo("     python dev.py user assign-role <email> admin", bold=True)
+    echo(f"  3. Open the panel at: {_app_url()}/admin", "cyan")
 
 
 def _simple_generator(kind: str, label: str):

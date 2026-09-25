@@ -35,6 +35,18 @@ full policy (categories to use, what counts as security-relevant, how
 
 ### Fixed
 
+- `make:admin` told the developer to run `role:assign`, which does not exist; it now prints
+  `user assign-role`. Its note about a `layouts.panel` layout, which nothing uses, is gone.
+- `make:crud` printed `/admin/<entity>s` and `/api/v1/<entity>s` (`/admin/categorys`) while
+  it registered the table name (`/admin/categories`), printed them even when no route was
+  registered, and skipped the admin routes silently when `routes/web.py` was missing. It now
+  creates `routes/web.py` the way it already created `routes/api.py`, and prints only the
+  routes it registered.
+- Links printed by `make:crud`, `make:auth` and `make:admin` use the project's `APP_URL`
+  instead of `http://127.0.0.1:9000`, the port of this repository's development container.
+- A test runs `--help` for every `dev.py` command named in the engine's source and in the
+  documentation, so a guide can no longer teach a command that does not exist.
+
 - `role:`, `permission:` and `group:` route middleware raise `MisconfigurationError`
   (`USER_MODEL_NOT_AUTHORIZABLE`, HTTP 500) naming `AuthorizableMixin` when the signed-in
   user's model has no `has_role`/`has_permission`/`in_group`. They answered 403 to everyone,
