@@ -148,8 +148,9 @@ def _identity_model(kind: str) -> Any:
     try:
         return registry.model_for(kind, get_app().make("config"))
     except registry.IdentityModelNotConfigured as exc:
-        remedy = "craft make:auth" if kind == "user" else "craft make:admin"
-        echo(f"{exc.code}: {registry.config_key(kind)} is not set. Run `{remedy}` first.", "red")
+        # The message depends on the reason: "not set" for a path that is set
+        # but fails to import sent people to re-run make:auth for nothing.
+        echo(str(exc), "red")
         raise typer.Exit(code=1) from None
 
 def echo(message: str, color: Optional[str] = None, bold: bool = False) -> None:

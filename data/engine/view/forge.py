@@ -326,10 +326,13 @@ def csrf_field() -> Markup:
 def auth_user() -> Any:
     from engine.container.application import Container
 
+    # Only "no auth service bound" means guest. A misconfigured identity
+    # model used to be swallowed here too, rendering every page as a guest.
     try:
-        return Container.getInstance().make("auth").user()
-    except Exception:
+        auth = Container.getInstance().make("auth")
+    except KeyError:
         return None
+    return auth.user()
 
 
 def can(ability: str, *args) -> bool:
@@ -337,7 +340,7 @@ def can(ability: str, *args) -> bool:
 
     try:
         gate = Container.getInstance().make("gate")
-    except Exception:
+    except KeyError:
         return False
     return bool(gate.allows(ability, auth_user(), *args))
 
@@ -389,7 +392,7 @@ def config_value(key: str, default: Any = None) -> Any:
 
     try:
         return Container.getInstance().make("config").get(key, default)
-    except Exception:
+    except KeyError:
         return default
 
 

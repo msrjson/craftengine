@@ -41,6 +41,14 @@ full policy (categories to use, what counts as security-relevant, how
 
 ### Fixed
 
+- `IdentityModelNotConfigured` reads as a sentence naming the model, the reason and the fix
+  instead of only its code. The console no longer says "`auth.models.X` is not set, run
+  make:auth" when the path is set but does not import, and `AuthManager` reports a bad
+  `auth.providers.*.model` path through the same error instead of a raw `ImportError`.
+- The `auth()`, `can()` and `config()` template helpers treat only "service not bound" as a
+  guest, a denial or the default. A misconfigured identity model used to render every page
+  as signed out.
+
 - `translate()` stops probing `app.locale` and `app.fallback_locale`, keys that never exist
   (configuration is keyed by module attribute: `app.APP_LOCALE`).
 

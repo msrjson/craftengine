@@ -108,8 +108,12 @@ class AuthManager:
             path = config.get(f"auth.providers.{provider}.model")
         if not path:
             return registry.model_for("user", config)
-        module_path, _, class_name = path.rpartition(".")
-        return getattr(importlib.import_module(module_path), class_name)
+        try:
+            return registry._import_class(path)
+        except (ImportError, AttributeError) as exc:
+            raise registry.IdentityModelNotConfigured(
+                "user", registry.REASON_IMPORT_FAILED, path=path, cause=str(exc)
+            ) from exc
 
     # -- state -----------------------------------------------------------------
 
