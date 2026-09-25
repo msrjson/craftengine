@@ -52,6 +52,13 @@ full policy (categories to use, what counts as security-relevant, how
 
 ### Fixed
 
+- Validation messages follow the request locale. Every `Validator` failure is the translation
+  key `validation.<code>` with ICU placeholders (`{field}` and the rule's values), seeded in
+  `en`, `pt-BR` and `es` by a forward-only migration in both `craft new` projects and this
+  repository (`craft.validation.messages.seed_translations`, insert-if-absent). A generated
+  form in a `pt-BR` project answered "email is required" in English. The English text is
+  unchanged, and remains the fallback when a project has no rows.
+
 - The registration form `make:auth` generates checks `unique:users,email`; a second
   registration with the same address hit the database's unique constraint and answered 500.
 - The generated `AuthController` returns to its own form when the request has no `Referer`.
