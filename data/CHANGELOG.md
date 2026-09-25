@@ -20,14 +20,25 @@ full policy (categories to use, what counts as security-relevant, how
 
 ### Added
 
+- `craft doctor` checks a project's wiring and reports each mistake with a code, a location
+  and the fix, exiting 1 on any error (`--json` for scripts): route middleware that does not
+  resolve, route actions that do not exist, identity model paths that do not import, a user
+  model without `AuthorizableMixin` behind `role:`/`permission:`/`group:`, unknown Forge
+  directives in `resources/views`, model tables that do not exist, engine tables a subsystem
+  needs, and translation keys the views use without a row in every offered locale.
+- `craft.support.diagnostics`: one catalog of developer-facing messages (code -> template with
+  named placeholders) used by `MisconfigurationError`, the container, facades, the kernel,
+  Forge and the identity registry, so runtime errors and `craft doctor` say the same thing.
+
 - `config.require(key)` returns a configuration value or raises `MissingConfigKeyError` (a
   `KeyError`) naming the closest existing keys; `config.suggest(key)` returns them. `get()`
   still answers the default for a missing key.
 - A translation key that resolves in no locale is counted in
   `i18n_missing_keys_total{locale,key}` and logged once as `i18n.missing_key`, instead of
   rendering as the key with no trace.
-- `craft.exceptions.MisconfigurationError(code, hint, **params)`: an HTTP 500 carrying a
-  stable code and the exact fix, raised where the engine used to degrade silently.
+- `craft.exceptions.MisconfigurationError(code, **params)`: an HTTP 500 carrying a stable code,
+  its params and the catalog message with the exact fix (`hint`), raised where the engine
+  used to degrade silently.
 - A route action parameter annotated with a `FormRequest` subclass receives an instance that
   has already been authorized and validated (403/422 before the action runs). Before, a
   parameter named `request` got the raw request, so `request.input(...)` skipped every rule,

@@ -56,18 +56,16 @@ class IdentityModelNotConfigured(RuntimeError):
 
     def __str__(self) -> str:
         """Say which model, why, and what to change - not only the code."""
+        from engine.support.diagnostics import describe
+
         if self.reason == REASON_IMPORT_FAILED:
-            return (
-                f"{self.code}: the {self.kind} model path {self.params.get('path')!r} does not import "
-                f"({self.params.get('cause')}). Fix the path in config/auth.py or the module it names."
-            )
+            return describe("IDENTITY_MODEL_IMPORT_FAILED", code=self.code, kind=self.kind,
+                            path=self.params.get("path"), cause=self.params.get("cause"))
         if self.reason == REASON_NOT_CONFIGURED:
             remedy = "craft make:auth" if self.kind == "user" else "craft make:admin"
-            return (
-                f"{self.code}: no {self.kind} model is configured ({self.params.get('key')} is empty). "
-                f"Run `{remedy}` or point that key at your model class."
-            )
-        return f"{self.code}: unknown identity model kind {self.kind!r}."
+            return describe("IDENTITY_MODEL_NOT_SET", code=self.code, kind=self.kind,
+                            key=self.params.get("key"), remedy=remedy)
+        return describe("IDENTITY_MODEL_UNKNOWN_KIND", code=self.code, kind=self.kind)
 
 
 def _import_class(path: str) -> Any:

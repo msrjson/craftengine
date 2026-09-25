@@ -62,13 +62,8 @@ def _user_can_answer(user: Any, method: str, alias: str) -> bool:
         return True
     from engine.exceptions.handler import MisconfigurationError
 
-    raise MisconfigurationError(
-        "USER_MODEL_NOT_AUTHORIZABLE",
-        f"The '{alias}:' route middleware calls {type(user).__name__}.{method}(), which does "
-        f"not exist. Mix craft.auth.models.AuthorizableMixin into {type(user).__module__}."
-        f"{type(user).__name__}.",
-        model=f"{type(user).__module__}.{type(user).__name__}", method=method,
-    )
+    model = ".".join((type(user).__module__, type(user).__name__))
+    raise MisconfigurationError("USER_MODEL_NOT_AUTHORIZABLE", alias=alias, model=model, method=method)
 
 
 def _as_starlette(response: Any) -> Any:

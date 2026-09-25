@@ -16,7 +16,6 @@ References:
 # Licensed under the MIT License. See LICENSE in the project root.
 
 import copy
-import difflib
 import logging
 from typing import Any, Dict, List, Optional, Type
 from datetime import datetime, timezone
@@ -528,12 +527,12 @@ class Model:
         attributes = self.__dict__.get("_attributes", {})
         if name in attributes:
             return attributes[name]
-        close = difflib.get_close_matches(name, list(attributes), n=1)
-        hint = f" Did you mean '{close[0]}'?" if close else ""
-        raise AttributeError(
-            f"'{type(self).__name__}' object has no attribute '{name}'.{hint} "
-            f"Loaded columns: {sorted(attributes)}."
-        )
+        from engine.support.diagnostics import closest, describe
+
+        raise AttributeError(describe(
+            "MODEL_ATTRIBUTE_MISSING", model=type(self).__name__, name=name,
+            closest=closest(name, attributes), columns=", ".join(sorted(attributes)),
+        ))
 
     def __setattr__(self, name: str, value: Any) -> None:
         """Route `model.column = value` to the attributes `save()` writes.

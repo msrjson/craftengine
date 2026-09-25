@@ -24,6 +24,12 @@ Framework internals live in `engine/` and are imported as `craft.*`. Start with
 
 - Generated code belongs to the project from the moment it is written. Edit it
   freely; the engine does not read it back.
+- Run `craft doctor` after changing routes, views, models or `config/auth.py`,
+  and before calling work done. It resolves every route's middleware and
+  action, the identity models, every template's directives, the tables the
+  models and the engine need, and the translation rows the views use; each
+  finding carries a code, a location and the fix. It exits 1 on any error.
+  `craft doctor --json` gives the same findings to a script.
 
 ## Routes
 

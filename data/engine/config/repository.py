@@ -72,11 +72,9 @@ class MissingConfigKeyError(KeyError):
         self.suggestions = suggestions
 
     def __str__(self) -> str:
-        hint = f" Did you mean: {', '.join(self.suggestions)}?" if self.suggestions else ""
-        return (
-            f"Configuration key '{self.key}' does not exist.{hint} Keys are "
-            f"<file>.<MODULE_ATTRIBUTE>, e.g. app.APP_DEBUG."
-        )
+        from engine.support.diagnostics import describe
+
+        return describe("CONFIG_KEY_MISSING", key=self.key, closest=", ".join(self.suggestions) or "none")
 
 
 class ConfigRepository:

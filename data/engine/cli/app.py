@@ -741,8 +741,10 @@ def make_auth(
 
     url = _app_url()
     echo("\nNext steps:", bold=True)
-    echo(f"  1. Access the login screen at: {url}/login", "cyan")
-    echo(f"  2. Access the registration screen at: {url}/register", "cyan")
+    echo("  1. Access the login screen at:", "cyan")
+    echo("     " + url + "/login", "cyan")
+    echo("  2. Access the registration screen at:", "cyan")
+    echo("     " + url + "/register", "cyan")
 
 
 @make_app.command("admin")
@@ -771,7 +773,8 @@ def make_admin(
     echo("     python dev.py migrate", bold=True)
     echo("  2. Give an account the admin role:", "cyan")
     echo("     python dev.py user assign-role <email> admin", bold=True)
-    echo(f"  3. Open the panel at: {_app_url()}/admin", "cyan")
+    echo("  3. Open the panel at:", "cyan")
+    echo("     " + _app_url() + "/admin", "cyan")
 
 
 def _simple_generator(kind: str, label: str):
@@ -1760,6 +1763,35 @@ def about() -> None:
     echo(f"  Database     : {app.make('db').driver}")
     echo(f"  Cache        : {config.get('cache.default', 'array')}")
     echo(f"  Queue        : {config.get('queue.default', 'sync')}")
+
+
+@cli.command("doctor")
+def doctor(
+    as_json: bool = typer.Option(False, "--json", help="Print the findings as JSON."),
+) -> None:
+    """Check the project's wiring and report each mistake with its fix.
+
+    Resolves every route's middleware and action, the identity models, the
+    user model's authorization methods, every template's directives, the
+    tables the engine and the project's models need, and the translation rows
+    the views use. Exits 1 when any finding is an error.
+    """
+    from bootstrap.app import kernel
+
+    from engine.support import doctor as checks
+
+    findings = checks.run_all(get_app(), kernel, base_path())
+    if as_json:
+        echo(json.dumps([finding.to_dict() for finding in findings], indent=2))
+    for finding in [] if as_json else findings:
+        echo(" ".join((finding.level.upper(), finding.code, finding.where)), "red" if finding.level == checks.ERROR else "yellow")
+        echo("    " + finding.message())
+        echo("    fix: " + finding.fix(), "cyan")
+    errors = sum(1 for finding in findings if finding.level == checks.ERROR)
+    if not as_json:
+        echo(checks.summary(len(findings), errors), "red" if errors else "green")
+    if errors:
+        raise typer.Exit(code=1)
 
 
 @cli.command("key:generate")

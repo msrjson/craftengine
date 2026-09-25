@@ -727,18 +727,21 @@ def _controller_method(controller: Any, name: str) -> Any:
     method = getattr(controller, name, None)
     if callable(method):
         return method
-    import difflib
-
     from engine.exceptions.handler import MisconfigurationError
+    from engine.support.diagnostics import closest
 
-    public = [attr for attr in dir(controller) if not attr.startswith("_") and callable(getattr(controller, attr))]
-    close = difflib.get_close_matches(name, public, n=1)
-    hint = f" Did you mean '{close[0]}'?" if close else ""
+    public = sorted(attr for attr in dir(controller) if not attr.startswith("_") and callable(getattr(controller, attr)))
     raise MisconfigurationError(
-        "ROUTE_ACTION_NOT_FOUND",
-        f"{type(controller).__name__} has no method '{name}'.{hint} Public methods: {sorted(public)}.",
-        controller=type(controller).__name__, method=name,
+        "ROUTE_ACTION_NOT_FOUND", controller=type(controller).__name__, name=name,
+        closest=closest(name, public), public=", ".join(public),
     )
+
+
+def _action_label(action: Any) -> str:
+    """Return `Controller.method` or the function name of a route action."""
+    if isinstance(action, (list, tuple)):
+        return ".".join((str(getattr(action[0], "__name__", action[0])), str(action[1])))
+    return str(getattr(action, "__name__", repr(action)))
 
 
 def _to_response(result: Any, action: Any) -> Any:
@@ -755,13 +758,7 @@ def _to_response(result: Any, action: Any) -> Any:
     if result is None:
         from engine.exceptions.handler import MisconfigurationError
 
-        label = f"{getattr(action[0], '__name__', action[0])}.{action[1]}" if isinstance(action, (list, tuple)) else getattr(action, "__name__", repr(action))
-        raise MisconfigurationError(
-            "ROUTE_ACTION_RETURNED_NONE",
-            f"The route action {label} returned None. Return a response, a View, a dict or list "
-            f"(sent as JSON) or a string (sent as HTML) - usually a missing `return`.",
-            action=label,
-        )
+        raise MisconfigurationError("ROUTE_ACTION_RETURNED_NONE", action=_action_label(action))
     if hasattr(result, "to_dict"):
         return JSONResponse(result.to_dict())
     if isinstance(result, (list, tuple)):
@@ -798,19 +795,17 @@ def _alias_arguments(mw_cls: Any, declared: Any, param: str, signature: Any) -> 
         MiddlewareAliasError: The alias takes no parameter, too many values
             were given, or a value does not convert.
     """
+    from engine.support.diagnostics import describe
+
     name = mw_cls.__name__
     if not declared:
-        raise MiddlewareAliasError(
-            f"{name} takes no route parameter, but got ':{param}'. Remove it. "
-            f"Authentication by API token is the 'api' alias, not 'auth:api'."
-        )
+        raise MiddlewareAliasError(describe("MIDDLEWARE_TAKES_NO_PARAMETER", middleware=name, param=param))
     values = [value.strip() for value in param.split(",")]
     if len(values) > len(declared):
-        raise MiddlewareAliasError(
-            f"{name} takes {len(declared)} route parameter(s) ({', '.join(declared)}), got "
-            f"{len(values)}: ':{param}'. To require any of several roles or permissions, "
-            f"check them in a Gate or policy instead of listing them in one alias."
-        )
+        raise MiddlewareAliasError(describe(
+            "MIDDLEWARE_TOO_MANY_PARAMETERS", middleware=name, count=len(declared),
+            names=", ".join(declared), param=param,
+        ))
     arguments = {}
     # Fewer values than declared is fine: the rest keep their defaults.
     for key, value in zip(declared, values, strict=False):
@@ -820,7 +815,7 @@ def _alias_arguments(mw_cls: Any, declared: Any, param: str, signature: Any) -> 
                 arguments[key] = int(value)
             except ValueError:
                 raise MiddlewareAliasError(
-                    f"{name} parameter '{key}' must be an integer, got '{value}'."
+                    describe("MIDDLEWARE_PARAMETER_NOT_INTEGER", middleware=name, name=key, value=value)
                 ) from None
         else:
             arguments[key] = value

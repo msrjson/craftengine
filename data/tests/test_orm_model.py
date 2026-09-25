@@ -356,5 +356,5 @@ class TestAttributeAssignment:
         assert "created_by_admin" in caplog.text
 
     def test_a_misspelled_column_suggests_the_loaded_one(self):
-        with pytest.raises(AttributeError, match=r"Did you mean 'name'\?"):
+        with pytest.raises(AttributeError, match=r"Closest: name[.]"):
             Owner.create({"name": "o"}).nmae

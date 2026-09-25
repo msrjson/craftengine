@@ -298,7 +298,7 @@ def __getattr__(name: str) -> object:
         AttributeError: For dunder names, so introspection behaves normally.
         ImportError: For any other name, carrying the explanation.
     """
-    import difflib
+    from engine.support.diagnostics import closest, describe
 
     if name.startswith("__"):
         raise AttributeError(name)
@@ -307,7 +307,8 @@ def __getattr__(name: str) -> object:
         if isinstance(value, type) and issubclass(value, Facade) and value is not Facade
     )
     if name in _ELSEWHERE:
-        raise ImportError(f"craft.facades has no '{name}'; use {_ELSEWHERE[name]}.", name=name)
-    close = difflib.get_close_matches(name, facades, n=1)
-    hint = f" Did you mean '{close[0]}'?" if close else ""
-    raise ImportError(f"craft.facades has no '{name}'.{hint} Facades: {', '.join(facades)}.", name=name)
+        raise ImportError(describe("FACADE_IMPORT_ELSEWHERE", name=name, location=_ELSEWHERE[name]), name=name)
+    raise ImportError(
+        describe("FACADE_IMPORT_UNKNOWN", name=name, closest=closest(name, facades), facades=", ".join(facades)),
+        name=name,
+    )

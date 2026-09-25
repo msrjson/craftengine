@@ -44,25 +44,26 @@ def _missing_method_message(facade: Any, service: Any, name: str) -> str:
     closest public method with its signature, and lists the rest - the facts
     needed to fix the call without opening the source.
     """
-    import difflib
     import inspect
+
+    from engine.support.diagnostics import closest, describe
 
     public = sorted(
         attr for attr in dir(service)
         if not attr.startswith("_") and callable(getattr(service, attr, None))
     )
-    message = (
-        f"{facade.__name__} facade (-> {type(service).__name__}, container key "
-        f"'{facade.get_facade_accessor()}') has no method '{name}'."
-    )
-    close = difflib.get_close_matches(name, public, n=1)
-    if close:
+    suggestion = closest(name, public)
+    signature = ""
+    if suggestion != "none":
         try:
-            signature = str(inspect.signature(getattr(service, close[0])))
+            signature = str(inspect.signature(getattr(service, suggestion)))
         except (TypeError, ValueError):
             signature = "(...)"
-        message += f" Did you mean {close[0]}{signature}?"
-    return message + f" Public methods: {', '.join(public)}."
+    return describe(
+        "FACADE_METHOD_MISSING", facade=facade.__name__, service=type(service).__name__,
+        accessor=facade.get_facade_accessor(), name=name, closest=suggestion,
+        signature=signature, public=", ".join(public),
+    )
 
 
 class Facade(metaclass=FacadeMeta):

@@ -30,17 +30,21 @@ class MisconfigurationError(CraftException):
     with the exact change to make.
 
     Attributes:
-        code: Stable machine code for this failure.
-        hint: The change that fixes it, for the developer reading the log.
+        code: Stable machine code for this failure, a key of
+            `engine.support.diagnostics.CATALOG`.
+        params: The values the message names.
+        hint: The catalog message: what is wrong and the change that fixes it.
     """
 
     status_code = 500
 
-    def __init__(self, code: str, hint: str, **params: object) -> None:
-        super().__init__(f"{code}: {hint}")
+    def __init__(self, code: str, **params: object) -> None:
+        from engine.support.diagnostics import describe
+
         self.code = code
-        self.hint = hint
         self.params = params
+        self.hint = describe(code, **params)
+        super().__init__(": ".join((code, self.hint)))
 
 
 class NotFoundHttpException(CraftException):

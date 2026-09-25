@@ -257,14 +257,12 @@ def _check_directives(compiled: str, template: str, filename: Optional[str]) -> 
     leftovers = unknown_directives(compiled)
     if not leftovers:
         return
+    from engine.support.diagnostics import describe
+
     name, offset = leftovers[0]
-    hint = (
-        " `@include` takes only a view name; set variables before it instead of passing data."
-        if name == "include" else ""
-    )
+    detail = describe("FORGE_INCLUDE_WITH_DATA") if name == "include" else ""
     raise TemplateSyntaxError(
-        f"Unknown Forge directive @{name}.{hint} Supported: {', '.join(SUPPORTED_DIRECTIVES)}. "
-        f"Plain Jinja tags ({{% ... %}}) also work.",
+        describe("FORGE_UNKNOWN_DIRECTIVE", name=name, detail=detail, supported=", ".join(SUPPORTED_DIRECTIVES)),
         compiled.count("\n", 0, offset) + 1,
         template,
         filename,

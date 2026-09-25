@@ -64,4 +64,4 @@ def test_a_list_of_models_is_sent_as_json(client):
 def test_a_misspelled_action_names_the_closest_method(client):
     response = client.get("/api/t/results/typo")
     assert response.status_code == 500
-    assert "Did you mean 'index'?" in response.json()["message"]
+    assert "Closest: index." in response.json()["message"]

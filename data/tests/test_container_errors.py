@@ -11,7 +11,7 @@ from craft.container.application import Container
 def test_an_unknown_key_suggests_bound_ones():
     container = Container()
     container.singleton("cache.store", lambda c: object())
-    with pytest.raises(KeyError, match="Did you mean: cache.store"):
+    with pytest.raises(KeyError, match="Closest bound keys: cache.store"):
         container.make("cache.stor")
 
 

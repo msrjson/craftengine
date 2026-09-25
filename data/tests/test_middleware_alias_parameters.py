@@ -42,7 +42,7 @@ class TestRefusedParameters:
             kernel.resolve_route_middleware([entry])
 
     def test_auth_api_points_at_the_api_alias(self, kernel):
-        with pytest.raises(MiddlewareAliasError, match="'api' alias"):
+        with pytest.raises(MiddlewareAliasError, match="the api alias, not auth:api"):
             kernel.resolve_route_middleware(["auth:api"])
 
     def test_a_list_of_roles_is_refused_instead_of_denying_everyone(self, kernel):

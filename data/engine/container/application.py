@@ -183,19 +183,16 @@ class Container:
 
     def _unbound_message(self, key: str) -> str:
         """Describe an unresolvable key, with the closest bound names."""
-        import difflib
+        from engine.support.diagnostics import closest, describe
 
-        known = sorted(set(self._bindings) | set(self._instances) | set(self._aliases))
-        message = f"Target [{key}] is not bound in container and cannot be resolved."
-        close = difflib.get_close_matches(key, known, n=3)
-        if close:
-            message += f" Did you mean: {', '.join(close)}?"
+        known = set(self._bindings) | set(self._instances) | set(self._aliases)
+        parts = [
+            describe("CONTAINER_UNBOUND", key=key),
+            describe("CONTAINER_CLOSEST", closest=closest(key, sorted(known), limit=3)),
+        ]
         if not isinstance(self, Application):
-            message += (
-                " No application has booted: this is the empty fallback container, which is"
-                " what a facade used at import time, before bootstrap/app.py runs, resolves from."
-            )
-        return message
+            parts.append(describe("CONTAINER_NOT_BOOTED"))
+        return " ".join(parts)
 
     def _build(self, concrete: Type, parameters: Optional[Dict[str, Any]] = None) -> Any:
         parameters = parameters or {}
@@ -231,10 +228,12 @@ class Container:
             if param.default != inspect.Parameter.empty:
                 kwargs[param_name] = param.default
             else:
-                raise ValueError(
-                    f"Cannot resolve parameter [{param_name}: {getattr(param.annotation, '__name__', param.annotation)}] "
-                    f"for class [{concrete.__name__}]. Bind it in a service provider or give it a default."
-                ) from cause
+                from engine.support.diagnostics import describe
+
+                raise ValueError(describe(
+                    "CONTAINER_PARAMETER_UNRESOLVABLE", parameter=param_name,
+                    annotation=getattr(param.annotation, "__name__", param.annotation), owner=concrete.__name__,
+                )) from cause
 
         return concrete(*args, **kwargs)
 

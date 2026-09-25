@@ -15,6 +15,7 @@ the console and boot a generated application. They are worth it: this is the
 first five minutes of the framework's life, and nothing else covers it.
 """
 
+import json
 import os
 import subprocess
 import sys
@@ -319,3 +320,37 @@ class TestGeneratedCrud:
         assert report["API"] == "200", report
         # Generated markup carries no styling hooks: there is no theme to hook.
         assert report["THEME"] == "0", report
+
+
+class TestDoctor:
+    """`craft doctor` catches the wiring mistakes agents make, before a request does."""
+
+    def _prepare(self, generated_project):
+        database = os.path.join(generated_project, "storage", "database.sqlite")
+        for command in (("make:auth",), ("migrate",)):
+            result = run_console(*command, cwd=generated_project, database=database)
+            assert result.returncode == 0, result.stdout + result.stderr
+        return database
+
+    def test_a_freshly_generated_project_has_no_errors(self, generated_project):
+        database = self._prepare(generated_project)
+        result = run_console("doctor", cwd=generated_project, database=database)
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert "ERROR" not in result.stdout
+
+    def test_broken_wiring_is_reported_with_codes_and_exits_non_zero(self, generated_project):
+        database = self._prepare(generated_project)
+        with open(os.path.join(generated_project, "routes", "web.py"), "a", encoding="utf-8") as handle:
+            handle.write(
+                "\nfrom app.Http.Controllers.Auth.AuthController import AuthController as _Probe\n"
+                'Route.get("/doctor-probe", [_Probe, "shwo_login"]).middleware("throttle:many")\n'
+            )
+        with open(os.path.join(generated_project, "resources", "views", "probe.forge.py"), "w", encoding="utf-8") as handle:
+            handle.write("<ul>\n@for item in items\n<li>{{ item }}</li>\n@endfor\n</ul>\n")
+
+        result = run_console("doctor", "--json", cwd=generated_project, database=database)
+
+        assert result.returncode == 1, result.stdout + result.stderr
+        codes = {finding["code"] for finding in json.loads(result.stdout)}
+        assert {"ROUTE_ACTION_NOT_FOUND", "ROUTE_MIDDLEWARE_INVALID", "VIEW_UNKNOWN_DIRECTIVE"} <= codes
+        assert "show_login" in result.stdout

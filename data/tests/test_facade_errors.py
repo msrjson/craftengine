@@ -12,7 +12,7 @@ def test_a_missing_method_suggests_the_closest_with_its_signature(migrated_datab
     with pytest.raises(AttributeError) as raised:
         AntiSpam.verfy
     message = str(raised.value)
-    assert "AntiSpam facade" in message and "Did you mean verify(" in message
+    assert "AntiSpam facade" in message and "Closest: verify(" in message
     assert "Public methods:" in message
 
 
@@ -28,5 +28,5 @@ def test_importing_a_non_facade_names_where_it_lives():
 
 
 def test_a_misspelled_facade_suggests_the_real_one():
-    with pytest.raises(ImportError, match="Did you mean 'Cache'"):
+    with pytest.raises(ImportError, match="Closest: Cache[.]"):
         from craft.facades import Cahce  # noqa: F401
