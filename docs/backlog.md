@@ -57,7 +57,20 @@ engine's English `Validator` defaults - see L6.
 - **Unrendered copy:** `heading`/`subheading` in the admin controllers never
   reach the generated layout, and `?error=conditions` is never shown.
 
-### P2. PostgreSQL is not tested in CI
+### P2. PostgreSQL is not tested in CI - done locally 2026-09-25, CI unconfirmed
+
+The suite no longer deletes, truncates or drops (3a7c62f); `tests/test_fixture_safety.py`
+enforces it and `conftest.py` runs PostgreSQL in a fresh `craft_test_*` database
+per session. Verified in the container against PostgreSQL 18, twice in a row:
+`1758 passed, 4 skipped` (the skips are refusal paths for other drivers); SQLite
+`1696 passed, 66 skipped`. **Still to confirm:** the GitHub `test-postgres` job and
+the automatic `release` job on the next push - not pushed from this session.
+Residue by design: one `craft_test_*` database per session and one
+`craft_rls_probe_*` role (random password, LOGIN removed at test end) on a
+development server; nothing is dropped. The scanner reads text only: engine APIs
+that delete rows the test created (`BelongsToMany.detach()`, the queue removing a
+finished job) are engine behaviour, not test cleanup - see the owner question below.
+
 
 - **Problem:** the framework is developed against PostgreSQL, but the CI job
   for it exits at collection: `data/tests/conftest.py` calls `pytest.exit`
@@ -210,6 +223,13 @@ loaded machine, before and independent of that day's changes.
 ---
 
 ## Also open
+
+- **Owner question (NR-02 scope):** the engine itself physically deletes
+  operational rows - a finished job (`engine/queue/manager.py:365`,
+  `store().complete`), a detached pivot row (`engine/orm/relationships.py:370`),
+  cleared sign-in cooldowns (`engine/security/honeypot.py`). NR-02 bans physical
+  deletes on business entities; whether these framework-operational rows are in
+  scope is a decision, not a fix.
 
 - **Third-party comparison document:** `data/documentation/market_evaluation.md`
   is a comparison with other frameworks in its entirety, against the project
