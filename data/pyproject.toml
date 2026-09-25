@@ -48,7 +48,7 @@ dependencies = [
     "python-multipart>=0.0.6",
     # passlib's bcrypt backend reads `bcrypt.__about__`, which 4.1 removed. Pin
     # below it, or passlib raises on first use and Hash falls back to PBKDF2.
-    "passlib>=1.7",
+    "passlib>=1.7.4",
     "bcrypt>=4.0,<4.1",
     # The default password hash (Slice 2 of the SoftPax upstream roadmap):
     # memory-hard, GPU/ASIC-resistant, and the OWASP-recommended choice over
