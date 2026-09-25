@@ -106,7 +106,13 @@ finished job) are engine behaviour, not test cleanup - see the owner question be
   `require` and the `postgres:18` service has no TLS; the job needs
   `DB_SSLMODE: disable` or it fails to connect even after the guard goes.
 
-### P3. Decide the engine's scope: "bare" or "Slim"
+### P3. Decide the engine's scope: "bare" or "Slim" - decided 2026-09-25: slim
+
+Recorded in `docs/adr/0002-slim-engine-optional-extras.md`, with every
+candidate subsystem sized. Next: step 0 of its plan (dependency hygiene and
+lazy imports, no API break), then one subsystem per commit with a deprecation
+release before each removal.
+
 
 - **Problem:** 4.0.0 removed the *application*, not the weight of the *engine*.
   Still shipped and registered by default: AI, agents, media, vector search,
