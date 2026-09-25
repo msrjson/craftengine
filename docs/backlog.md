@@ -158,6 +158,14 @@ loudly, with a test in a generated project.
 - **Site DNS:** on 2026-09-24 `craftengine.org` did not resolve from the
   development machine, while other domains did. Confirm the domain's
   nameservers at the registrar.
+- **Site blocked by corporate proxies:** the current registration dates from
+  2026-09-18 (GoDaddy, Cloudflare DNS), so web filters classify
+  `craftengine.org` as a Newly Registered Domain and block it, usually for the
+  first 30 days (until about 2026-10-18). The earlier owners (2017-2025) only
+  parked it, and the archive shows no abusive content. To shorten the wait,
+  submit the domain as Software/Technology to the main categorizers (Palo Alto,
+  Fortinet, Zscaler, Cisco Talos, Broadcom, Trellix).
+  **Done when:** the site opens from a corporate network.
 
 ---
 
