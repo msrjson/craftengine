@@ -111,7 +111,15 @@ engine's English `Validator` defaults - see L6.
 
 ## Lower-risk items
 
-### L1. `make:admin` is the most fragile generator
+### L1. `make:admin` is the most fragile generator - done 2026-09-25
+
+`TestGeneratedAdminWriteActions` in the onboarding journey performs every
+write the panel exposes (grant a permission to a role, create a group, add a
+member, grant a group a role, grant a conditional permission, refuse invalid
+conditions with the message shown), checks each in the database, proves a
+member inherits the group's role, and proves an account without the role gets
+403 and changes nothing and a post without a CSRF token is refused.
+
 
 It inherited demo code (`PanelPage`, the CRUD Builder screen). Only the happy
 path is tested: signing in and loading each screen. Granting a permission to a

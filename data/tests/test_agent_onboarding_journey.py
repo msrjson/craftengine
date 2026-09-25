@@ -391,3 +391,88 @@ class TestGeneratedScreensAreTranslated:
         doctor = run_console("doctor", "--json", cwd=generated_project, database=database)
         assert doctor.returncode == 0, doctor.stdout + doctor.stderr
         assert "TRANSLATION_MISSING" not in doctor.stdout
+
+
+#: Every write action the generated admin panel exposes, done by an admin and
+#: refused for an account without the role. Prints one `NAME value` per line.
+_ADMIN_WRITE_PROBE = """
+import re, sys
+sys.path[:0] = [%(project)r, %(repository)r]
+from starlette.testclient import TestClient
+from bootstrap.app import asgi_app
+from app.Models.User import User
+from app.Models.Role import Role
+from app.Models.Permission import Permission
+from craft.facades import DB
+
+ada = User.create({"name": "Ada", "email": "ada@write.test", "password": "correct-horse"})
+bob = User.create({"name": "Bob", "email": "bob@write.test", "password": "correct-horse"})
+admin = Role.create({"name": "Admin", "slug": "admin"})
+DB.table("role_user").insert({"user_id": ada.get_attribute("id"), "role_id": admin.get_attribute("id")})
+publish = Permission.create({"name": "Publish", "slug": "publish-post"})
+
+def signed_in(email):
+    client = TestClient(asgi_app)
+    token = re.search(r'name="_token" value="([^"]+)"', client.get("/login").text).group(1)
+    client.post("/login", data={"email": email, "password": "correct-horse", "_token": token})
+    return client, token
+
+def post(client, token, path, data):
+    return client.post(path, data={**data, "_token": token}, follow_redirects=False).status_code
+
+def count(sql, params):
+    return DB.statement(sql, params, read=True).fetchone()[0]
+
+plain, plain_token = signed_in("bob@write.test")
+print("REFUSED_CREATE", post(plain, plain_token, "/admin/groups", {"name": "X", "slug": "x-team"}))
+print("REFUSED_LEFT_NOTHING", count("SELECT COUNT(*) FROM groups WHERE slug = ?", ["x-team"]))
+
+client, token = signed_in("ada@write.test")
+print("NO_CSRF", client.post("/admin/groups", data={"name": "Y", "slug": "y-team"}, follow_redirects=False).status_code)
+print("GRANT_ROLE_PERMISSION", post(client, token, "/admin/roles/grant",
+      {"role_id": admin.get_attribute("id"), "permission_id": publish.get_attribute("id")}))
+print("ROLE_HAS_PERMISSION", count("SELECT COUNT(*) FROM permission_role WHERE role_id = ? AND permission_id = ?",
+      [admin.get_attribute("id"), publish.get_attribute("id")]))
+print("CREATE_GROUP", post(client, token, "/admin/groups", {"name": "Support", "slug": "support-team"}))
+group_id = DB.statement("SELECT id FROM groups WHERE slug = ?", ["support-team"], read=True).fetchone()[0]
+print("ADD_MEMBER", post(client, token, "/admin/groups/members", {"group_id": group_id, "user_id": bob.get_attribute("id")}))
+print("GRANT_GROUP_ROLE", post(client, token, "/admin/groups/roles", {"group_id": group_id, "role_id": admin.get_attribute("id")}))
+print("GRANT_CONDITIONAL", post(client, token, "/admin/groups/permissions",
+      {"group_id": group_id, "permission_id": publish.get_attribute("id"), "conditions": '{"user_id": "@user.id"}'}))
+print("CONDITIONS_STORED", count("SELECT COUNT(*) FROM permission_group WHERE group_id = ? AND conditions IS NOT NULL", [group_id]))
+rejected = client.post("/admin/groups/permissions", data={"group_id": group_id,
+      "permission_id": publish.get_attribute("id"), "conditions": "not json", "_token": token}, follow_redirects=True)
+print("BAD_CONDITIONS_SHOWN", "not granted" in rejected.text)
+member, member_token = signed_in("bob@write.test")
+print("MEMBER_INHERITS_ADMIN", member.get("/admin/roles", follow_redirects=False).status_code)
+"""
+
+
+class TestGeneratedAdminWriteActions:
+    """Every write the admin panel exposes works, and is refused without the role."""
+
+    def test_each_write_action_and_its_refusal(self, generated_project):
+        database = os.path.join(generated_project, "storage", "database.sqlite")
+        for command in (("make:auth",), ("make:admin",), ("migrate",)):
+            result = run_console(*command, cwd=generated_project, database=database)
+            assert result.returncode == 0, result.stdout + result.stderr
+
+        environment = dict(os.environ)
+        environment.update({"DB_CONNECTION": "sqlite", "DB_DATABASE": database, "APP_LOCALE": "en"})
+        probe = _ADMIN_WRITE_PROBE % {"project": generated_project, "repository": REPOSITORY_ROOT}
+        result = subprocess.run(
+            [sys.executable, "-c", probe], cwd=generated_project, env=environment,
+            capture_output=True, text=True, timeout=180,
+        )
+        assert result.returncode == 0, result.stdout + result.stderr
+        report = dict(line.split(" ", 1) for line in result.stdout.splitlines() if " " in line)
+
+        assert report["REFUSED_CREATE"] == "403", report
+        assert report["REFUSED_LEFT_NOTHING"] == "0", report
+        assert report["NO_CSRF"] in ("403", "419"), report
+        for action in ("GRANT_ROLE_PERMISSION", "CREATE_GROUP", "ADD_MEMBER", "GRANT_GROUP_ROLE", "GRANT_CONDITIONAL"):
+            assert report[action] == "302", (action, report)
+        assert report["ROLE_HAS_PERMISSION"] == "1", report
+        assert report["CONDITIONS_STORED"] == "1", report
+        assert report["BAD_CONDITIONS_SHOWN"] == "True", report
+        assert report["MEMBER_INHERITS_ADMIN"] == "200", report
