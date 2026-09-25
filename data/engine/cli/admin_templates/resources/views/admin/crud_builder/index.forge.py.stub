@@ -16,18 +16,17 @@
 #}
 @extends("layouts.app")
 
-@section("title", "CRUD Builder - Admin")
+@section("title", __('admin.crud_builder.title'))
 
 @section("content")
 <div class="max-w-4xl bg-white border border-slate-200/80 rounded-3xl p-8 shadow-sm">
     <div class="flex items-center justify-between mb-4">
         <div>
-            <h1 class="text-2xl font-bold text-slate-900 mb-1">CRUD Builder</h1>
-            <p class="text-slate-500 text-sm">Describe an entity and its fields; a migration with UUID support, Model, Controller,
-                FormRequest, Resource, API route and Admin UI will be generated automatically.</p>
+            <h1 class="text-2xl font-bold text-slate-900 mb-1">{{ __('admin.crud_builder.heading') }}</h1>
+            <p class="text-slate-500 text-sm">{{ __('admin.crud_builder.description') }}</p>
         </div>
         <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-orange-50 text-orange-700 border border-orange-200">
-            Active Record + Admin UI
+            {{ __('admin.crud_builder.badge') }}
         </span>
     </div>
 
@@ -39,40 +38,42 @@
     </div>
     @endif
 
-    <form action="/admin/crud-builder" method="POST" class="space-y-6" id="crud-builder-form">
+    <form action="/admin/crud-builder" method="POST" class="space-y-6" id="crud-builder-form"
+          data-msg-no-fields="{{ __('admin.crud_builder.error.no_fields') }}"
+          data-msg-duplicates="{{ __('admin.crud_builder.error.duplicates') }}">
         @csrf
 
         <div class="space-y-2">
-            <label for="entity" class="block text-sm font-semibold text-slate-700">Entity name</label>
-            <input type="text" name="entity" id="entity" value="{{ entity }}" placeholder="Product"
+            <label for="entity" class="block text-sm font-semibold text-slate-700">{{ __('admin.crud_builder.field.entity') }}</label>
+            <input type="text" name="entity" id="entity" value="{{ entity }}" placeholder="{{ __('admin.crud_builder.field.entity_placeholder') }}"
                    class="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500"
                    required>
-            <p class="text-xs text-slate-400">Singular, PascalCase or snake_case - e.g. "Product" or "order_item".</p>
+            <p class="text-xs text-slate-400">{{ __('admin.crud_builder.field.entity_help') }}</p>
         </div>
 
         <!-- Field Presets Quick-Add Toolbar -->
         <div class="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-2">
             <div class="flex items-center justify-between">
-                <span class="text-xs font-bold uppercase tracking-wider text-slate-500">Quick Field Presets</span>
-                <span class="text-xs text-slate-400">Click to append common fields</span>
+                <span class="text-xs font-bold uppercase tracking-wider text-slate-500">{{ __('admin.crud_builder.presets.heading') }}</span>
+                <span class="text-xs text-slate-400">{{ __('admin.crud_builder.presets.help') }}</span>
             </div>
             <div class="flex flex-wrap gap-2 pt-1">
-                <button type="button" class="preset-btn px-2.5 py-1 text-xs font-medium rounded-lg bg-white border border-slate-200 hover:border-orange-400 hover:text-orange-600 transition" data-name="name" data-type="string" data-req="1">+ Name (string, req)</button>
-                <button type="button" class="preset-btn px-2.5 py-1 text-xs font-medium rounded-lg bg-white border border-slate-200 hover:border-orange-400 hover:text-orange-600 transition" data-name="title" data-type="string" data-req="1">+ Title (string, req)</button>
-                <button type="button" class="preset-btn px-2.5 py-1 text-xs font-medium rounded-lg bg-white border border-slate-200 hover:border-orange-400 hover:text-orange-600 transition" data-name="description" data-type="text" data-req="0">+ Description (text)</button>
-                <button type="button" class="preset-btn px-2.5 py-1 text-xs font-medium rounded-lg bg-white border border-slate-200 hover:border-orange-400 hover:text-orange-600 transition" data-name="price" data-type="decimal" data-req="1">+ Price (decimal, req)</button>
-                <button type="button" class="preset-btn px-2.5 py-1 text-xs font-medium rounded-lg bg-white border border-slate-200 hover:border-orange-400 hover:text-orange-600 transition" data-name="active" data-type="boolean" data-req="0">+ Active (boolean)</button>
-                <button type="button" class="preset-btn px-2.5 py-1 text-xs font-medium rounded-lg bg-white border border-slate-200 hover:border-orange-400 hover:text-orange-600 transition" data-name="metadata" data-type="json" data-req="0">+ Metadata (json)</button>
-                <button type="button" class="preset-btn px-2.5 py-1 text-xs font-medium rounded-lg bg-white border border-slate-200 hover:border-orange-400 hover:text-orange-600 transition" data-name="due_date" data-type="date" data-req="0">+ Due Date (date)</button>
+                <button type="button" class="preset-btn px-2.5 py-1 text-xs font-medium rounded-lg bg-white border border-slate-200 hover:border-orange-400 hover:text-orange-600 transition" data-name="name" data-type="string" data-req="1">{{ __('admin.crud_builder.preset.name') }}</button>
+                <button type="button" class="preset-btn px-2.5 py-1 text-xs font-medium rounded-lg bg-white border border-slate-200 hover:border-orange-400 hover:text-orange-600 transition" data-name="title" data-type="string" data-req="1">{{ __('admin.crud_builder.preset.title') }}</button>
+                <button type="button" class="preset-btn px-2.5 py-1 text-xs font-medium rounded-lg bg-white border border-slate-200 hover:border-orange-400 hover:text-orange-600 transition" data-name="description" data-type="text" data-req="0">{{ __('admin.crud_builder.preset.description') }}</button>
+                <button type="button" class="preset-btn px-2.5 py-1 text-xs font-medium rounded-lg bg-white border border-slate-200 hover:border-orange-400 hover:text-orange-600 transition" data-name="price" data-type="decimal" data-req="1">{{ __('admin.crud_builder.preset.price') }}</button>
+                <button type="button" class="preset-btn px-2.5 py-1 text-xs font-medium rounded-lg bg-white border border-slate-200 hover:border-orange-400 hover:text-orange-600 transition" data-name="active" data-type="boolean" data-req="0">{{ __('admin.crud_builder.preset.active') }}</button>
+                <button type="button" class="preset-btn px-2.5 py-1 text-xs font-medium rounded-lg bg-white border border-slate-200 hover:border-orange-400 hover:text-orange-600 transition" data-name="metadata" data-type="json" data-req="0">{{ __('admin.crud_builder.preset.metadata') }}</button>
+                <button type="button" class="preset-btn px-2.5 py-1 text-xs font-medium rounded-lg bg-white border border-slate-200 hover:border-orange-400 hover:text-orange-600 transition" data-name="due_date" data-type="date" data-req="0">{{ __('admin.crud_builder.preset.due_date') }}</button>
             </div>
         </div>
 
         <div class="space-y-3">
             <div class="flex items-center justify-between">
-                <label class="block text-sm font-semibold text-slate-700">Entity Fields</label>
+                <label class="block text-sm font-semibold text-slate-700">{{ __('admin.crud_builder.fields.heading') }}</label>
                 <button type="button" id="add-field-row"
                         class="text-xs font-bold text-orange-600 hover:text-orange-700 bg-orange-50 hover:bg-orange-100 px-3 py-1.5 rounded-lg transition">
-                    + Add Field Row
+                    {{ __('admin.crud_builder.fields.action.add') }}
                 </button>
             </div>
 
@@ -84,7 +85,7 @@
         <div class="flex items-center space-x-4 pt-2">
             <button type="submit" id="submit-btn"
                     class="bg-orange-600 hover:bg-orange-700 text-white font-bold px-6 py-2.5 rounded-xl shadow-md transition duration-150 text-sm">
-                Generate CRUD Slice
+                {{ __('admin.crud_builder.action.submit') }}
             </button>
         </div>
     </form>
@@ -97,15 +98,15 @@
     <div class="flex items-center space-x-3 field-row bg-slate-50/50 p-2.5 rounded-xl border border-slate-200">
         <!-- Reorder buttons -->
         <div class="flex flex-col space-y-0.5">
-            <button type="button" class="move-up-btn text-[10px] text-slate-400 hover:text-slate-700 p-0.5" title="Move Up">&#9650;</button>
-            <button type="button" class="move-down-btn text-[10px] text-slate-400 hover:text-slate-700 p-0.5" title="Move Down">&#9660;</button>
+            <button type="button" class="move-up-btn text-[10px] text-slate-400 hover:text-slate-700 p-0.5" title="{{ __('admin.crud_builder.row.move_up') }}">&#9650;</button>
+            <button type="button" class="move-down-btn text-[10px] text-slate-400 hover:text-slate-700 p-0.5" title="{{ __('admin.crud_builder.row.move_down') }}">&#9660;</button>
         </div>
         <div class="flex-1">
-            <label class="sr-only field-name-label">Field name</label>
+            <label class="sr-only field-name-label">{{ __('admin.crud_builder.row.field_name') }}</label>
             <input type="text" placeholder="field_name" class="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm field-name-input bg-white focus:outline-none focus:border-orange-500">
         </div>
         <div>
-            <label class="sr-only field-type-label">Field type</label>
+            <label class="sr-only field-type-label">{{ __('admin.crud_builder.row.field_type') }}</label>
             <select class="px-3 py-2 rounded-lg border border-slate-200 text-sm field-type-input bg-white focus:outline-none focus:border-orange-500">
                 @foreach(field_types as type)
                     <option value="{{ type }}">{{ type }}</option>
@@ -114,9 +115,9 @@
         </div>
         <label class="flex items-center text-xs text-slate-600 space-x-1 select-none pr-2">
             <input type="checkbox" class="field-required-input rounded border-slate-300 text-orange-600 focus:ring-orange-500">
-            <span>required</span>
+            <span>{{ __('admin.crud_builder.row.required') }}</span>
         </label>
-        <button type="button" class="text-xs text-rose-500 hover:text-rose-700 font-medium remove-field-row px-2 py-1 rounded hover:bg-rose-50 transition">Remove</button>
+        <button type="button" class="text-xs text-rose-500 hover:text-rose-700 font-medium remove-field-row px-2 py-1 rounded hover:bg-rose-50 transition">{{ __('admin.crud_builder.row.remove') }}</button>
     </div>
 </template>
 
@@ -221,14 +222,14 @@
 
         if (!hasValidField) {
             e.preventDefault();
-            errorBox.textContent = "Please define at least one valid field name.";
+            errorBox.textContent = form.getAttribute("data-msg-no-fields");
             errorBox.classList.remove("hidden");
             return false;
         }
 
         if (duplicates.length > 0) {
             e.preventDefault();
-            errorBox.textContent = "Duplicate field names detected: " + duplicates.join(", ");
+            errorBox.textContent = form.getAttribute("data-msg-duplicates").replace("{names}", duplicates.join(", "));
             errorBox.classList.remove("hidden");
             return false;
         }

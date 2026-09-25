@@ -52,6 +52,17 @@ full policy (categories to use, what counts as security-relevant, how
 
 ### Fixed
 
+- The screens `make:auth` and `make:admin` generate carry translation keys instead of
+  hardcoded English (13 keys for sign-in, registration and the dashboard; 74 for the admin
+  panel), and each generator writes a forward-only migration seeding every key in `en`,
+  `pt-BR` and `es` without overwriting rows the project already has. The CRUD builder's
+  client-side messages reach the script through `data-*` attributes with an ICU `{names}`
+  placeholder instead of concatenation. The admin controllers' `heading`/`subheading`, which
+  the generated layout never rendered, are gone, and a refused ABAC condition is now shown
+  on the groups screen instead of being passed in the URL and ignored. A test holds every
+  generated view to "no visible text outside `__()`" and every key to three seeded rows;
+  the onboarding journey renders the login in each locale.
+
 - `craft new` projects create the tables the engine writes to by default: `auth_audit_logs`,
   `auth_cooldowns` (with the unique index the honeypot's atomic upsert needs),
   `firewall_rules`, `security_events` and `scheduler_runs`. Without them the sign-in form

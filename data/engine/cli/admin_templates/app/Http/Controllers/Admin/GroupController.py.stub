@@ -54,8 +54,7 @@ class GroupController(PanelPage, Controller):
             permissions_of[group_id] = self._granted_permissions(group_id)
 
         return self.panel(request, "admin.groups.index", {
-            "heading": "Groups",
-            "subheading": "Team-level access. Members inherit every role and permission the group carries.",
+            "conditions_rejected": request.input("error") == "conditions",
             "groups": groups,
             "members": members,
             "roles_of": roles_of,

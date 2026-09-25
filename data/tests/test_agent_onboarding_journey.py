@@ -354,3 +354,40 @@ class TestDoctor:
         codes = {finding["code"] for finding in json.loads(result.stdout)}
         assert {"ROUTE_ACTION_NOT_FOUND", "ROUTE_MIDDLEWARE_INVALID", "VIEW_UNKNOWN_DIRECTIVE"} <= codes
         assert "show_login" in result.stdout
+
+
+_LOCALE_PROBE = """
+import sys
+sys.path[:0] = [%(project)r, %(repository)r]
+from starlette.testclient import TestClient
+from bootstrap.app import asgi_app
+
+for locale in ("en", "pt-BR", "es"):
+    page = TestClient(asgi_app).get("/login?lang=" + locale).text
+    print(locale, "auth.login.title" in page, page.count("<h1>"), page.split("<h1>")[1].split("</h1>")[0])
+"""
+
+
+class TestGeneratedScreensAreTranslated:
+    """The generated sign-in screen speaks every seeded locale."""
+
+    def test_login_renders_in_each_locale_and_doctor_finds_no_missing_row(self, generated_project):
+        database = os.path.join(generated_project, "storage", "database.sqlite")
+        for command in (("make:auth",), ("make:admin",), ("migrate",)):
+            result = run_console(*command, cwd=generated_project, database=database)
+            assert result.returncode == 0, result.stdout + result.stderr
+
+        environment = dict(os.environ)
+        environment.update({"DB_CONNECTION": "sqlite", "DB_DATABASE": database})
+        probe = _LOCALE_PROBE % {"project": generated_project, "repository": REPOSITORY_ROOT}
+        result = subprocess.run(
+            [sys.executable, "-c", probe], cwd=generated_project, env=environment,
+            capture_output=True, text=True, timeout=180,
+        )
+        assert result.returncode == 0, result.stdout + result.stderr
+        headings = {line.split(" ", 1)[0]: line.split(" ", 3)[3] for line in result.stdout.splitlines() if line}
+        assert headings == {"en": "Sign in", "pt-BR": "Entrar", "es": "Iniciar sesión"}, result.stdout
+
+        doctor = run_console("doctor", "--json", cwd=generated_project, database=database)
+        assert doctor.returncode == 0, doctor.stdout + doctor.stderr
+        assert "TRANSLATION_MISSING" not in doctor.stdout

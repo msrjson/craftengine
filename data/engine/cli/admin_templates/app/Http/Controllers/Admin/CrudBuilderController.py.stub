@@ -7,6 +7,7 @@ import json
 import re
 
 from craft.http.controller import Controller
+from craft.support import __
 from app.Http.Requests.CrudBuilderRequest import CrudBuilderRequest
 
 FIELD_TYPES = (
@@ -69,7 +70,7 @@ class CrudBuilderController(Controller):
             return self.view("admin.crud_builder.index", {
                 "show_sidebar": True,
                 "field_types": FIELD_TYPES,
-                "errors": [f"A generated file already exists: {exc}"],
+                "errors": [__("admin.crud_builder.error.file_exists", path=str(exc))],
                 "entity": entity,
                 "fields_json": raw_rows_json,
             })
@@ -77,7 +78,7 @@ class CrudBuilderController(Controller):
             return self.view("admin.crud_builder.index", {
                 "show_sidebar": True,
                 "field_types": FIELD_TYPES,
-                "errors": [str(exc)],
+                "errors": [__("admin.crud_builder.error.invalid_definition", detail=str(exc))],
                 "entity": entity,
                 "fields_json": raw_rows_json,
             })
@@ -128,7 +129,7 @@ class CrudBuilderController(Controller):
                 continue
             type_ = data.get(f"field_type_{index}", "string")
             if type_ not in FIELD_TYPES:
-                errors.append(f"Unknown field type [{type_}] for field [{name}].")
+                errors.append(__("admin.crud_builder.error.unknown_type", type=type_, name=name))
                 continue
             required = bool(data.get(f"field_required_{index}"))
             fields.append({
@@ -139,6 +140,6 @@ class CrudBuilderController(Controller):
             })
 
         if not fields:
-            errors.append("Define at least one field.")
+            errors.append(__("admin.crud_builder.error.at_least_one_field"))
 
         return fields, errors

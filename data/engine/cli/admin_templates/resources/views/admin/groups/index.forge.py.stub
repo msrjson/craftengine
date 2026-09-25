@@ -20,12 +20,13 @@
 #}
 @extends("layouts.app")
 
-@section("title", "Groups - Admin")
+@section("title", __('admin.groups.title'))
 
 @section("content")
 <div class="space-y-8">
-    {# The heading is rendered by the panel layout from the controller's
-       `heading`/`subheading`; repeating it here would print it twice. #}
+    @if(conditions_rejected)
+        <p role="alert" class="p-4 rounded-xl bg-rose-50 border border-rose-100 text-rose-700 text-sm">{{ __('admin.groups.error.conditions') }}</p>
+    @endif
 
     {# --- The groups themselves, with everything they grant ----------------- #}
     <div class="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
@@ -33,11 +34,11 @@
             <table class="w-full text-left border-collapse">
                 <thead>
                     <tr class="bg-slate-50/75 border-b border-slate-200 text-xs font-bold uppercase text-slate-500 font-mono">
-                        <th class="px-6 py-3.5">Name</th>
-                        <th class="px-6 py-3.5">Slug</th>
-                        <th class="px-6 py-3.5">Members</th>
-                        <th class="px-6 py-3.5">Roles</th>
-                        <th class="px-6 py-3.5">Direct permissions</th>
+                        <th class="px-6 py-3.5">{{ __('admin.field.name') }}</th>
+                        <th class="px-6 py-3.5">{{ __('admin.field.slug') }}</th>
+                        <th class="px-6 py-3.5">{{ __('admin.groups.column.members') }}</th>
+                        <th class="px-6 py-3.5">{{ __('admin.groups.column.roles') }}</th>
+                        <th class="px-6 py-3.5">{{ __('admin.groups.column.direct_permissions') }}</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-100 text-sm text-slate-700">
@@ -53,7 +54,7 @@
                                         </span>
                                     @endforeach
                                 @else
-                                    <span class="text-slate-400 text-xs">No members</span>
+                                    <span class="text-slate-400 text-xs">{{ __('admin.groups.empty.members') }}</span>
                                 @endif
                             </td>
                             <td class="px-6 py-4">
@@ -64,7 +65,7 @@
                                         </span>
                                     @endforeach
                                 @else
-                                    <span class="text-slate-400 text-xs">No roles</span>
+                                    <span class="text-slate-400 text-xs">{{ __('admin.groups.empty.roles') }}</span>
                                 @endif
                             </td>
                             <td class="px-6 py-4">
@@ -79,12 +80,12 @@
                                             @if(grant['conditions'])
                                                 <code class="ml-1 text-[11px] text-slate-500">{{ grant['conditions'] }}</code>
                                             @else
-                                                <span class="ml-1 text-[11px] text-slate-400">unconditional</span>
+                                                <span class="ml-1 text-[11px] text-slate-400">{{ __('admin.groups.grant.unconditional') }}</span>
                                             @endif
                                         </div>
                                     @endforeach
                                 @else
-                                    <span class="text-slate-400 text-xs">None</span>
+                                    <span class="text-slate-400 text-xs">{{ __('admin.groups.empty.permissions') }}</span>
                                 @endif
                             </td>
                         </tr>
@@ -97,38 +98,38 @@
     <div class="grid gap-6 md:grid-cols-2">
         {# --- Create a group -------------------------------------------------- #}
         <div class="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-sm">
-            <h2 class="text-lg font-bold text-slate-900 mb-4">Create a group</h2>
+            <h2 class="text-lg font-bold text-slate-900 mb-4">{{ __('admin.groups.create.heading') }}</h2>
             <form action="/admin/groups" method="POST" class="space-y-4">
                 @csrf
                 <div class="space-y-2">
-                    <label for="name" class="block text-sm font-semibold text-slate-700">Name</label>
+                    <label for="name" class="block text-sm font-semibold text-slate-700">{{ __('admin.field.name') }}</label>
                     <input type="text" name="name" id="name" required
                            class="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500">
                 </div>
                 <div class="space-y-2">
-                    <label for="slug" class="block text-sm font-semibold text-slate-700">Slug</label>
+                    <label for="slug" class="block text-sm font-semibold text-slate-700">{{ __('admin.field.slug') }}</label>
                     {# The slug is what `group:<slug>` route middleware matches. #}
                     <input type="text" name="slug" id="slug" required placeholder="support-team"
                            class="w-full px-4 py-2.5 rounded-xl border border-slate-200 font-mono text-sm focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500">
                 </div>
                 <div class="space-y-2">
-                    <label for="description" class="block text-sm font-semibold text-slate-700">Description</label>
+                    <label for="description" class="block text-sm font-semibold text-slate-700">{{ __('admin.field.description') }}</label>
                     <input type="text" name="description" id="description"
                            class="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500">
                 </div>
                 <button type="submit" class="bg-orange-600 hover:bg-orange-700 text-white font-bold px-6 py-2.5 rounded-xl shadow-md transition duration-150 text-sm">
-                    Create group
+                    {{ __('admin.groups.create.action.submit') }}
                 </button>
             </form>
         </div>
 
         {# --- Add a member ---------------------------------------------------- #}
         <div class="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-sm">
-            <h2 class="text-lg font-bold text-slate-900 mb-4">Add a member</h2>
+            <h2 class="text-lg font-bold text-slate-900 mb-4">{{ __('admin.groups.member.heading') }}</h2>
             <form action="/admin/groups/members" method="POST" class="space-y-4">
                 @csrf
                 <div class="space-y-2">
-                    <label for="member_group_id" class="block text-sm font-semibold text-slate-700">Group</label>
+                    <label for="member_group_id" class="block text-sm font-semibold text-slate-700">{{ __('admin.field.group') }}</label>
                     <select name="group_id" id="member_group_id" required
                             class="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500">
                         @foreach(groups as group)
@@ -137,7 +138,7 @@
                     </select>
                 </div>
                 <div class="space-y-2">
-                    <label for="user_id" class="block text-sm font-semibold text-slate-700">User</label>
+                    <label for="user_id" class="block text-sm font-semibold text-slate-700">{{ __('admin.field.user') }}</label>
                     <select name="user_id" id="user_id" required
                             class="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500">
                         @foreach(users as user)
@@ -146,18 +147,18 @@
                     </select>
                 </div>
                 <button type="submit" class="bg-slate-900 hover:bg-slate-800 text-white font-bold px-6 py-2.5 rounded-xl shadow-md transition duration-150 text-sm">
-                    Add to group
+                    {{ __('admin.groups.member.action.submit') }}
                 </button>
             </form>
         </div>
 
         {# --- Grant a role ---------------------------------------------------- #}
         <div class="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-sm">
-            <h2 class="text-lg font-bold text-slate-900 mb-4">Grant a role to a group</h2>
+            <h2 class="text-lg font-bold text-slate-900 mb-4">{{ __('admin.groups.role.heading') }}</h2>
             <form action="/admin/groups/roles" method="POST" class="space-y-4">
                 @csrf
                 <div class="space-y-2">
-                    <label for="role_group_id" class="block text-sm font-semibold text-slate-700">Group</label>
+                    <label for="role_group_id" class="block text-sm font-semibold text-slate-700">{{ __('admin.field.group') }}</label>
                     <select name="group_id" id="role_group_id" required
                             class="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500">
                         @foreach(groups as group)
@@ -166,7 +167,7 @@
                     </select>
                 </div>
                 <div class="space-y-2">
-                    <label for="role_id" class="block text-sm font-semibold text-slate-700">Role</label>
+                    <label for="role_id" class="block text-sm font-semibold text-slate-700">{{ __('admin.field.role') }}</label>
                     <select name="role_id" id="role_id" required
                             class="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500">
                         @foreach(roles as role)
@@ -175,18 +176,18 @@
                     </select>
                 </div>
                 <button type="submit" class="bg-slate-900 hover:bg-slate-800 text-white font-bold px-6 py-2.5 rounded-xl shadow-md transition duration-150 text-sm">
-                    Grant role
+                    {{ __('admin.groups.role.action.submit') }}
                 </button>
             </form>
         </div>
 
         {# --- Grant a permission, optionally conditional (ABAC) ---------------- #}
         <div class="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-sm">
-            <h2 class="text-lg font-bold text-slate-900 mb-4">Grant a permission to a group</h2>
+            <h2 class="text-lg font-bold text-slate-900 mb-4">{{ __('admin.groups.permission.heading') }}</h2>
             <form action="/admin/groups/permissions" method="POST" class="space-y-4">
                 @csrf
                 <div class="space-y-2">
-                    <label for="perm_group_id" class="block text-sm font-semibold text-slate-700">Group</label>
+                    <label for="perm_group_id" class="block text-sm font-semibold text-slate-700">{{ __('admin.field.group') }}</label>
                     <select name="group_id" id="perm_group_id" required
                             class="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500">
                         @foreach(groups as group)
@@ -195,7 +196,7 @@
                     </select>
                 </div>
                 <div class="space-y-2">
-                    <label for="permission_id" class="block text-sm font-semibold text-slate-700">Permission</label>
+                    <label for="permission_id" class="block text-sm font-semibold text-slate-700">{{ __('admin.field.permission') }}</label>
                     <select name="permission_id" id="permission_id" required
                             class="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500">
                         @foreach(permissions as permission)
@@ -205,18 +206,15 @@
                 </div>
                 <div class="space-y-2">
                     <label for="conditions" class="block text-sm font-semibold text-slate-700">
-                        Conditions <span class="font-normal text-slate-400">(optional, JSON)</span>
+                        {{ __('admin.groups.field.conditions') }} <span class="font-normal text-slate-400">{{ __('admin.groups.field.conditions_hint') }}</span>
                     </label>
                     <input type="text" name="conditions" id="conditions" placeholder='{"user_id": "@user.id"}'
                            class="w-full px-4 py-2.5 rounded-xl border border-slate-200 font-mono text-xs focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500">
-                    <p class="text-xs text-slate-500">
-                        Narrows the grant to matching records. <code>@user.&lt;attr&gt;</code> refers to the
-                        acting user, so <code>{"user_id": "@user.id"}</code> means "only their own".
-                        Operators: eq, ne, in, not_in, gt, gte, lt, lte, is_null, contains.
-                    </p>
+                    <p class="text-xs text-slate-500">{{ __('admin.groups.conditions.help') }}</p>
+                    <p class="text-xs text-slate-500"><code>{"user_id": "@user.id"}</code></p>
                 </div>
                 <button type="submit" class="bg-orange-600 hover:bg-orange-700 text-white font-bold px-6 py-2.5 rounded-xl shadow-md transition duration-150 text-sm">
-                    Grant permission
+                    {{ __('admin.groups.permission.action.submit') }}
                 </button>
             </form>
         </div>

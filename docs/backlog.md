@@ -17,7 +17,13 @@ for the goal of agents working without error.
 
 ## Priority
 
-### P1. Generated code breaks the project's own language rules
+### P1. Generated code breaks the project's own language rules - done 2026-09-25
+
+Generated views and controllers use keys; `make:auth`/`make:admin` seed `en`,
+`pt-BR` and `es` rows through forward-only migrations; `tests/test_generated_copy.py`
+and the onboarding journey prove it. Validation messages still come from the
+engine's English `Validator` defaults - see L6.
+
 
 - **Problem:** the screens written by `craft make:auth` and `craft make:admin`
   carry hardcoded English copy ("Sign in", "These credentials do not match our
@@ -161,6 +167,8 @@ Forge directives and undefined variables, facade/container/config/identity
 errors without the cause, table-name inference, missing translation keys
 untraced, template helpers hiding misconfiguration, and `craft doctor`.
 Still open:
+- **Validator messages are English f-strings** (`engine/validation/validator.py`
+  138, 179-265), so a generated form's field errors are not translated.
 - **Validation rules without their argument pass silently:** `regex`, `min`,
   `max`, `max_file_size` with no value (`engine/validation/validator.py`
   244, 420, 465, 469); an unknown rule raises but suggests nothing.

@@ -12,19 +12,17 @@
 #}
 @extends("layouts.app")
 
-@section("title", "Permissions - Admin")
+@section("title", __('admin.permissions.title'))
 
 @section("content")
 <div class="space-y-8">
-    {# Heading comes from the panel layout (`heading`/`subheading`). #}
-
     <div class="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
         <div class="overflow-x-auto">
             <table class="w-full text-left border-collapse">
                 <thead>
                     <tr class="bg-slate-50/75 border-b border-slate-200 text-xs font-bold uppercase text-slate-500 font-mono">
-                        <th class="px-6 py-3.5">Name</th>
-                        <th class="px-6 py-3.5">Slug</th>
+                        <th class="px-6 py-3.5">{{ __('admin.field.name') }}</th>
+                        <th class="px-6 py-3.5">{{ __('admin.field.slug') }}</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-100 text-sm text-slate-700">
@@ -39,6 +37,6 @@
         </div>
     </div>
 
-    <a href="/admin/roles" class="text-sm font-semibold text-slate-500 hover:text-slate-700">&larr; Back to Roles</a>
+    <a href="/admin/roles" class="text-sm font-semibold text-slate-500 hover:text-slate-700">&larr; {{ __('admin.permissions.link.back') }}</a>
 </div>
 @endsection

@@ -51,6 +51,10 @@ def _copy_auth_templates(base_path: str, force: bool = False) -> Dict[str, str]:
             "migration_users",
             os.path.join("database", "migrations", "2025_01_01_000001_create_users_table.py"),
         ),
+        (
+            "migration_translations",
+            os.path.join("database", "migrations", "2026_09_25_000010_seed_auth_translations.py"),
+        ),
     ):
         destination = os.path.join(base_path, relative)
         if os.path.exists(destination) and not force:
@@ -127,6 +131,7 @@ def auth_controller_stub(success_route: str = "dashboard") -> str:
 from craft.facades import Auth
 from craft.http.controller import Controller
 from craft.http.response import redirect
+from craft.support import __
 
 from app.Http.Requests.Auth.LoginRequest import LoginRequest
 from app.Http.Requests.Auth.RegisterRequest import RegisterRequest
@@ -155,7 +160,7 @@ class AuthController(Controller):
         credentials = {"email": request.get_input("email"), "password": request.get_input("password")}
         if Auth.attempt(credentials):
             return redirect(route="__SUCCESS_ROUTE__")
-        return self._back(request, {"email": ["These credentials do not match our records."]})
+        return self._back(request, {"email": [__("auth.login.failed")]})
 
     def show_register(self, request):
         return self.view("auth.register")
@@ -191,11 +196,11 @@ class AuthController(Controller):
 def login_view_stub() -> str:
     return '''@extends("layouts.app")
 
-@section("title", "Sign in")
+@section("title", __('auth.login.title'))
 
 @section("content")
 <main>
-    <h1>Sign in</h1>
+    <h1>{{ __('auth.login.title') }}</h1>
 
     @if(errors.any())
         <ul role="alert">
@@ -210,23 +215,23 @@ def login_view_stub() -> str:
         @honeypot
 
         <p>
-            <label for="email">Email</label>
+            <label for="email">{{ __('auth.field.email') }}</label>
             <input type="email" name="email" id="email" value="{{ old('email', '') }}" required autofocus autocomplete="username">
             @error('email')
                 <small role="alert">{{ message }}</small>
             @enderror
         </p>
         <p>
-            <label for="password">Password</label>
+            <label for="password">{{ __('auth.field.password') }}</label>
             <input type="password" name="password" id="password" required autocomplete="current-password">
             @error('password')
                 <small role="alert">{{ message }}</small>
             @enderror
         </p>
-        <p><button type="submit">Sign in</button></p>
+        <p><button type="submit">{{ __('auth.login.action.submit') }}</button></p>
     </form>
 
-    <p><a href="/register">Create an account</a></p>
+    <p><a href="/register">{{ __('auth.login.link.register') }}</a></p>
 </main>
 @endsection
 '''
@@ -235,11 +240,11 @@ def login_view_stub() -> str:
 def register_view_stub() -> str:
     return '''@extends("layouts.app")
 
-@section("title", "Create an account")
+@section("title", __('auth.register.title'))
 
 @section("content")
 <main>
-    <h1>Create an account</h1>
+    <h1>{{ __('auth.register.title') }}</h1>
 
     @if(errors.any())
         <ul role="alert">
@@ -254,30 +259,30 @@ def register_view_stub() -> str:
         @honeypot
 
         <p>
-            <label for="name">Name</label>
+            <label for="name">{{ __('auth.field.name') }}</label>
             <input type="text" name="name" id="name" value="{{ old('name', '') }}" required autofocus autocomplete="name">
             @error('name')
                 <small role="alert">{{ message }}</small>
             @enderror
         </p>
         <p>
-            <label for="email">Email</label>
+            <label for="email">{{ __('auth.field.email') }}</label>
             <input type="email" name="email" id="email" value="{{ old('email', '') }}" required autocomplete="email">
             @error('email')
                 <small role="alert">{{ message }}</small>
             @enderror
         </p>
         <p>
-            <label for="password">Password</label>
+            <label for="password">{{ __('auth.field.password') }}</label>
             <input type="password" name="password" id="password" required minlength="8" autocomplete="new-password">
             @error('password')
                 <small role="alert">{{ message }}</small>
             @enderror
         </p>
-        <p><button type="submit">Create account</button></p>
+        <p><button type="submit">{{ __('auth.register.action.submit') }}</button></p>
     </form>
 
-    <p><a href="/login">Already have an account? Sign in</a></p>
+    <p><a href="/login">{{ __('auth.register.link.login') }}</a></p>
 </main>
 @endsection
 '''
@@ -286,17 +291,17 @@ def register_view_stub() -> str:
 def dashboard_view_stub() -> str:
     return '''@extends("layouts.app")
 
-@section("title", "Dashboard")
+@section("title", __('auth.dashboard.title'))
 
 @section("content")
 <main>
-    <h1>Dashboard</h1>
+    <h1>{{ __('auth.dashboard.title') }}</h1>
     @if(user)
-        <p>Signed in as {{ user.get_attribute('email') }}.</p>
+        <p>{{ __('auth.dashboard.signed_in_as', email=user.get_attribute('email')) }}</p>
     @endif
     <form action="/logout" method="POST">
         @csrf
-        <button type="submit">Sign out</button>
+        <button type="submit">{{ __('auth.dashboard.action.sign_out') }}</button>
     </form>
 </main>
 @endsection

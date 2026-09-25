@@ -33,8 +33,6 @@ class RoleController(PanelPage, Controller):
         # Rendered inside the control panel shell rather than the marketing
         # layout: one panel, one sidebar, one set of guards.
         return self.panel(request, "admin.roles.index", {
-            "heading": "Roles",
-            "subheading": "Roles and the permissions granted to each.",
             "roles": roles,
             "role_permissions": role_permissions,
             "permissions": Permission.query().get(),
@@ -70,7 +68,5 @@ class PermissionController(PanelPage, Controller):
         from app.Models.Permission import Permission
 
         return self.panel(request, "admin.permissions.index", {
-            "heading": "Permissions",
-            "subheading": "Every permission this installation knows about.",
             "permissions": Permission.query().get(),
         })
