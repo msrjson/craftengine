@@ -18,6 +18,25 @@ full policy (categories to use, what counts as security-relevant, how
 
 ## [Unreleased]
 
+### Security
+
+- Hash a changed password on update. `AuthenticatableMixin` hashed only on insert, so
+  `user.update({"password": ...})`, `update_attributes()` and a reassigned `password`
+  followed by `save()` wrote the plaintext to the column. It now hashes in `save()` too.
+
+### Fixed
+
+- `model.column = value` followed by `save()` now writes the column. `Model` had no
+  `__setattr__`, so the value landed on the instance, `save()` saw nothing dirty and wrote
+  nothing, while later reads still returned the new value. Private names and names the
+  class defines (`fillable`, properties, methods) keep normal attribute semantics.
+- Saving a new model writes the columns assigned one by one (`model.x = ...`,
+  `set_attribute`) as given; only constructor input is filtered by `fillable`, as before.
+- `create()` and a new model's `save()` log `mass_assignment_discarded` with the dropped
+  keys and the model's `fillable` instead of discarding them silently. Keys starting with
+  `_` (`_token`, `_method`) are still dropped without a warning.
+- An unknown model attribute names the closest loaded column and lists the loaded ones.
+
 ### Changed
 
 - Collapse the `pt` locale into `pt-BR`. `APP_LOCALES`, `SUPPORTED_LOCALES`, the `SetLocale`

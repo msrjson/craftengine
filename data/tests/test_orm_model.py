@@ -291,3 +291,53 @@ class TestPackageExports:
         # Every name promised by __all__ actually resolves.
         for name in orm.__all__:
             assert getattr(orm, name, None) is not None, name
+
+
+class TestAttributeAssignment:
+    """`model.column = value` must reach the database, not just the instance."""
+
+    def test_assigning_an_attribute_is_saved(self):
+        gadget = Gadget.create({"name": "before"})
+        gadget.name = "after"
+        gadget.save()
+        assert Gadget.find(gadget.get_attribute("id")).get_attribute("name") == "after"
+
+    def test_assignment_marks_the_model_dirty(self):
+        gadget = Gadget.create({"name": "before"})
+        gadget.price = 3.0
+        assert gadget.get_dirty() == {"price": 3.0}
+
+    def test_class_configuration_keeps_instance_semantics(self):
+        gadget = Gadget({"name": "x"})
+        gadget.fillable = ["name"]
+        assert gadget.fillable == ["name"]
+        assert "fillable" not in gadget.to_dict()
+
+    def test_a_new_model_writes_explicitly_assigned_columns(self):
+        class Locked(Gadget):
+            fillable = []
+
+        gadget = Locked()
+        gadget.name = "assigned"
+        gadget.save()
+        assert Gadget.find(gadget.get_attribute("id")).get_attribute("name") == "assigned"
+
+    def test_constructor_input_is_still_filtered_by_fillable(self, caplog):
+        class Locked(Gadget):
+            fillable = ["name"]
+
+        with caplog.at_level("WARNING", logger="craft.orm"):
+            gadget = Locked({"name": "bulk", "price": 9.0, "_token": "t"}).save()
+        assert Gadget.find(gadget.get_attribute("id")).get_attribute("price") is None
+        assert "discarded=['price']" in caplog.text
+        assert "_token" not in caplog.text
+
+    def test_create_warns_about_discarded_columns(self, caplog):
+        with caplog.at_level("WARNING", logger="craft.orm"):
+            Gadget.create({"name": "w", "created_by_admin": True})
+        assert "mass_assignment_discarded" in caplog.text
+        assert "created_by_admin" in caplog.text
+
+    def test_a_misspelled_column_suggests_the_loaded_one(self):
+        with pytest.raises(AttributeError, match=r"Did you mean 'name'\?"):
+            Owner.create({"name": "o"}).nmae

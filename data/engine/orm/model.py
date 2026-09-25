@@ -16,6 +16,8 @@ References:
 # Licensed under the MIT License. See LICENSE in the project root.
 
 import copy
+import difflib
+import logging
 from typing import Any, Dict, List, Optional, Type
 from datetime import datetime, timezone
 
@@ -27,6 +29,9 @@ from engine.orm.relationships import (
     HasOne,
     Relation,
 )
+
+
+_logger = logging.getLogger("craft.orm")
 
 
 class Model:
@@ -82,6 +87,7 @@ class Model:
         a shared reference would make every such change look clean.
         """
         self._original: Dict[str, Any] = copy.deepcopy(self._attributes)
+        self._assigned: set = set()
 
     def get_dirty(self) -> Dict[str, Any]:
         """Return the attributes changed since the last load or save.
@@ -289,12 +295,34 @@ class Model:
         # `guarded = False` is the explicit opt-out for a model that wants
         # every column writable; `force_create()` bypasses the guard
         # entirely for trusted internal writes.
-        if cls.guarded is not False:
-            allowed = set(cls.fillable) | {
-                cls.primary_key, cls.uuid_column, "created_at", "updated_at",
-            }
-            attributes = {k: v for k, v in attributes.items() if k in allowed}
-        return cls.force_create(attributes)
+        return cls.force_create(cls._mass_assignable(attributes))
+
+    @classmethod
+    def _mass_assignable(cls, attributes: Dict[str, Any]) -> Dict[str, Any]:
+        """Return the part of bulk input `fillable` allows, warning about the rest.
+
+        Dropping a column silently is how a record ends up saved without the
+        field its author meant to write, so every discarded key is logged with
+        the model and its current `fillable`. Keys starting with `_` (form
+        plumbing such as `_token` and `_method`) are dropped without a warning.
+
+        Args:
+            attributes: Bulk input, typically a request body.
+
+        Returns:
+            The attributes that may be written.
+        """
+        if cls.guarded is False:
+            return dict(attributes)
+        allowed = set(cls.fillable) | {cls.primary_key, cls.uuid_column, "created_at", "updated_at"}
+        dropped = sorted(k for k in attributes if k not in allowed and not str(k).startswith("_"))
+        if dropped:
+            _logger.warning(
+                "mass_assignment_discarded model=%s discarded=%s fillable=%s "
+                "hint=add the columns to `fillable`, assign them one by one, or use force_create() for trusted input",
+                cls.__name__, dropped, sorted(cls.fillable),
+            )
+        return {k: v for k, v in attributes.items() if k in allowed}
 
     @classmethod
     def force_create(cls, attributes: Dict[str, Any]) -> 'Model':
@@ -352,7 +380,13 @@ class Model:
         from engine.container.application import Container
 
         if self._attributes.get(self.primary_key) is None:
-            created = self.__class__.create(dict(self._attributes))
+            # Attributes assigned one by one are the author's explicit intent
+            # and are written as given; whatever came in bulk through the
+            # constructor is still filtered by `fillable`.
+            assigned = self.__dict__.get("_assigned", set())
+            bulk = {k: v for k, v in self._attributes.items() if k not in assigned}
+            explicit = {k: v for k, v in self._attributes.items() if k in assigned}
+            created = self.__class__.force_create({**self._mass_assignable(bulk), **explicit})
             self._attributes = created._attributes
             self.sync_original()
             return self
@@ -460,7 +494,26 @@ class Model:
         attributes = self.__dict__.get("_attributes", {})
         if name in attributes:
             return attributes[name]
-        raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")
+        close = difflib.get_close_matches(name, list(attributes), n=1)
+        hint = f" Did you mean '{close[0]}'?" if close else ""
+        raise AttributeError(
+            f"'{type(self).__name__}' object has no attribute '{name}'.{hint} "
+            f"Loaded columns: {sorted(attributes)}."
+        )
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        """Route `model.column = value` to the attributes `save()` writes.
+
+        Without this, the value landed on the instance and `save()` saw no
+        change, so the write was silently dropped while every later read
+        still showed the new value. Private names, and names the class itself
+        defines (configuration such as `fillable`, properties, methods), keep
+        normal attribute semantics.
+        """
+        if name.startswith("_") or "_attributes" not in self.__dict__ or hasattr(type(self), name):
+            object.__setattr__(self, name, value)
+            return
+        self.set_attribute(name, value)
 
     def __repr__(self) -> str:
         return f"<{type(self).__name__} {self._attributes!r}>"
@@ -478,7 +531,14 @@ class Model:
         return self._attributes.get(key)
 
     def set_attribute(self, key: str, value: Any) -> None:
+        """Assign one column value, to be written by the next `save()`.
+
+        Args:
+            key: The column name.
+            value: The new value.
+        """
         self._attributes[key] = value
+        self.__dict__.setdefault("_assigned", set()).add(key)
 
     # -- relationships ---------------------------------------------------------
 

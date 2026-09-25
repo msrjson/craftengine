@@ -50,6 +50,21 @@ class AuthenticatableMixin:
             attributes["password"] = Hash.make(password)
         return super().force_create(attributes)  # type: ignore[misc]
 
+    def save(self) -> Any:
+        """Persist the record, hashing a changed plaintext password first.
+
+        `force_create` covers inserts; this covers updates, through `save()`,
+        `update()`, `update_attributes()` and `user.password = ...`, which
+        otherwise wrote the plaintext straight to the column.
+
+        Returns:
+            This model.
+        """
+        password = self.get_attribute("password")  # type: ignore[attr-defined]
+        if password and not Hash.is_hashed(password):
+            self._attributes["password"] = Hash.make(password)  # type: ignore[attr-defined]
+        return super().save()  # type: ignore[misc]
+
     def check_password(self, password: str) -> bool:
         """Verify a plaintext password against the stored hash.
 

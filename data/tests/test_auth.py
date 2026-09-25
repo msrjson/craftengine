@@ -219,3 +219,37 @@ class TestGate:
     def test_authorize_is_silent_when_allowed(self, gate):
         gate.define("view", lambda user: True)
         gate.authorize("view", object())
+
+
+class TestPasswordHashingOnUpdate:
+    """A changed password is hashed on every write path, not only on insert."""
+
+    @staticmethod
+    def _user_class():
+        from craft.auth.models import AuthenticatableMixin
+        from craft.orm.model import Model
+
+        class HashedUser(AuthenticatableMixin, Model):
+            __table__ = "users"
+            fillable = ["name", "email", "password"]
+
+        return HashedUser
+
+    def _create(self):
+        import uuid
+
+        return self._user_class().create({
+            "name": "hash", "email": f"hash-{uuid.uuid4().hex}@craft.local", "password": "first-secret",
+        })
+
+    @pytest.mark.parametrize("write", ["assign", "update", "update_attributes"])
+    def test_a_changed_password_is_stored_hashed(self, migrated_database, write):
+        user = self._create()
+        if write == "assign":
+            user.password = "second-secret"
+            user.save()
+        else:
+            getattr(user, write)({"password": "second-secret"})
+        stored = type(user).find(user.get_attribute("id")).get_attribute("password")
+        assert stored != "second-secret"
+        assert Hash.check("second-secret", stored)
