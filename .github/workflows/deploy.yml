@@ -220,7 +220,7 @@ jobs:
           echo "tag=v${VERSION}-${RELEASE}" >> $GITHUB_OUTPUT
 
       - name: Create or Update GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ steps.get_version.outputs.tag }}
           name: Craft Engine ${{ steps.get_version.outputs.version }}
