@@ -3,6 +3,8 @@
 # Copyright (c) 2026 Antonio Santos <snarthost@gmail.com>
 # Licensed under the MIT License. See LICENSE in the project root.
 
+import uuid
+
 import pytest
 
 from craft.facades import DB
@@ -12,13 +14,21 @@ from craft.orm.relationships import BelongsTo, BelongsToMany, HasMany
 from craft.orm.soft_deletes import SoftDeletes
 
 
+#: Nothing is dropped or deleted between tests (NR-02), so the scratch tables
+#: carry a suffix of this module's own and are built once, never torn down.
+_SUFFIX = uuid.uuid4().hex[:8]
+GADGETS = f"gadgets_{_SUFFIX}"
+OWNERS = f"owners_{_SUFFIX}"
+NOTES = f"notes_{_SUFFIX}"
+
+
 class Gadget(Model):
-    __table__ = "gadgets"
+    __table__ = GADGETS
     fillable = ["name", "price", "owner_id"]
 
 
 class Owner(Model):
-    __table__ = "owners"
+    __table__ = OWNERS
     fillable = ["name"]
 
     def gadgets(self):
@@ -28,50 +38,79 @@ class Owner(Model):
 class Note(SoftDeletes, Model):
     """The mixin must come first so its query()/delete() win the MRO."""
 
-    __table__ = "notes"
+    __table__ = NOTES
     fillable = ["body"]
 
 
-@pytest.fixture(autouse=True)
+@pytest.fixture(scope="module", autouse=True)
 def tables(migrated_database):
-    """Build the scratch tables with the framework's own schema builder.
+    """Build the scratch tables once, with the framework's own schema builder.
 
     Using Schema rather than raw DDL keeps these tests dialect-agnostic, so the
-    same suite runs on SQLite and PostgreSQL.
+    same suite runs on SQLite and PostgreSQL. The tables are never dropped:
+    their names are unique to this module, and every assertion is scoped to
+    the rows its own test wrote.
     """
     schema = migrated_database.make("schema")
 
-    for table in ("gadgets", "owners", "notes"):
-        schema.drop_table(table)
-
-    schema.create_table("owners", lambda t: (
+    schema.create_table(OWNERS, lambda t: (
         t.id(),
         t.string("name").nullable(),
         t.timestamps(),
     ))
-    schema.create_table("gadgets", lambda t: (
+    schema.create_table(GADGETS, lambda t: (
         t.id(),
         t.string("name").nullable(),
         t.float("price").nullable(),
         t.big_integer("owner_id").nullable(),
         t.timestamps(),
     ))
-    schema.create_table("notes", lambda t: (
+    schema.create_table(NOTES, lambda t: (
         t.id(),
         t.text("body").nullable(),
         t.datetime("deleted_at").nullable(),
         t.timestamps(),
     ))
 
-    yield
 
-    for table in ("gadgets", "owners", "notes"):
-        schema.drop_table(table)
+@pytest.fixture
+def private_db():
+    """Bind the container's `db` to a private in-memory SQLite for one test.
+
+    A test whose subject is a physical `DELETE` must not run it against the
+    shared database, so the model writes land here and vanish with it.
+    """
+    from craft.container.application import Container
+    from craft.orm.db import DatabaseManager
+
+    container = Container.getInstance()
+    original = container.make("db")
+    db = DatabaseManager(config={"driver": "sqlite", "database": ":memory:"})
+    db.statement(
+        f"CREATE TABLE {GADGETS} (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, "
+        "price REAL, owner_id INTEGER, created_at TEXT, updated_at TEXT)"
+    )
+    db.statement(
+        f"CREATE TABLE {NOTES} (id INTEGER PRIMARY KEY AUTOINCREMENT, body TEXT, "
+        "deleted_at TEXT, created_at TEXT, updated_at TEXT)"
+    )
+    container.instance("db", db)
+    try:
+        yield db
+    finally:
+        container.instance("db", original)
+
+
+def _count(table: str, row_id: int) -> int:
+    """Count the rows of `table` with `row_id`, trashed ones included."""
+    return DB.statement(
+        f"SELECT COUNT(*) AS n FROM {table} WHERE id = ?", [row_id]
+    ).fetchone()["n"]
 
 
 class TestTableNaming:
     def test_explicit_table_wins(self):
-        assert Gadget.get_table_name() == "gadgets"
+        assert Gadget.get_table_name() == GADGETS
 
     def test_inferred_from_the_class_name(self):
         class Sprocket(Model):
@@ -140,9 +179,12 @@ class TestCreateAndRead:
             Gadget.find_or_fail(999999)
 
     def test_all_returns_every_row(self):
-        Gadget.create({"name": "a"})
-        Gadget.create({"name": "b"})
-        assert len(Gadget.all()) == 2
+        before = {row.get_attribute("id") for row in Gadget.all()}
+        created = {
+            Gadget.create({"name": "a"}).get_attribute("id"),
+            Gadget.create({"name": "b"}).get_attribute("id"),
+        }
+        assert {row.get_attribute("id") for row in Gadget.all()} == before | created
 
     def test_where_shortcut(self):
         Gadget.create({"name": "target"})
@@ -168,13 +210,14 @@ class TestUpdateAndDelete:
         gadget.update({"price": 2.0})
         assert Gadget.find(gadget.get_attribute("id")).get_attribute("price") == 2.0
 
-    def test_delete_removes_the_row(self):
+    def test_delete_removes_the_row(self, private_db):
         gadget = Gadget.create({"name": "doomed"})
-        assert gadget.delete() is True
+        assert private_db.statement(f"SELECT COUNT(*) AS n FROM {GADGETS}").fetchone()["n"] == 1
+        assert gadget.delete() is True  # nr02: private in-memory SQLite, not the shared database
         assert Gadget.find(gadget.get_attribute("id")) is None
 
-    def test_delete_on_an_unsaved_model_is_false(self):
-        assert Gadget({"name": "unsaved"}).delete() is False
+    def test_delete_on_an_unsaved_model_is_false(self, private_db):
+        assert Gadget({"name": "unsaved"}).delete() is False  # nr02: private in-memory SQLite, not the shared database
 
 
 class TestSerialization:
@@ -229,63 +272,99 @@ class TestRelationships:
     def test_belongs_to_many_uses_the_pivot(self):
         from tests.support.models import Permission, Role, User
 
-        DB.statement("DELETE FROM permission_role")
-        DB.statement("DELETE FROM role_user")
-
+        suffix = uuid.uuid4().hex[:8]
+        role_slug, permission_slug = f"editor-pivot-{suffix}", f"publish-pivot-{suffix}"
         user = User.create(
-            {"name": "Pivot", "email": "pivot@craft.local", "password": "x"}
+            {"name": "Pivot", "email": f"pivot-{suffix}@craft.local", "password": "x"}
         )
-        role = Role.create({"name": "Editor", "slug": "editor-pivot"})
-        permission = Permission.create({"name": "Publish", "slug": "publish-pivot"})
+        role = Role.create({"name": role_slug, "slug": role_slug})
+        permission = Permission.create({"name": permission_slug, "slug": permission_slug})
 
         relation = user.roles()
         assert isinstance(relation, BelongsToMany)
 
         relation.attach(role.get_attribute("id"))
         assert relation.count() == 1
-        assert relation.first().get_attribute("slug") == "editor-pivot"
+        assert relation.first().get_attribute("slug") == role_slug
 
         role.permissions().attach(permission.get_attribute("id"))
-        assert user.has_permission("publish-pivot") is True
+        assert user.has_permission(permission_slug) is True
         assert user.has_permission("nope") is False
 
-        relation.detach(role.get_attribute("id"))
-        assert relation.count() == 0
+    def test_detach_removes_the_pivot_row(self):
+        """`detach()` issues a physical `DELETE` on the pivot, so it runs on a
+        private in-memory SQLite carrying the identity tables, never on the
+        shared database (NR-02)."""
+        from craft.container.application import Container
+        from craft.migrations.schema import SchemaBuilder
+        from craft.orm.db import DatabaseManager
+        from tests.support.models import Role, User
+        from tests.support.schema import IDENTITY_TABLES
+
+        container = Container.getInstance()
+        original = container.make("db")
+        db = DatabaseManager(config={"driver": "sqlite", "database": ":memory:"})
+        for name in ("users", "roles", "role_user"):
+            SchemaBuilder(db).create_table(name, IDENTITY_TABLES[name])
+        container.instance("db", db)
+        try:
+            user = User.create({"name": "Pivot", "email": "pivot@craft.local", "password": "x"})
+            role = Role.create({"name": "Editor", "slug": "editor"})
+            relation = user.roles()
+            relation.attach(role.get_attribute("id"))
+            assert relation.count() == 1
+
+            relation.detach(role.get_attribute("id"))  # nr02: private in-memory SQLite, not the shared database
+            assert relation.count() == 0
+        finally:
+            container.instance("db", original)
 
 
 class TestSoftDeletes:
+    """On a SoftDeletes model, delete only stamps `deleted_at` and keeps the row.
+
+    Each test marks its notes with a body of its own and asks only about those,
+    so rows other tests left behind never enter a count.
+    """
+
+    @pytest.fixture
+    def marker(self) -> str:
+        return uuid.uuid4().hex
+
     def test_delete_only_stamps_deleted_at(self):
         note = Note.create({"body": "keep me"})
-        note.delete()
+        note.delete()  # nr02: soft delete, only stamps deleted_at
         assert note.trashed() is True
-        assert DB.statement("SELECT COUNT(*) AS n FROM notes").fetchone()["n"] == 1
+        assert _count(NOTES, note.get_attribute("id")) == 1
 
-    def test_default_query_hides_trashed_rows(self):
-        Note.create({"body": "visible"})
-        Note.create({"body": "hidden"}).delete()
-        assert len(Note.query().get()) == 1
+    def test_default_query_hides_trashed_rows(self, marker):
+        Note.create({"body": marker})
+        Note.create({"body": marker}).delete()  # nr02: soft delete, only stamps deleted_at
+        assert len(Note.query().where("body", marker).get()) == 1
 
-    def test_with_trashed_includes_them(self):
-        Note.create({"body": "visible"})
-        Note.create({"body": "hidden"}).delete()
-        assert len(Note.with_trashed().get()) == 2
+    def test_with_trashed_includes_them(self, marker):
+        Note.create({"body": marker})
+        Note.create({"body": marker}).delete()  # nr02: soft delete, only stamps deleted_at
+        assert len(Note.with_trashed().where("body", marker).get()) == 2
 
-    def test_only_trashed_excludes_live_rows(self):
-        Note.create({"body": "visible"})
-        Note.create({"body": "hidden"}).delete()
-        assert len(Note.only_trashed().get()) == 1
+    def test_only_trashed_excludes_live_rows(self, marker):
+        Note.create({"body": marker})
+        Note.create({"body": marker}).delete()  # nr02: soft delete, only stamps deleted_at
+        assert len(Note.only_trashed().where("body", marker).get()) == 1
 
-    def test_restore_brings_a_row_back(self):
-        note = Note.create({"body": "oops"})
-        note.delete()
+    def test_restore_brings_a_row_back(self, marker):
+        note = Note.create({"body": marker})
+        note.delete()  # nr02: soft delete, only stamps deleted_at
         note.restore()
         assert note.trashed() is False
-        assert len(Note.query().get()) == 1
+        assert len(Note.query().where("body", marker).get()) == 1
 
-    def test_force_delete_really_removes_the_row(self):
+    def test_force_delete_really_removes_the_row(self, private_db):
         note = Note.create({"body": "gone"})
-        note.force_delete()
-        assert DB.statement("SELECT COUNT(*) AS n FROM notes").fetchone()["n"] == 0
+        assert private_db.statement(f"SELECT COUNT(*) AS n FROM {NOTES}").fetchone()["n"] == 1
+        note.force_delete()  # nr02: private in-memory SQLite, not the shared database
+        count = private_db.statement(f"SELECT COUNT(*) AS n FROM {NOTES}").fetchone()["n"]
+        assert count == 0
 
 
 class TestPackageExports:

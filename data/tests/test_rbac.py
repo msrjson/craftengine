@@ -6,50 +6,73 @@ accounts.
 # Copyright (c) 2026 Antonio Santos <snarthost@gmail.com>
 # Licensed under the MIT License. See LICENSE in the project root.
 
+import uuid
+
 import pytest
 from starlette.testclient import TestClient
 
 from bootstrap.app import app, asgi_app
 from craft.facades import DB, Route
 
+#: Nothing is deleted between tests (NR-02), so every role, permission and
+#: user this module writes carries a suffix no other module or run shares.
+_SUFFIX = uuid.uuid4().hex[:8]
+ADMIN = f"admin-{_SUFFIX}"
+EDITOR = f"editor-{_SUFFIX}"
+EDIT_POSTS = f"edit-posts-{_SUFFIX}"
 
-def _reset_rbac_tables():
-    DB.statement("DELETE FROM permission_role")
-    DB.statement("DELETE FROM role_user")
-    DB.statement("DELETE FROM permissions")
-    DB.statement("DELETE FROM roles")
+
+def _unique_email(prefix: str) -> str:
+    return f"{prefix}-{uuid.uuid4().hex[:8]}@craft.local"
+
+
+def _role(slug: str):
+    """Return the role with `slug`, creating it on first use."""
+    from tests.support.models import Role
+
+    return Role.query().where("slug", slug).first() or Role.create({"name": slug, "slug": slug})
+
+
+def _permission(slug: str):
+    """Return the permission with `slug`, creating it on first use."""
+    from tests.support.models import Permission
+
+    return Permission.query().where("slug", slug).first() or Permission.create(
+        {"name": slug, "slug": slug}
+    )
 
 
 @pytest.fixture
 def rbac_user(migrated_database):
-    from tests.support.models import Permission, Role, User
-
-    DB.statement("DELETE FROM users WHERE email = 'rbac@craft.local'")
-    _reset_rbac_tables()
+    from tests.support.models import User
 
     user = User.create(
-        {"name": "RBAC", "email": "rbac@craft.local", "password": "s3cret", "is_admin": False}
+        {"name": "RBAC", "email": _unique_email("rbac"), "password": "s3cret", "is_admin": False}
     )
-    role = Role.create({"name": "Editor", "slug": "editor"})
-    permission = Permission.create({"name": "Edit Posts", "slug": "edit-posts"})
+    role = _role(EDITOR)
+    permission = _permission(EDIT_POSTS)
 
     DB.statement(
         "INSERT INTO role_user (user_id, role_id) VALUES (:user, :role)",
         {"user": user.get_attribute("id"), "role": role.get_attribute("id")},
     )
-    DB.statement(
-        "INSERT INTO permission_role (role_id, permission_id) VALUES (:role, :perm)",
-        {"role": role.get_attribute("id"), "perm": permission.get_attribute("id")},
+    grant = {"role": role.get_attribute("id"), "perm": permission.get_attribute("id")}
+    already_granted = DB.select(
+        "SELECT 1 FROM permission_role WHERE role_id = :role AND permission_id = :perm", grant
     )
+    if not already_granted:
+        DB.statement(
+            "INSERT INTO permission_role (role_id, permission_id) VALUES (:role, :perm)", grant
+        )
     return user
 
 
 class TestHasRole:
     def test_has_role_true_for_granted_role(self, rbac_user):
-        assert rbac_user.has_role("editor") is True
+        assert rbac_user.has_role(EDITOR) is True
 
     def test_has_role_false_for_ungranted_role(self, rbac_user):
-        assert rbac_user.has_role("admin") is False
+        assert rbac_user.has_role(ADMIN) is False
 
 
 class TestGatePermissionFallback:
@@ -59,7 +82,7 @@ class TestGatePermissionFallback:
         gate = GateManager()
         # No ability closure, no policy registered for "edit-posts" — the
         # RBAC permission fallback must still grant it.
-        assert gate.allows("edit-posts", rbac_user) is True
+        assert gate.allows(EDIT_POSTS, rbac_user) is True
 
     def test_gate_still_denies_unknown_abilities_by_default(self, rbac_user):
         from craft.auth.gate import GateManager
@@ -71,9 +94,9 @@ class TestGatePermissionFallback:
         from craft.auth.gate import GateManager
 
         gate = GateManager()
-        gate.define("edit-posts", lambda user: False)
+        gate.define(EDIT_POSTS, lambda user: False)
         # Even though the user *has* the permission, an explicit closure wins.
-        assert gate.allows("edit-posts", rbac_user) is False
+        assert gate.allows(EDIT_POSTS, rbac_user) is False
 
     def test_gate_tolerates_users_without_has_permission(self):
         from craft.auth.gate import GateManager
@@ -138,9 +161,9 @@ def rbac_routes(migrated_database):
         )
         return {"ok": ok}
 
-    Route.get("/t/rbac/admin-only", only_admins).middleware("role:admin").name("t.rbac.admin")
+    Route.get("/t/rbac/admin-only", only_admins).middleware(f"role:{ADMIN}").name("t.rbac.admin")
     Route.get("/t/rbac/edit-posts-only", only_editors).middleware(
-        "permission:edit-posts"
+        f"permission:{EDIT_POSTS}"
     ).name("t.rbac.permission")
     Route.get("/t/rbac/token", token).name("t.rbac.token")
     Route.post("/t/rbac/login", do_login).name("t.rbac.login")
@@ -172,56 +195,42 @@ class TestRequireRoleMiddleware:
         assert response.status_code == 403
 
     def test_user_without_the_role_is_forbidden(self, client, rbac_user):
-        login(client, "rbac@craft.local", "s3cret")
+        login(client, rbac_user.get_attribute("email"), "s3cret")
         response = client.get(
             "/t/rbac/admin-only", headers={"Accept": "application/json"}
         )
         assert response.status_code == 403
 
     def test_user_with_the_role_is_allowed(self, client, migrated_database):
-        from tests.support.models import Role, User
+        from tests.support.models import User
 
-        DB.statement("DELETE FROM users WHERE email = 'rbac-admin@craft.local'")
+        email = _unique_email("rbac-admin")
         user = User.create(
-            {
-                "name": "RBAC Admin",
-                "email": "rbac-admin@craft.local",
-                "password": "s3cret",
-                "is_admin": False,
-            }
+            {"name": "RBAC Admin", "email": email, "password": "s3cret", "is_admin": False}
         )
-        role = Role.query().where("slug", "admin").first() or Role.create(
-            {"name": "Administrator", "slug": "admin"}
-        )
+        role = _role(ADMIN)
         DB.statement(
             "INSERT INTO role_user (user_id, role_id) VALUES (:user, :role)",
             {"user": user.get_attribute("id"), "role": role.get_attribute("id")},
         )
 
-        login(client, "rbac-admin@craft.local", "s3cret")
+        login(client, email, "s3cret")
         response = client.get("/t/rbac/admin-only")
         assert response.status_code == 200
 
 
 class TestRequirePermissionMiddleware:
     def test_user_with_the_permission_is_allowed(self, client, rbac_user):
-        login(client, "rbac@craft.local", "s3cret")
+        login(client, rbac_user.get_attribute("email"), "s3cret")
         response = client.get("/t/rbac/edit-posts-only")
         assert response.status_code == 200
 
     def test_user_without_the_permission_is_forbidden(self, client, migrated_database):
         from tests.support.models import User
 
-        DB.statement("DELETE FROM users WHERE email = 'rbac-nobody@craft.local'")
-        User.create(
-            {
-                "name": "Nobody",
-                "email": "rbac-nobody@craft.local",
-                "password": "s3cret",
-                "is_admin": False,
-            }
-        )
-        login(client, "rbac-nobody@craft.local", "s3cret")
+        email = _unique_email("rbac-nobody")
+        User.create({"name": "Nobody", "email": email, "password": "s3cret", "is_admin": False})
+        login(client, email, "s3cret")
         response = client.get(
             "/t/rbac/edit-posts-only", headers={"Accept": "application/json"}
         )
@@ -240,24 +249,23 @@ class TestPrivilegeLadder:
 
     @pytest.fixture
     def ladder(self, migrated_database):
+        """Build the three tiers with slugs and addresses unique to this test."""
         from tests.support.models import Permission, Role, User
 
-        emails = ("plain@ladder.local", "manager@ladder.local", "boss@ladder.local")
-        for email in emails:
-            DB.statement("DELETE FROM users WHERE email = ?", [email])
-        _reset_rbac_tables()
-
+        suffix = uuid.uuid4().hex[:8]
+        slugs = {
+            "plain": f"user-{suffix}", "manager": f"tenant-manager-{suffix}",
+            "boss": f"admin-{suffix}", "permission": f"manage-users-{suffix}",
+        }
         users = {
-            tier: User.force_create(
-                {"name": tier, "email": email, "password": "s3cret", "type": tier}
-            )
-            for tier, email in zip(("plain", "manager", "boss"), emails, strict=True)
+            tier: User.force_create({
+                "name": tier, "email": f"{tier}-{suffix}@ladder.local",
+                "password": "s3cret", "type": tier,
+            })
+            for tier in ("plain", "manager", "boss")
         }
         roles = {
-            tier: Role.create({"name": tier.title(), "slug": slug})
-            for tier, slug in (
-                ("plain", "user"), ("manager", "tenant-manager"), ("boss", "admin")
-            )
+            tier: Role.create({"name": slugs[tier], "slug": slugs[tier]}) for tier in users
         }
         for tier, user in users.items():
             DB.statement(
@@ -265,30 +273,26 @@ class TestPrivilegeLadder:
                 {"user": user.get_attribute("id"), "role": roles[tier].get_attribute("id")},
             )
 
-        manage = Permission.create({"name": "Manage Users", "slug": "manage-users"})
+        manage = Permission.create({"name": slugs["permission"], "slug": slugs["permission"]})
         for tier in ("manager", "boss"):
             DB.statement(
                 "INSERT INTO permission_role (role_id, permission_id) VALUES (:role, :perm)",
                 {"role": roles[tier].get_attribute("id"), "perm": manage.get_attribute("id")},
             )
 
-        yield users
-
-        _reset_rbac_tables()
-        for email in emails:
-            DB.statement("DELETE FROM users WHERE email = ?", [email])
+        return {"users": users, "slugs": slugs}
 
     def test_every_tier_carries_its_own_role(self, ladder):
-        assert ladder["plain"].has_role("user") is True
-        assert ladder["manager"].has_role("tenant-manager") is True
-        assert ladder["boss"].has_role("admin") is True
+        users, slugs = ladder["users"], ladder["slugs"]
+        assert users["plain"].has_role(slugs["plain"]) is True
+        assert users["manager"].has_role(slugs["manager"]) is True
+        assert users["boss"].has_role(slugs["boss"]) is True
 
     def test_a_permission_reaches_only_the_tiers_it_was_granted_to(self, ladder):
-        assert ladder["manager"].has_permission("manage-users") is True
-        assert ladder["boss"].has_permission("manage-users") is True
-        assert ladder["plain"].has_permission("manage-users") is False
-
-
+        users, manage = ladder["users"], ladder["slugs"]["permission"]
+        assert users["manager"].has_permission(manage) is True
+        assert users["boss"].has_permission(manage) is True
+        assert users["plain"].has_permission(manage) is False
 
 
 class TestUserModelWithoutAuthorization:

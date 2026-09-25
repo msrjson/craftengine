@@ -355,18 +355,22 @@ process can rebuild them. Retry with backoff and `available_at` included.
 ```bash
 python -m pytest                       # in-memory SQLite (default)
 
-# Real PostgreSQL
-$env:CRAFT_TEST_DB="pgsql"
-$env:DB_HOST="127.0.0.1"; $env:DB_PORT="5499"
-$env:DB_DATABASE="craft_validation"
-$env:DB_USERNAME="craft"; $env:DB_PASSWORD="secretpassword"
-python -m pytest
+# Real PostgreSQL: a fresh database per session, created through DB_DATABASE
+docker exec -e CRAFT_TEST_DB=pgsql -e DB_HOST=db -e DB_PORT=5499 \
+    -e DB_DATABASE=craft_db -e DB_USERNAME=craft -e DB_PASSWORD=secretpassword \
+    -e DB_SSLMODE=disable framework python -m pytest
 
 docker exec framework python -m pytest  # Python 3.14, the minimum version
 ```
 
 `conftest.py` builds the schema with the **real migrator**, so migrations
-are exercised on every run instead of relying on parallel fixtures.
+are exercised on every run instead of relying on parallel fixtures. On
+PostgreSQL the tests never run in the database `DB_DATABASE` names: the session
+creates `craft_test_<utc>_<id>_<worker>` through it and never drops it. Tests
+never delete, truncate or drop (`tests/test_fixture_safety.py` enforces it and
+the PostgreSQL run refuses to start otherwise); they isolate data by making it
+unique. Test databases accumulate on a development server - they hold only test
+data and can be listed with `\l craft_test_*`.
 
 ---
 

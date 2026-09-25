@@ -22,24 +22,33 @@ UUID_RE = re.compile(
 )
 
 
+#: Nothing is dropped between tests (NR-02): the scratch tables carry a
+#: suffix of this module's own and are built once.
+_SUFFIX = uuid_module.uuid4().hex[:8]
+WIDGETS = f"uuid_widgets_{_SUFFIX}"
+LEGACY = f"uuid_legacy_{_SUFFIX}"
+OPTIONAL = f"uuid_optional_{_SUFFIX}"
+KEYED = f"uuid_keyed_{_SUFFIX}"
+
+
 class Widget(Model):
     """Has the public uuid column."""
 
-    __table__ = "uuid_widgets"
+    __table__ = WIDGETS
     fillable = ["name"]
 
 
 class Legacy(Model):
     """No uuid column — the framework must leave it alone."""
 
-    __table__ = "uuid_legacy"
+    __table__ = LEGACY
     fillable = ["name"]
 
 
 class OptedOut(Model):
     """Table has a nullable uuid column, but the model declines to fill it."""
 
-    __table__ = "uuid_optional"
+    __table__ = OPTIONAL
     fillable = ["name"]
     uses_uuid = False
 
@@ -47,46 +56,36 @@ class OptedOut(Model):
 class UuidKeyed(Model):
     """The UUID *is* the primary key."""
 
-    __table__ = "uuid_keyed"
+    __table__ = KEYED
     fillable = ["name"]
     key_type = "uuid"
 
 
-@pytest.fixture(autouse=True)
+@pytest.fixture(scope="module", autouse=True)
 def tables(migrated_database):
     schema = migrated_database.make("schema")
-    names = ["uuid_widgets", "uuid_legacy", "uuid_keyed", "uuid_optional"]
-    for name in names:
-        schema.drop_table(name)
-
-    schema.create_table("uuid_widgets", lambda t: (
+    schema.create_table(WIDGETS, lambda t: (
         t.id(),
         t.uuid_key(),
         t.string("name").nullable(),
         t.timestamps(),
     ))
-    schema.create_table("uuid_legacy", lambda t: (
+    schema.create_table(LEGACY, lambda t: (
         t.id(),
         t.string("name").nullable(),
         t.timestamps(),
     ))
-    schema.create_table("uuid_keyed", lambda t: (
+    schema.create_table(KEYED, lambda t: (
         t.uuid_primary(),
         t.string("name").nullable(),
         t.timestamps(),
     ))
-    schema.create_table("uuid_optional", lambda t: (
+    schema.create_table(OPTIONAL, lambda t: (
         t.id(),
         t.uuid("uuid").nullable(),
         t.string("name").nullable(),
         t.timestamps(),
     ))
-    migrated_database.make("db").forget_schema_cache()
-
-    yield
-
-    for name in names:
-        schema.drop_table(name)
     migrated_database.make("db").forget_schema_cache()
 
 
@@ -133,7 +132,7 @@ class TestAutomaticUuid:
     def test_the_uuid_reaches_the_database(self):
         widget = Widget.create({"name": "persisted"})
         row = DB.statement(
-            "SELECT uuid FROM uuid_widgets WHERE id = ?",
+            f"SELECT uuid FROM {WIDGETS} WHERE id = ?",
             [widget.get_attribute("id")],
             read=True,
         ).fetchone()
@@ -228,28 +227,31 @@ class TestSchemaCache:
         # Caching this on the model class meant swapping to a database whose
         # table had no uuid column still reported that it did.
         db = migrated_database.make("db")
-        assert db.table_has_column("uuid_widgets", "uuid") is True
-        assert db.table_has_column("uuid_legacy", "uuid") is False
+        assert db.table_has_column(WIDGETS, "uuid") is True
+        assert db.table_has_column(LEGACY, "uuid") is False
 
     def test_forgetting_the_cache_rereads_the_schema(self, migrated_database):
+        """A cached "no such column" must give way once the schema changes.
+
+        The table is created after the answer is cached rather than dropped
+        after it (NR-02); a name of this test's own guarantees it did not
+        exist before.
+        """
         db = migrated_database.make("db")
         schema = migrated_database.make("schema")
-        assert db.table_has_column("uuid_widgets", "uuid") is True
+        table = f"uuid_late_{uuid_module.uuid4().hex[:8]}"
+        assert db.table_has_column(table, "uuid") is False
 
         # Build through the schema builder, not raw DDL — this test runs on
         # SQLite and PostgreSQL alike.
-        schema.drop_table("uuid_widgets")
-        db.forget_schema_cache()
-        assert db.table_has_column("uuid_widgets", "uuid") is False
-
-        schema.create_table("uuid_widgets", lambda t: (
+        schema.create_table(table, lambda t: (
             t.id(),
             t.uuid_key(),
             t.string("name").nullable(),
             t.timestamps(),
         ))
         db.forget_schema_cache()
-        assert db.table_has_column("uuid_widgets", "uuid") is True
+        assert db.table_has_column(table, "uuid") is True
 
 
 class TestFrameworkTables:
@@ -261,8 +263,6 @@ class TestFrameworkTables:
     def test_a_new_user_gets_one(self, migrated_database):
         from tests.support.models import User
 
-        DB.statement("DELETE FROM users WHERE email = 'uuid@craft.local'")
-        user = User.create(
-            {"name": "UUID", "email": "uuid@craft.local", "password": "secret"}
-        )
+        email = f"uuid-{uuid_module.uuid4().hex[:8]}@craft.local"
+        user = User.create({"name": "UUID", "email": email, "password": "secret"})
         assert UUID_RE.match(user.get_attribute("uuid"))

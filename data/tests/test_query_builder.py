@@ -122,7 +122,7 @@ class TestCompilation:
 
     def test_invalid_identifier_is_rejected(self, query):
         with pytest.raises(ValueError):
-            query().where("name; DROP TABLE widgets", 1)
+            query().where("name; DROP TABLE widgets", 1)  # nr02: hostile identifier, refused before any SQL runs
         with pytest.raises(ValueError):
             query().order_by("price; --")
 
@@ -207,11 +207,11 @@ class TestExecution:
         assert query().where("name", "beta").first()["updated_at"] is None
 
     def test_delete_only_removes_matching_rows(self, query):
-        query().where("active", 0).delete()
+        query().where("active", 0).delete()  # nr02: private in-memory SQLite, not the shared database
         assert query().count() == 3
 
     def test_delete_without_where_clears_the_table(self, query):
-        query().delete()
+        query().delete()  # nr02: private in-memory SQLite, not the shared database
         assert query().count() == 0
 
 

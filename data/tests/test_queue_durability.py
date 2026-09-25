@@ -12,6 +12,7 @@ import os
 import pathlib
 import tempfile
 import threading
+import uuid
 
 import pytest
 
@@ -48,15 +49,23 @@ def manager(migrated_database):
     mgr = QueueManager(migrated_database)
     mgr.driver = lambda: "database"
     CountingJob.runs = []
-    yield mgr
-    DB.statement("DELETE FROM jobs")
-    DB.statement("DELETE FROM failed_jobs")
+    return mgr
+
+
+@pytest.fixture
+def queue():
+    """A queue name no other test uses, so leftover jobs never collide.
+
+    Tests never delete rows (NR-02): jobs and failed jobs from earlier tests
+    stay in the shared database, and every assertion is scoped to this name.
+    """
+    return f"phase2_{uuid.uuid4().hex[:8]}"
 
 
 # -- driver selection ----------------------------------------------------------
 
 
-def test_the_driver_is_chosen_by_capability_not_by_name(manager):
+def test_the_driver_is_chosen_by_capability_not_by_name(manager, queue):
     store = manager.store()
     expected = (
         PostgresQueueDriver if DB.dialect.supports("skip_locked") else DatabaseQueueDriver
@@ -64,44 +73,44 @@ def test_the_driver_is_chosen_by_capability_not_by_name(manager):
     assert isinstance(store, expected)
 
 
-def test_the_worker_id_names_a_host_and_a_pid(manager):
+def test_the_worker_id_names_a_host_and_a_pid(manager, queue):
     assert ":" in manager.store().worker_id
 
 
 # -- push / claim --------------------------------------------------------------
 
-def test_push_returns_a_stable_uuid_and_lands_on_the_queue(manager):
-    job_uuid = manager.push(CountingJob("a"), queue="phase2")
+def test_push_returns_a_stable_uuid_and_lands_on_the_queue(manager, queue):
+    job_uuid = manager.push(CountingJob("a"), queue=queue)
 
     assert isinstance(job_uuid, str) and len(job_uuid) == 36
-    assert manager.size("phase2") == 1
+    assert manager.size(queue) == 1
 
 
-def test_a_claim_reserves_the_row_and_counts_the_attempt(manager):
-    manager.push(CountingJob("a"), queue="phase2")
+def test_a_claim_reserves_the_row_and_counts_the_attempt(manager, queue):
+    manager.push(CountingJob("a"), queue=queue)
 
-    record = manager.pop("phase2")
+    record = manager.pop(queue)
     assert record is not None
     assert record["attempts"] == 1
     assert record["reserved_by"] == manager.store().worker_id
 
     # A reserved job is invisible to the next claim.
-    assert manager.pop("phase2") is None
+    assert manager.pop(queue) is None
 
 
-def test_higher_priority_is_claimed_first(manager):
-    manager.later(0, CountingJob("low"), "phase2", priority=0)
-    manager.later(0, CountingJob("high"), "phase2", priority=9)
+def test_higher_priority_is_claimed_first(manager, queue):
+    manager.later(0, CountingJob("low"), queue, priority=0)
+    manager.later(0, CountingJob("high"), queue, priority=9)
 
-    first = manager.pop("phase2")
+    first = manager.pop(queue)
     assert "high" in first["payload"]
 
 
-def test_a_delayed_job_is_not_claimable_yet(manager):
-    manager.later(3600, CountingJob("later"), "phase2")
+def test_a_delayed_job_is_not_claimable_yet(manager, queue):
+    manager.later(3600, CountingJob("later"), queue)
 
-    assert manager.size("phase2") == 1
-    assert manager.pop("phase2") is None
+    assert manager.size(queue) == 1
+    assert manager.pop(queue) is None
 
 
 @pytest.fixture
@@ -196,23 +205,23 @@ def test_claiming_is_exclusive_under_concurrency(fast_sqlite_dir):
 # -- retry and backoff ---------------------------------------------------------
 
 
-def test_a_failure_backs_the_job_off_instead_of_respinning(manager):
-    manager.push(ExplodingJob(), queue="phase2")
+def test_a_failure_backs_the_job_off_instead_of_respinning(manager, queue):
+    manager.push(ExplodingJob(), queue=queue)
 
-    assert manager.work("phase2") is False
+    assert manager.work(queue) is False
 
     # Still queued, released, and pushed into the future — the old behaviour
     # cleared reserved_at with no delay and burned every attempt at once.
-    row = DB.select_one("SELECT * FROM jobs WHERE queue = ?", ["phase2"])
+    row = DB.select_one("SELECT * FROM jobs WHERE queue = ?", [queue])
     assert row["reserved_at"] is None
     assert row["attempts"] == 1
     assert row["last_error"] and "dependency is down" in row["last_error"]
 
 
-def test_backoff_grows_with_the_attempt_count(manager):
+def test_backoff_grows_with_the_attempt_count(manager, queue):
     store = manager.store()
-    manager.push(ExplodingJob(), queue="phase2")
-    record = manager.pop("phase2")
+    manager.push(ExplodingJob(), queue=queue)
+    record = manager.pop(queue)
 
     early = max(store.retry(dict(record, attempts=1), "x") for _ in range(30))
     late = max(store.retry(dict(record, attempts=6), "x") for _ in range(30))
@@ -226,17 +235,17 @@ def test_backoff_grows_with_the_attempt_count(manager):
 # -- dead letter ---------------------------------------------------------------
 
 
-def test_a_spent_job_is_buried_with_its_payload_intact(manager):
-    job_uuid = manager.push(ExplodingJob("keepme"), queue="phase2")
+def test_a_spent_job_is_buried_with_its_payload_intact(manager, queue):
+    job_uuid = manager.push(ExplodingJob("keepme"), queue=queue)
 
     for _ in range(3):
         DB.statement("UPDATE jobs SET available_at = ? WHERE uuid = ?",
                      ["2000-01-01T00:00:00", job_uuid])
-        manager.work("phase2")
+        manager.work(queue)
 
-    assert manager.size("phase2") == 0
+    assert manager.size(queue) == 0
 
-    failed = manager.failed("phase2")
+    failed = manager.failed(queue)
     assert len(failed) == 1
     assert failed[0]["uuid"] == job_uuid
     assert "keepme" in failed[0]["payload"]
@@ -244,84 +253,87 @@ def test_a_spent_job_is_buried_with_its_payload_intact(manager):
     assert failed[0]["attempts"] == 3
 
 
-def test_a_job_can_be_retried_out_of_the_dead_letter(manager):
-    job_uuid = manager.push(ExplodingJob(), queue="phase2")
+def test_a_job_can_be_retried_out_of_the_dead_letter(manager, queue):
+    job_uuid = manager.push(ExplodingJob(), queue=queue)
     manager.fail({"id": DB.select_one(
         "SELECT id FROM jobs WHERE uuid = ?", [job_uuid])["id"],
-        "queue": "phase2", "uuid": job_uuid}, "boom")
+        "queue": queue, "uuid": job_uuid}, "boom")
 
-    assert manager.size("phase2") == 0
+    assert manager.size(queue) == 0
     assert manager.retry_failed(job_uuid) == 1
-    assert manager.size("phase2") == 1
-    assert manager.failed("phase2") == []
+    assert manager.size(queue) == 1
+    assert manager.failed(queue) == []
 
     # Attempts are reset, so the job gets a genuine second life.
     row = DB.select_one("SELECT attempts FROM jobs WHERE uuid = ?", [job_uuid])
     assert row["attempts"] == 0
 
 
-def test_a_job_respects_its_own_max_attempts(manager):
+def test_a_job_respects_its_own_max_attempts(manager, queue):
     class OneShotJob(ExplodingJob):
         max_attempts = 1
 
-    manager.push(OneShotJob(), queue="phase2")
-    manager.work("phase2")
+    manager.push(OneShotJob(), queue=queue)
+    manager.work(queue)
 
-    assert manager.size("phase2") == 0
-    assert len(manager.failed("phase2")) == 1
+    assert manager.size(queue) == 0
+    assert len(manager.failed(queue)) == 1
 
 
-def test_an_undeserialisable_payload_is_buried_not_dropped(manager):
+def test_an_undeserialisable_payload_is_buried_not_dropped(manager, queue):
     DB.statement(
         "INSERT INTO jobs (uuid, queue, payload, attempts, priority, max_attempts, "
         "available_at, created_at) VALUES (?, ?, ?, 0, 0, 3, ?, ?)",
-        ["11111111-1111-1111-1111-111111111111", "phase2", "not json at all",
+        [str(uuid.uuid4()), queue, "not json at all",
          "2000-01-01T00:00:00", "2000-01-01T00:00:00"],
     )
 
-    assert manager.work("phase2") is False
-    assert manager.size("phase2") == 0
-    assert len(manager.failed("phase2")) == 1
+    assert manager.work(queue) is False
+    assert manager.size(queue) == 0
+    assert len(manager.failed(queue)) == 1
 
 
 # -- maintenance ---------------------------------------------------------------
 
 
-def test_a_dead_workers_reservation_is_reclaimable(manager):
-    manager.push(CountingJob("a"), queue="phase2")
-    manager.pop("phase2")
-    assert manager.pop("phase2") is None
+def test_a_dead_workers_reservation_is_reclaimable(manager, queue):
+    manager.push(CountingJob("a"), queue=queue)
+    manager.pop(queue)
+    assert manager.pop(queue) is None
 
     DB.statement("UPDATE jobs SET reserved_at = ? WHERE queue = ?",
-                 ["2000-01-01T00:00:00", "phase2"])
+                 ["2000-01-01T00:00:00", queue])
 
-    assert manager.reclaim(90) == 1
-    assert manager.pop("phase2") is not None
+    # Reclaim is global: stale reservations other tests left behind may be
+    # freed too, so the count is a lower bound and our own row is checked.
+    assert manager.reclaim(90) >= 1
+    row = DB.select_one("SELECT reserved_at FROM jobs WHERE queue = ?", [queue])
+    assert row["reserved_at"] is None
+    assert manager.pop(queue) is not None
 
 
-def test_a_successful_job_leaves_nothing_behind(manager):
-    manager.push(CountingJob("done"), queue="phase2")
+def test_a_successful_job_leaves_nothing_behind(manager, queue):
+    manager.push(CountingJob("done"), queue=queue)
 
-    assert manager.work("phase2") is True
+    assert manager.work(queue) is True
     assert CountingJob.runs == ["done"]
-    assert manager.size("phase2") == 0
-    assert manager.failed("phase2") == []
+    assert manager.size(queue) == 0
+    assert manager.failed(queue) == []
 
 
-def test_clear_empties_only_its_own_queue(manager):
-    manager.push(CountingJob("a"), queue="phase2")
-    manager.push(CountingJob("b"), queue="other")
+def test_clear_empties_only_its_own_queue(manager, queue):
+    manager.push(CountingJob("a"), queue=queue)
+    manager.push(CountingJob("b"), queue=f"{queue}_other")
 
-    assert manager.clear("phase2") == 1
-    assert manager.size("phase2") == 0
-    assert manager.size("other") == 1
-    manager.clear("other")
+    assert manager.clear(queue) == 1
+    assert manager.size(queue) == 0
+    assert manager.size(f"{queue}_other") == 1
 
 
 # -- serialisation contract ----------------------------------------------------
 
 
-def test_a_payload_round_trips_through_the_queue(manager):
+def test_a_payload_round_trips_through_the_queue(manager, queue):
     from craft.queue.manager import deserialize_job
 
     payload = serialize_job(CountingJob("round-trip"))

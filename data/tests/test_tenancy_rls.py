@@ -16,21 +16,37 @@ tenant hands the next borrower another customer's rows.
 # Copyright (c) 2026 Antonio Santos <snarthost@gmail.com>
 # Licensed under the MIT License. See LICENSE in the project root.
 
+import secrets
 import threading
+import uuid
 
 import pytest
 
 from craft.facades import DB, Tenant
 from craft.migrations.schema import Blueprint, Grammar, SchemaBuilder
 from craft.migrations.safety import DestructiveOperationRefused
+from craft.orm.db import DatabaseManager
 from craft.orm.dialect import UnsupportedFeatureError
 from craft.orm.model import Model
+from craft.orm.query_builder import QueryBuilder
 from craft.orm.soft_deletes import SoftDeletes
 from craft.orm.tenancy import TenantManager, TenantNotBoundError, UnaddressableTenantRowError, current_tenant_id
 from craft.orm.tenant_scoped import TenantScoped
 
 ACME = "11111111-1111-1111-1111-111111111111"
 BETA = "22222222-2222-2222-2222-222222222222"
+
+# NR-02: nothing here is dropped or deleted. Tables and roles carry this
+# session suffix and are created once; tests that count rows count their own
+# tenants' rows, so rows left by earlier tests never reach an assertion.
+_SUFFIX = uuid.uuid4().hex[:8]
+INVOICES = f"tenant_invoices_{_SUFFIX}"
+SOFT_DELETABLES = f"tenant_soft_deletables_{_SUFFIX}"
+
+
+def fresh_tenant() -> str:
+    """A tenant id no other test has written rows for."""
+    return str(uuid.uuid4())
 
 postgres_only = pytest.mark.skipif(
     "config.getoption('--co', default=False)", reason="collection only"
@@ -45,22 +61,21 @@ def unbound():
     Tenant.clear()
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def invoices_table(migrated_database):
+    """The session's invoice table, created once and kept."""
     schema = SchemaBuilder(migrated_database.make("db"))
-    schema.drop_if_exists("tenant_invoices")
-    schema.create_table("tenant_invoices", lambda t: (
+    schema.create_table(INVOICES, lambda t: (
         t.id(type="integer"),
         t.string("reference"),
         t.tenant_scoped(references=None),
         t.timestamps(),
     ))
-    yield "tenant_invoices"
-    schema.drop_if_exists("tenant_invoices")
+    return INVOICES
 
 
 class Invoice(TenantScoped, Model):
-    __table__ = "tenant_invoices"
+    __table__ = INVOICES
     fillable = ["reference"]
     uses_uuid = False
 
@@ -157,19 +172,24 @@ def test_the_tenant_is_stamped_on_insert(invoices_table):
 
 
 def test_a_query_sees_only_its_own_tenants_rows(invoices_table):
-    with Tenant.scope(ACME):
+    acme, beta = fresh_tenant(), fresh_tenant()
+    with Tenant.scope(acme):
         Invoice.create({"reference": "acme-1"})
         Invoice.create({"reference": "acme-2"})
-    with Tenant.scope(BETA):
+    with Tenant.scope(beta):
         Invoice.create({"reference": "beta-1"})
 
-    with Tenant.scope(ACME):
+    with Tenant.scope(acme):
         assert Invoice.query().count() == 2
-    with Tenant.scope(BETA):
+    with Tenant.scope(beta):
         assert Invoice.query().count() == 1
 
-    Tenant.bind(ACME)
-    assert Invoice.across_tenants().count() == 3
+    # Across tenants means every tenant's rows: both of ours are in it, which
+    # a scoped query could not return. Other tests' rows share the table, so
+    # the unscoped query is narrowed to our two tenants, never by the mixin.
+    Tenant.bind(acme)
+    across = Invoice.across_tenants().where_in("tenant_id", [acme, beta])
+    assert across.count() == 3
 
 
 def test_the_mro_guard_refuses_the_order_that_removes_the_scope():
@@ -220,7 +240,7 @@ def test_no_policy_ddl_is_emitted_where_there_is_no_policy_engine():
 def test_a_policy_name_cannot_smuggle_sql(migrated_database):
     schema = SchemaBuilder(migrated_database.make("db"))
     with pytest.raises(ValueError):
-        schema.drop_policy("invoices", 'x" ON invoices; DROP TABLE users; --')
+        schema.drop_policy("invoices", 'x" ON invoices; DROP TABLE users; --')  # nr02: hostile name refused by the validator, never executed
 
 
 # -- the connection contract ---------------------------------------------------
@@ -253,14 +273,14 @@ def test_set_config_is_used_because_set_local_cannot_be_bound():
             pass
 
     connection = Connection({"driver": "pgsql"})
-    hostile = "x'; DROP TABLE users; --"
+    hostile = "x'; DROP TABLE users; --"  # nr02: hostile payload given to a fake cursor, never executed
     connection._set_tenant(_Pdo(), hostile, local=True)
 
     sql, params = executed[-1]
     assert "set_config" in sql
     # The value reaches the driver as a binding. Nothing of it is in the SQL.
     assert hostile not in sql
-    assert "DROP TABLE" not in sql
+    assert "DROP TABLE" not in sql  # nr02: asserts the payload is absent from the SQL
     assert hostile in params
 
 
@@ -344,34 +364,30 @@ def test_the_policy_really_filters_under_a_non_bypassing_role(migrated_database)
     from craft.migrations.schema import SchemaBuilder
     from craft.orm.db import DatabaseManager
 
+    # Roles are cluster-wide and outlive the session database, so the role
+    # name is unique per session and the role is never dropped.
+    probe = f"rls_probe_{_SUFFIX}"
     schema = SchemaBuilder(db)
-    schema.drop_if_exists("rls_probe")
-    schema.create_table("rls_probe", lambda t: (
+    schema.create_table(probe, lambda t: (
         t.id(type="integer"),
         t.string("ref"),
         t.tenant_scoped(references=None),
     ))
 
     config = dict(_connection_config(migrated_database))
-    role, password = "craft_rls_probe", "probe-secret"
+    # Roles are cluster-wide and outlive the session, since nothing is dropped:
+    # the password is random and the role loses LOGIN when the test ends.
+    role, password = f"craft_rls_probe_{_SUFFIX}", secrets.token_urlsafe(24)
 
-    try:
-        db.statement(f"DROP OWNED BY {role}")
-    except Exception:
-        pass
-    try:
-        db.statement(f"DROP ROLE IF EXISTS {role}")
-    except Exception:
-        pass
     try:
         db.statement(f"CREATE ROLE {role} LOGIN PASSWORD '{password}' NOBYPASSRLS")
         db.statement(f"GRANT USAGE ON SCHEMA public TO {role}")
-        db.statement(f"GRANT SELECT, INSERT ON rls_probe TO {role}")
+        db.statement(f"GRANT SELECT, INSERT ON {probe} TO {role}")
     except Exception as exc:
         pytest.skip(f"cannot create a test role here: {exc}")
 
-    db.statement("INSERT INTO rls_probe (ref, tenant_id) VALUES (?, ?)", ["acme", ACME])
-    db.statement("INSERT INTO rls_probe (ref, tenant_id) VALUES (?, ?)", ["beta", BETA])
+    db.statement(f"INSERT INTO {probe} (ref, tenant_id) VALUES (?, ?)", ["acme", ACME])
+    db.statement(f"INSERT INTO {probe} (ref, tenant_id) VALUES (?, ?)", ["beta", BETA])
 
     scoped = DatabaseManager(config={**config, "username": role, "password": password})
     try:
@@ -381,25 +397,20 @@ def test_the_policy_really_filters_under_a_non_bypassing_role(migrated_database)
         assert as_role.enforcement(refresh=True)["enforced"] is True
 
         as_role.bind(ACME)
-        rows = scoped.select("SELECT ref FROM rls_probe")
+        rows = scoped.select(f"SELECT ref FROM {probe}")
         assert [r["ref"] for r in rows] == ["acme"], "the policy did not filter"
 
         as_role.bind(BETA)
-        assert [r["ref"] for r in scoped.select("SELECT ref FROM rls_probe")] == ["beta"]
+        assert [r["ref"] for r in scoped.select(f"SELECT ref FROM {probe}")] == ["beta"]
 
         # And with nothing bound: no rows, not all of them. Fail-closed is the
         # property that makes a forgotten scope harmless instead of a breach.
         as_role.clear()
-        assert scoped.select("SELECT ref FROM rls_probe") == []
+        assert scoped.select(f"SELECT ref FROM {probe}") == []
     finally:
         scoped.purge()
         TenantManager._enforcement = None
-        schema.drop_if_exists("rls_probe")
-        try:
-            db.statement(f"DROP OWNED BY {role}")
-            db.statement(f"DROP ROLE IF EXISTS {role}")
-        except Exception:
-            pass
+        db.statement(f"ALTER ROLE {role} NOLOGIN")
 
 
 def _connection_config(app) -> dict:
@@ -491,46 +502,46 @@ def test_delete_on_an_instance_with_no_loaded_tenant_raises(invoices_table):
     with Tenant.scope(ACME):
         forged = Invoice({"id": created.id})
         with pytest.raises(UnaddressableTenantRowError):
-            forged.delete()
+            forged.delete()  # nr02: expected to be refused before any statement runs
 
 
 class TenantSoftDeletable(TenantScoped, SoftDeletes, Model):
-    __table__ = "tenant_soft_deletables"
+    __table__ = SOFT_DELETABLES
     fillable = ["reference"]
     uses_uuid = False
 
 
 class SoftDeletableTenant(SoftDeletes, TenantScoped, Model):
-    __table__ = "tenant_soft_deletables"
+    __table__ = SOFT_DELETABLES
     fillable = ["reference"]
     uses_uuid = False
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def soft_deletables_table(migrated_database):
+    """The session's soft-deletable table, created once and kept."""
     schema = SchemaBuilder(migrated_database.make("db"))
-    schema.drop_if_exists("tenant_soft_deletables")
-    schema.create_table("tenant_soft_deletables", lambda t: (
+    schema.create_table(SOFT_DELETABLES, lambda t: (
         t.id(type="integer"),
         t.string("reference"),
         t.tenant_scoped(references=None),
         t.soft_deletes(),
         t.timestamps(),
     ))
-    yield "tenant_soft_deletables"
-    schema.drop_if_exists("tenant_soft_deletables")
+    return SOFT_DELETABLES
 
 
 @pytest.mark.parametrize("model_class", [TenantSoftDeletable, SoftDeletableTenant])
 def test_tenant_scoped_and_soft_deletes_compose_in_either_order(model_class, soft_deletables_table):
     """Both mixins' predicates apply regardless of which is listed first."""
-    with Tenant.scope(ACME):
+    acme, beta = fresh_tenant(), fresh_tenant()
+    with Tenant.scope(acme):
         acme_row = model_class.create({"reference": "acme-row"})
-    with Tenant.scope(BETA):
+    with Tenant.scope(beta):
         model_class.create({"reference": "beta-row"})
 
-    with Tenant.scope(ACME):
-        acme_row.delete()
+    with Tenant.scope(acme):
+        acme_row.delete()  # nr02: soft delete, stamps deleted_at
         # query() excludes trashed rows AND is tenant-scoped: gone from both.
         assert model_class.query().where("reference", "acme-row").first() is None
         # with_trashed() keeps the tenant predicate — still not BETA's row.
@@ -538,7 +549,7 @@ def test_tenant_scoped_and_soft_deletes_compose_in_either_order(model_class, sof
         assert trashed is not None
         assert model_class.with_trashed().where("reference", "beta-row").first() is None
 
-    with Tenant.scope(BETA):
+    with Tenant.scope(beta):
         # BETA's row was never touched by ACME's delete.
         assert model_class.query().where("reference", "beta-row").first() is not None
 
@@ -549,7 +560,7 @@ def test_soft_delete_never_reaches_a_row_of_another_tenant(soft_deletables_table
         victim = TenantSoftDeletable.create({"reference": "beta-victim"})
     with Tenant.scope(ACME):
         forged = TenantSoftDeletable({"id": victim.id, "tenant_id": ACME})
-        forged.delete()
+        forged.delete()  # nr02: soft delete, stamps deleted_at on no row
     with Tenant.scope(BETA):
         survivor = TenantSoftDeletable.find(victim.id)
         assert survivor is not None
@@ -562,7 +573,7 @@ def test_soft_delete_on_an_instance_with_no_loaded_tenant_raises(soft_deletables
     with Tenant.scope(BETA):
         forged = TenantSoftDeletable({"id": victim.id})
         with pytest.raises(UnaddressableTenantRowError):
-            forged.delete()
+            forged.delete()  # nr02: expected to be refused before any statement runs
 
 
 def test_query_builder_insert_stamps_the_bound_tenant(invoices_table):
@@ -585,22 +596,19 @@ def test_query_builder_insert_respects_an_explicit_tenant(invoices_table):
 def test_query_builder_truncate_refuses_on_a_tenant_scoped_table(invoices_table):
     with Tenant.scope(ACME):
         with pytest.raises(DestructiveOperationRefused):
-            Invoice.query().truncate()
+            Invoice.query().truncate()  # nr02: expected to be refused before any statement runs
 
 
-def test_query_builder_truncate_still_works_on_a_plain_table(migrated_database):
-    schema = SchemaBuilder(migrated_database.make("db"))
-    schema.drop_if_exists("plain_truncatable")
-    schema.create_table("plain_truncatable", lambda t: (t.id(type="integer"), t.string("name"), t.timestamps()))
-    try:
+def test_query_builder_truncate_still_works_on_a_plain_table():
+    """The tenant guard refuses scoped tables only; a plain table still empties.
 
-        class Plain(Model):
-            __table__ = "plain_truncatable"
-            fillable = ["name"]
-            uses_uuid = False
+    Run on a private in-memory SQLite database, so the only rows it removes
+    are the one it wrote a line earlier.
+    """
+    db = DatabaseManager(config={"driver": "sqlite", "database": ":memory:"})
+    db.statement("CREATE TABLE plain_truncatable (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT)")
+    db.statement("INSERT INTO plain_truncatable (name) VALUES (?)", ["row"])
 
-        Plain.create({"name": "row"})
-        Plain.query().truncate()
-        assert Plain.query().count() == 0
-    finally:
-        schema.drop_if_exists("plain_truncatable")
+    QueryBuilder(table_name="plain_truncatable", db=db).truncate()  # nr02: private in-memory SQLite, not the shared database
+
+    assert QueryBuilder(table_name="plain_truncatable", db=db).count() == 0

@@ -17,10 +17,26 @@ close:
 # Copyright (c) 2026 Antonio Santos <snarthost@gmail.com>
 # Licensed under the MIT License. See LICENSE in the project root.
 
+import uuid
+
 import pytest
 
-from craft.facades import Config, DB, Schema, Tenant
+from craft.facades import Config, Schema, Tenant
 from craft.migrations.schema import SchemaBuilder
+
+# NR-02: nothing here is dropped or deleted. Tables and tenant slugs carry this
+# session suffix, so what a test leaves behind never collides with anything.
+_SUFFIX = uuid.uuid4().hex[:8]
+
+
+def unique(base: str) -> str:
+    """`base` made unique to this test session."""
+    return f"{base}_{_SUFFIX}"
+
+
+def unique_slug(base: str) -> str:
+    """A tenant slug no other test or session uses."""
+    return f"{base}-{_SUFFIX}"
 
 
 # -- the tenants table ---------------------------------------------------------
@@ -36,16 +52,13 @@ def test_tenant_scoped_works_with_its_own_default(migrated_database):
     does not exist`, because every test passed `references=None` and stepped
     around the default."""
     schema = SchemaBuilder(migrated_database.make("db"))
-    schema.drop_if_exists("wiring_probe")
-    try:
-        schema.create_table("wiring_probe", lambda t: (
-            t.id(type="integer"),
-            t.string("label"),
-            t.tenant_scoped(),
-        ))
-        assert migrated_database.make("db").table_exists("wiring_probe")
-    finally:
-        schema.drop_if_exists("wiring_probe")
+    probe = unique("wiring_probe")
+    schema.create_table(probe, lambda t: (
+        t.id(type="integer"),
+        t.string("label"),
+        t.tenant_scoped(),
+    ))
+    assert migrated_database.make("db").table_exists(probe)
 
 
 def test_the_tenants_key_is_a_uuid_not_a_sequence(migrated_database):
@@ -63,13 +76,10 @@ def test_the_tenants_key_is_a_uuid_not_a_sequence(migrated_database):
         fillable = ["name", "slug"]
         uses_uuid = False
 
-    created = TenantRecord.create({"name": "Acme", "slug": "acme-wiring"})
+    created = TenantRecord.create({"name": "Acme", "slug": unique_slug("acme-wiring")})
     key = str(created.get_attribute("id"))
-    try:
-        assert key.count("-") == 4, f"expected a UUID key, got {key!r}"
-        assert key[14] == "7", "the framework generates time-ordered v7 keys"
-    finally:
-        DB.statement("DELETE FROM tenants WHERE slug = ?", ["acme-wiring"])
+    assert key.count("-") == 4, f"expected a UUID key, got {key!r}"
+    assert key[14] == "7", "the framework generates time-ordered v7 keys"
 
 
 # -- the strategy --------------------------------------------------------------
@@ -121,7 +131,7 @@ def test_provision_role_refuses_a_name_that_could_smuggle_sql():
     from craft.migrations.schema import _assert_table
 
     with pytest.raises(ValueError):
-        _assert_table('craft_app"; DROP TABLE users; --')
+        _assert_table('craft_app"; DROP TABLE users; --')  # nr02: hostile name refused by the validator, never executed
 
 
 def test_the_provisioned_role_is_verified_not_assumed():
@@ -166,15 +176,11 @@ def test_a_subdomain_resolves_against_the_tenants_table(migrated_database):
         fillable = ["name", "slug", "is_active"]
         uses_uuid = False
 
-    created = TenantRecord.create({"name": "Acme", "slug": "acme-sub", "is_active": True})
+    slug = unique_slug("acme-sub")
+    created = TenantRecord.create({"name": "Acme", "slug": slug, "is_active": True})
     middleware = ScopeTenant(app=migrated_database, require_isolation=False)
-    try:
-        assert str(middleware.tenant_for_subdomain("acme-sub")) == str(
-            created.get_attribute("id")
-        )
-        assert middleware.tenant_for_subdomain("nobody-here") is None
-    finally:
-        DB.statement("DELETE FROM tenants WHERE slug = ?", ["acme-sub"])
+    assert str(middleware.tenant_for_subdomain(slug)) == str(created.get_attribute("id"))
+    assert middleware.tenant_for_subdomain(unique_slug("nobody-here")) is None
 
 
 def test_a_suspended_tenant_resolves_to_nothing(migrated_database):
@@ -189,12 +195,10 @@ def test_a_suspended_tenant_resolves_to_nothing(migrated_database):
         fillable = ["name", "slug", "is_active"]
         uses_uuid = False
 
-    TenantRecord.create({"name": "Gamma", "slug": "gamma-sub", "is_active": False})
+    slug = unique_slug("gamma-sub")
+    TenantRecord.create({"name": "Gamma", "slug": slug, "is_active": False})
     middleware = ScopeTenant(app=migrated_database, require_isolation=False)
-    try:
-        assert middleware.tenant_for_subdomain("gamma-sub") is None
-    finally:
-        DB.statement("DELETE FROM tenants WHERE slug = ?", ["gamma-sub"])
+    assert middleware.tenant_for_subdomain(slug) is None
 
 
 def test_shared_hosts_are_never_read_as_tenant_names(migrated_database):
@@ -235,8 +239,8 @@ def test_a_scoped_table_isolates_once_a_tenant_is_bound(migrated_database):
         fillable = ["name", "slug"]
         uses_uuid = False
 
-    schema.drop_if_exists("wiring_notes")
-    schema.create_table("wiring_notes", lambda t: (
+    notes = unique("wiring_notes")
+    schema.create_table(notes, lambda t: (
         t.id(type="integer"),
         t.string("body"),
         t.tenant_scoped(),
@@ -244,13 +248,13 @@ def test_a_scoped_table_isolates_once_a_tenant_is_bound(migrated_database):
     ))
 
     class Note(TenantScoped, Model):
-        __table__ = "wiring_notes"
+        __table__ = notes
         fillable = ["body"]
         uses_uuid = False
 
     try:
-        acme = TenantRecord.create({"name": "Acme", "slug": "acme-e2e"})
-        beta = TenantRecord.create({"name": "Beta", "slug": "beta-e2e"})
+        acme = TenantRecord.create({"name": "Acme", "slug": unique_slug("acme-e2e")})
+        beta = TenantRecord.create({"name": "Beta", "slug": unique_slug("beta-e2e")})
 
         with Tenant.scope(str(acme.get_attribute("id"))):
             Note.create({"body": "acme only"})
@@ -261,8 +265,6 @@ def test_a_scoped_table_isolates_once_a_tenant_is_bound(migrated_database):
             Note.create({"body": "beta only"})
             assert Note.query().count() == 1
     finally:
-        schema.drop_if_exists("wiring_notes")
-        DB.statement("DELETE FROM tenants WHERE slug IN (?, ?)", ["acme-e2e", "beta-e2e"])
         Tenant.clear()
 
 
@@ -283,16 +285,13 @@ def test_audit_rls_reports_a_properly_scoped_table_as_protected(migrated_databas
     from craft.cli import app as cli
 
     schema = SchemaBuilder(migrated_database.make("db"))
-    schema.drop_if_exists("wiring_audit_protected")
-    schema.create_table("wiring_audit_protected", lambda t: (
+    protected = unique("wiring_audit_protected")
+    schema.create_table(protected, lambda t: (
         t.id(type="integer"), t.tenant_scoped(references=None),
     ))
-    try:
-        result = CliRunner().invoke(cli.cli, ["db", "audit-rls"])
-        assert "ok           wiring_audit_protected" in result.output, result.output
-        assert "UNPROTECTED  wiring_audit_protected" not in result.output
-    finally:
-        schema.drop_if_exists("wiring_audit_protected")
+    result = CliRunner().invoke(cli.cli, ["db", "audit-rls"])
+    assert f"ok           {protected}" in result.output, result.output
+    assert f"UNPROTECTED  {protected}" not in result.output
 
 
 def test_audit_rls_exits_non_zero_when_a_tenant_table_is_unprotected(migrated_database, is_postgres):
@@ -304,16 +303,12 @@ def test_audit_rls_exits_non_zero_when_a_tenant_table_is_unprotected(migrated_da
     from craft.cli import app as cli
 
     db = migrated_database.make("db")
-    schema = SchemaBuilder(db)
-    schema.drop_if_exists("wiring_audit_unprotected")
+    unprotected = unique("wiring_audit_unprotected")
     # A plain tenant_id column with no RLS policy at all - built by hand rather
     # than via t.tenant_scoped(), which is exactly the drift this audit exists
-    # to catch.
-    db.statement("CREATE TABLE wiring_audit_unprotected (id serial PRIMARY KEY, tenant_id uuid)")
-    try:
-        result = CliRunner().invoke(cli.cli, ["db", "audit-rls"])
-        assert result.exit_code == 1
-        assert "UNPROTECTED" in result.output
-        assert "wiring_audit_unprotected" in result.output
-    finally:
-        schema.drop_if_exists("wiring_audit_unprotected")
+    # to catch. The table stays for the rest of the session; nothing else in
+    # the suite asserts that the whole database audits clean.
+    db.statement(f"CREATE TABLE {unprotected} (id serial PRIMARY KEY, tenant_id uuid)")
+    result = CliRunner().invoke(cli.cli, ["db", "audit-rls"])
+    assert result.exit_code == 1
+    assert f"UNPROTECTED  {unprotected}" in result.output, result.output

@@ -7,8 +7,9 @@ the outside and quietly did something else, or nothing.
 # Copyright (c) 2026 Antonio Santos <snarthost@gmail.com>
 # Licensed under the MIT License. See LICENSE in the project root.
 
+import uuid
+
 import pytest
-from craft.facades import DB
 from craft.migrations.schema import Blueprint, Grammar
 from craft.orm.model import Model
 from craft.orm.soft_deletes import SoftDeletes
@@ -37,7 +38,7 @@ class TestAggregatesValidateTheirColumn:
 
         builder = User.query()
         with pytest.raises(Exception):
-            getattr(builder, method)("id) FROM users; DROP TABLE users --")
+            getattr(builder, method)("id) FROM users; DROP TABLE users --")  # nr02: hostile payload, rejected before any SQL runs
 
     def test_count_star_still_works(self, migrated_database):
         from tests.support.models import User
@@ -48,7 +49,7 @@ class TestAggregatesValidateTheirColumn:
         from tests.support.models import User
 
         with pytest.raises(Exception):
-            User.query().count("*) FROM users; DROP TABLE users --")
+            User.query().count("*) FROM users; DROP TABLE users --")  # nr02: hostile payload, rejected before any SQL runs
 
 
 class TestRbacLivesOnTheRightModels:
@@ -107,7 +108,7 @@ class TestRbacLivesOnTheRightModels:
 
 class TestSoftDeletesRefusesTheBrokenBaseOrder:
     def test_listing_the_mixin_after_model_is_an_error(self):
-        """With `class X(Model, SoftDeletes)` the MRO gives `Model.delete()`,
+        """With `class X(Model, SoftDeletes)` the MRO gives the base `Model.delete`,
         so rows are destroyed by a call the developer believes is reversible."""
         with pytest.raises(TypeError) as excinfo:
 
@@ -181,6 +182,6 @@ class TestSettingsReportWhetherTheyPersisted:
         in-memory dict that dies with the process."""
         from craft.support.settings import SettingManager
 
-        assert SettingManager.set("placebo_check_key", "value") is True
-        assert SettingManager.get("placebo_check_key") == "value"
-        DB.statement("DELETE FROM settings WHERE key = :key", {"key": "placebo_check_key"})
+        key = f"placebo_check_key_{uuid.uuid4().hex[:8]}"
+        assert SettingManager.set(key, "value") is True
+        assert SettingManager.get(key) == "value"

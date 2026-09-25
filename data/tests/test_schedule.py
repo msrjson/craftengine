@@ -9,7 +9,8 @@ declared in `routes/console.py` were doubly dead — nothing called
 # Copyright (c) 2026 Antonio Santos <snarthost@gmail.com>
 # Licensed under the MIT License. See LICENSE in the project root.
 
-from datetime import datetime
+import uuid
+from datetime import datetime, timedelta
 
 import pytest
 
@@ -310,27 +311,33 @@ class TestOncePerWindowClaim:
     tasks; a scheduler that was briefly down should catch up on what it
     missed."""
 
-    @pytest.fixture(autouse=True)
-    def cleanup(self, migrated_database):
-        db = migrated_database.make("db")
-        db.statement("DELETE FROM scheduler_runs")
-        yield
-        db.statement("DELETE FROM scheduler_runs")
+    # `scheduler_runs` is shared for the whole session and tests never delete
+    # rows (NR-02), so every test claims windows no other test can reach.
+
+    @staticmethod
+    def _unique_window() -> str:
+        return f"test-{uuid.uuid4().hex[:16]}"
+
+    @staticmethod
+    def _unique_moment() -> datetime:
+        """A minute far from real time, spaced so catch-up lookbacks never overlap."""
+        return datetime(2200, 1, 1) + timedelta(minutes=10 * (uuid.uuid4().int % 5_000_000))
 
     def test_claiming_a_window_the_first_time_succeeds(self, migrated_database):
         manager = ScheduleManager(migrated_database)
-        assert manager.claim_window("2026-01-01 00:00") is True
+        assert manager.claim_window(self._unique_window()) is True
 
     def test_claiming_the_same_window_twice_only_succeeds_once(self, migrated_database):
         manager = ScheduleManager(migrated_database)
-        assert manager.claim_window("2026-01-01 00:01") is True
-        assert manager.claim_window("2026-01-01 00:01") is False
+        window = self._unique_window()
+        assert manager.claim_window(window) is True
+        assert manager.claim_window(window) is False
 
     def test_two_managers_racing_the_same_window_only_one_wins(self, migrated_database):
         """Simulates two scheduler processes (two manager instances, same DB)."""
         first = ScheduleManager(migrated_database)
         second = ScheduleManager(migrated_database)
-        window = "2026-01-01 00:02"
+        window = self._unique_window()
         results = [first.claim_window(window), second.claim_window(window)]
         assert sorted(results) == [False, True]
 
@@ -338,7 +345,7 @@ class TestOncePerWindowClaim:
         manager = ScheduleManager(migrated_database)
         ran = []
         manager.call(lambda: ran.append(1)).every_minute()
-        now = datetime(2026, 2, 1, 12, 30)
+        now = self._unique_moment()
         result = manager.run_due_with_catchup(now, catch_up_minutes=0)
         assert len(result) == 1
         assert ran == [1]
@@ -347,7 +354,7 @@ class TestOncePerWindowClaim:
         manager = ScheduleManager(migrated_database)
         ran = []
         manager.call(lambda: ran.append(1)).every_minute()
-        now = datetime(2026, 2, 1, 12, 31)
+        now = self._unique_moment()
         manager.run_due_with_catchup(now, catch_up_minutes=0)
         manager.run_due_with_catchup(now, catch_up_minutes=0)
         assert ran == [1], "the same window must not run twice"
@@ -356,7 +363,7 @@ class TestOncePerWindowClaim:
         manager = ScheduleManager(migrated_database)
         ran = []
         manager.call(lambda: ran.append(1)).every_minute()
-        now = datetime(2026, 2, 1, 12, 40)
+        now = self._unique_moment()
         # 3 minutes of "catch-up": the current minute plus 3 before it = 4 runs.
         result = manager.run_due_with_catchup(now, catch_up_minutes=3)
         assert len(result) == 4
@@ -375,16 +382,11 @@ class TestOncePerWindowClaim:
 
 
 class TestPerTenant:
-    @pytest.fixture(autouse=True)
-    def cleanup(self, migrated_database):
-        db = migrated_database.make("db")
-        db.statement("DELETE FROM tenants WHERE slug LIKE ?", ["schedtest-%"])
-        yield
-        db.statement("DELETE FROM tenants WHERE slug LIKE ?", ["schedtest-%"])
-
-    def _create_tenant(self, migrated_database, slug, status="active"):
+    def _create_tenant(self, migrated_database, label, status="active"):
+        """Insert a tenant whose slug no other test uses (rows are never deleted)."""
         from craft.orm.model import Model
 
+        slug = f"schedtest-{label}-{uuid.uuid4().hex[:8]}"
         tenant_id = Model.new_uuid()
         migrated_database.make("db").table("tenants").insert({
             "id": tenant_id, "name": slug, "slug": slug, "status": status,
@@ -394,8 +396,8 @@ class TestPerTenant:
     def test_per_tenant_runs_the_call_once_for_each_active_tenant(self, migrated_database):
         from craft.facades import Tenant
 
-        tenant_a = self._create_tenant(migrated_database, "schedtest-a")
-        tenant_b = self._create_tenant(migrated_database, "schedtest-b")
+        tenant_a = self._create_tenant(migrated_database, "a")
+        tenant_b = self._create_tenant(migrated_database, "b")
 
         seen = []
         manager = ScheduleManager(migrated_database)
@@ -412,8 +414,8 @@ class TestPerTenant:
     def test_per_tenant_skips_a_suspended_tenant(self, migrated_database):
         from craft.facades import Tenant
 
-        active = self._create_tenant(migrated_database, "schedtest-active")
-        suspended = self._create_tenant(migrated_database, "schedtest-suspended", status="suspended")
+        active = self._create_tenant(migrated_database, "active")
+        suspended = self._create_tenant(migrated_database, "suspended", status="suspended")
 
         seen = []
         manager = ScheduleManager(migrated_database)
@@ -426,8 +428,8 @@ class TestPerTenant:
     def test_one_tenants_failure_does_not_block_the_others(self, migrated_database):
         from craft.facades import Tenant
 
-        tenant_a = self._create_tenant(migrated_database, "schedtest-fails")
-        tenant_b = self._create_tenant(migrated_database, "schedtest-ok")
+        tenant_a = self._create_tenant(migrated_database, "fails")
+        tenant_b = self._create_tenant(migrated_database, "ok")
 
         seen = []
 

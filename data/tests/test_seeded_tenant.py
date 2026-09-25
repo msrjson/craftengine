@@ -15,59 +15,66 @@ seeder rather than about the engine, and is marked as such.
 # Licensed under the MIT License. See LICENSE in the project root.
 
 import uuid
+from dataclasses import dataclass
 from datetime import datetime, timezone
 
 import pytest
 
 from craft.facades import DB
+from craft.orm.model import Model
 
-#: A tenant owned by this file alone, so it never collides with whatever the
-#: application seeds. Version 7 on purpose: PostgreSQL rejects a malformed
-#: value in a `uuid` column, and the id is a literal that nothing generates.
-TENANT_ID = "01930000-0000-7000-8000-00000000f001"
-TENANT_SLUG = "tenancy-fixture"
-TENANT_HOST = f"{TENANT_SLUG}.example.com"
-TENANT_USER_EMAIL = "tenant-fixture@craft.local"
-UNSCOPED_USER_EMAIL = "unscoped-fixture@craft.local"
+
+@dataclass(frozen=True)
+class TenantFixture:
+    """The identifiers one test's tenant and users were created under."""
+
+    id: str
+    slug: str
+    host: str
+    tenant_user_email: str
+    unscoped_user_email: str
 
 
 @pytest.fixture
-def tenant(migrated_database):
-    """A tenant, a user that belongs to it, and a user that belongs to none."""
+def tenant(migrated_database) -> TenantFixture:
+    """A tenant, a user that belongs to it, and a user that belongs to none.
+
+    Every identifier is fresh per test, so it never collides with whatever
+    the application seeds or an earlier test left. NR-02: nothing is deleted
+    afterwards; uniqueness is the isolation. The id is a version 7 UUID on
+    purpose: PostgreSQL rejects a malformed value in a `uuid` column.
+    """
     from tests.support.models import User
 
+    suffix = uuid.uuid4().hex[:8]
+    slug = f"tenancy-fixture-{suffix}"
+    created = TenantFixture(
+        id=Model.new_uuid(),
+        slug=slug,
+        host=f"{slug}.example.com",
+        tenant_user_email=f"tenant-fixture-{suffix}@craft.local",
+        unscoped_user_email=f"unscoped-fixture-{suffix}@craft.local",
+    )
     now = datetime.now(timezone.utc).replace(tzinfo=None).isoformat()
-    _cleanup()
     DB.statement(
         "INSERT INTO tenants (id, name, slug, is_active, created_at, updated_at) "
         "VALUES (?, ?, ?, ?, ?, ?)",
-        [TENANT_ID, "Tenancy Fixture", TENANT_SLUG, True, now, now],
+        [created.id, "Tenancy Fixture", created.slug, True, now, now],
     )
     User.force_create({
         "name": "Tenant User",
-        "email": TENANT_USER_EMAIL,
+        "email": created.tenant_user_email,
         "password": "s3cret",
         "type": "tenant",
-        "tenant_id": TENANT_ID,
+        "tenant_id": created.id,
     })
     User.force_create({
         "name": "Unscoped User",
-        "email": UNSCOPED_USER_EMAIL,
+        "email": created.unscoped_user_email,
         "password": "s3cret",
         "type": "user",
     })
-
-    yield TENANT_ID
-
-    _cleanup()
-
-
-def _cleanup() -> None:
-    DB.statement(
-        "DELETE FROM users WHERE email IN (?, ?)",
-        [TENANT_USER_EMAIL, UNSCOPED_USER_EMAIL],
-    )
-    DB.statement("DELETE FROM tenants WHERE id = ?", [TENANT_ID])
+    return created
 
 
 def _request_for(host: str):
@@ -83,25 +90,25 @@ def _request_for(host: str):
 
 def test_the_tenant_user_belongs_to_its_tenant(tenant):
     row = DB.select_one(
-        "SELECT type, tenant_id FROM users WHERE email = ?", [TENANT_USER_EMAIL]
+        "SELECT type, tenant_id FROM users WHERE email = ?", [tenant.tenant_user_email]
     )
     assert row["type"] == "tenant"
-    assert str(row["tenant_id"]) == TENANT_ID
+    assert str(row["tenant_id"]) == tenant.id
 
 
 def test_an_unscoped_account_belongs_to_no_tenant(tenant):
     """An operator and a plain user are not tenant-scoped, and must not be."""
     row = DB.select_one(
-        "SELECT tenant_id FROM users WHERE email = ?", [UNSCOPED_USER_EMAIL]
+        "SELECT tenant_id FROM users WHERE email = ?", [tenant.unscoped_user_email]
     )
     assert row["tenant_id"] is None
 
 
 def test_the_tenant_id_is_a_valid_uuid7(tenant):
     """A `uuid` column rejects a malformed literal on PostgreSQL."""
-    parsed = uuid.UUID(TENANT_ID)
+    parsed = uuid.UUID(tenant.id)
     assert parsed.version == 7
-    assert str(parsed) == TENANT_ID
+    assert str(parsed) == tenant.id
 
 
 def test_the_tenant_resolves_by_subdomain(tenant, migrated_database):
@@ -109,7 +116,7 @@ def test_the_tenant_resolves_by_subdomain(tenant, migrated_database):
     from craft.http.middleware import ScopeTenant
 
     middleware = ScopeTenant(app=migrated_database, require_isolation=False)
-    assert str(middleware.tenant_for_subdomain(TENANT_SLUG)) == TENANT_ID
+    assert str(middleware.tenant_for_subdomain(tenant.slug)) == tenant.id
 
 
 def test_a_request_on_the_tenant_host_binds_it_for_the_whole_request(
@@ -133,8 +140,8 @@ def test_a_request_on_the_tenant_host_binds_it_for_the_whole_request(
 
     middleware = ScopeTenant(app=migrated_database, require_isolation=False)
     try:
-        assert middleware.handle(_request_for(TENANT_HOST), _next) == "served"
-        assert str(seen["bound"]) == TENANT_ID
+        assert middleware.handle(_request_for(tenant.host), _next) == "served"
+        assert str(seen["bound"]) == tenant.id
     finally:
         Tenant.clear()
         migrated_database.make("db").release()
@@ -159,7 +166,7 @@ def test_an_unknown_host_never_reaches_the_next_middleware(tenant, migrated_data
                 raise KeyError("nobody is authenticated")
             return migrated_database.make(key)
 
-    Tenant.bind(TENANT_ID)
+    Tenant.bind(tenant.id)
     seen = {}
     middleware = ScopeTenant(app=migrated_database, require_isolation=False)
     middleware.resolve = lambda request, container: ScopeTenant.resolve(
@@ -185,7 +192,7 @@ def test_the_tenant_resolves_from_the_authenticated_user(tenant, migrated_databa
     class _Auth:
         @staticmethod
         def user():
-            return User.query().where("email", TENANT_USER_EMAIL).first()
+            return User.query().where("email", tenant.tenant_user_email).first()
 
     class _Container:
         @staticmethod
@@ -194,6 +201,6 @@ def test_the_tenant_resolves_from_the_authenticated_user(tenant, migrated_databa
 
     middleware = ScopeTenant(app=migrated_database, require_isolation=False)
     resolved = middleware.resolve(_request_for("www.example.com"), _Container())
-    assert str(resolved) == TENANT_ID
+    assert str(resolved) == tenant.id
 
 

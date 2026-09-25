@@ -11,11 +11,13 @@ why the gap survived; these tests exist so it cannot come back.
 # Copyright (c) 2026 Antonio Santos <snarthost@gmail.com>
 # Licensed under the MIT License. See LICENSE in the project root.
 
+import uuid
+
 import pytest
 from starlette.testclient import TestClient
 
 from bootstrap.app import asgi_app
-from craft.facades import DB, Route
+from craft.facades import Route
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -31,17 +33,16 @@ def api_routes(migrated_database):
 
 @pytest.fixture
 def api_user(migrated_database):
+    """A user with an address and a token unique to this test."""
     from tests.support.models import User
 
-    DB.statement("DELETE FROM users WHERE email = 'api@craft.local'")
-    user = User.force_create({
+    suffix = uuid.uuid4().hex[:8]
+    return User.force_create({
         "name": "Api",
-        "email": "api@craft.local",
+        "email": f"api-{suffix}@craft.local",
         "password": "s3cret",
-        "api_token": "valid-token-123",
+        "api_token": f"valid-token-{suffix}",
     })
-    yield user
-    DB.statement("DELETE FROM users WHERE email = 'api@craft.local'")
 
 
 @pytest.fixture
@@ -76,10 +77,13 @@ class TestItAdmits:
     def test_a_valid_token_is_authenticated_and_resolves_the_user(self, client, api_user):
         response = client.get(
             "/test-api/guarded",
-            headers={"Authorization": "Bearer valid-token-123", "Accept": "application/json"},
+            headers={
+                "Authorization": f"Bearer {api_user.get_attribute('api_token')}",
+                "Accept": "application/json",
+            },
         )
         assert response.status_code == 200
-        assert response.json()["user"] == "api@craft.local"
+        assert response.json()["user"] == api_user.get_attribute("email")
 
     def test_an_unguarded_route_is_unaffected(self, client, api_user):
         """The middleware must gate only the routes that opt in — hardening it

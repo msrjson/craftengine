@@ -145,7 +145,7 @@ def test_json_key_binds_the_path_as_an_array():
 
 def test_json_key_refuses_an_operator_outside_the_allowlist():
     with pytest.raises(ValueError, match="Invalid SQL operator"):
-        builder("accounts").where_json_key("meta", "plan", "; DROP TABLE users --", "x")
+        builder("accounts").where_json_key("meta", "plan", "; DROP TABLE users --", "x")  # nr02: hostile payload compiled to SQL, never executed
 
 
 def test_json_path_binds_the_expression():
@@ -158,7 +158,7 @@ def test_json_path_binds_the_expression():
 def test_a_macro_still_refuses_a_hostile_column_name():
     """The allowlists the macros go around are the ones they still obey."""
     with pytest.raises(ValueError, match="Invalid SQL identifier"):
-        builder("accounts").where_json_contains("meta; DROP TABLE users --", {})
+        builder("accounts").where_json_contains("meta; DROP TABLE users --", {})  # nr02: hostile payload compiled to SQL, never executed
 
 
 # -- arrays and ranges ---------------------------------------------------------
@@ -210,7 +210,7 @@ def test_search_defaults_to_websearch_syntax():
 def test_search_language_comes_from_a_fixed_set():
     """A regconfig cannot be bound, so it must not come from a caller."""
     with pytest.raises(ValueError, match="Unknown text search language"):
-        builder("articles").where_search("doc", "x", language="'; DROP TABLE users --")
+        builder("articles").where_search("doc", "x", language="'; DROP TABLE users --")  # nr02: hostile payload compiled to SQL, never executed
 
 
 def test_an_unknown_search_mode_is_refused():

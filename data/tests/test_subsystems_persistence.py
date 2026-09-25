@@ -8,6 +8,8 @@ provide was never exercised. These tests read the tables back directly.
 # Copyright (c) 2026 Antonio Santos <snarthost@gmail.com>
 # Licensed under the MIT License. See LICENSE in the project root.
 
+import uuid
+
 import pytest
 
 from craft.facades import DB, Module, Setting
@@ -16,78 +18,89 @@ from craft.support.settings import SettingManager
 
 
 @pytest.fixture(autouse=True)
-def clean_tables(migrated_database):
-    schema = migrated_database.make("schema")
+def cold_memory_cache(migrated_database):
+    """Start and end every test with an empty in-memory settings cache.
 
-    # An earlier test replaces `modules` with a reduced schema; rebuild the
-    # real one so persistence is tested against what migrations actually create.
-    schema.drop_table("modules")
-    schema.create_table("modules", lambda t: (
-        t.id(),
-        t.string("name"),
-        t.string("slug").unique(),
-        t.boolean("enabled").default(True),
-        t.timestamps(),
-    ))
-    DB.statement("DELETE FROM settings")
+    Rows are never deleted (NR-02): `settings` and `modules` keep what earlier
+    tests wrote, so every test below owns uniquely named keys, slugs and
+    tenants instead of relying on an empty table.
+    """
     SettingManager._memory_settings = {}
-
     yield
-
-    DB.statement("DELETE FROM settings")
     SettingManager._memory_settings = {}
+
+
+@pytest.fixture
+def key():
+    """A settings key no other test uses."""
+    return f"site_title_{uuid.uuid4().hex[:8]}"
+
+
+@pytest.fixture
+def slug():
+    """A module slug no other test uses."""
+    return f"billing_{uuid.uuid4().hex[:8]}"
+
+
+@pytest.fixture
+def tenants():
+    """Two tenant ids no other test uses."""
+    suffix = uuid.uuid4().hex[:8]
+    return f"tenant-a-{suffix}", f"tenant-b-{suffix}"
 
 
 class TestSettingPersistence:
-    def test_set_writes_a_row(self):
-        Setting.set("site_title", "Craft")
+    def test_set_writes_a_row(self, key):
+        Setting.set(key, "Craft")
         row = DB.statement(
-            "SELECT value FROM settings WHERE key = ?", ["site_title"], read=True
+            "SELECT value FROM settings WHERE key = ?", [key], read=True
         ).fetchone()
         assert row is not None
         assert row["value"] == '"Craft"'  # values are stored JSON-encoded
 
-    def test_value_survives_losing_the_memory_cache(self):
-        Setting.set("site_title", "Craft")
+    def test_value_survives_losing_the_memory_cache(self, key):
+        Setting.set(key, "Craft")
         SettingManager._memory_settings = {}
-        assert Setting.get("site_title") == "Craft"
+        assert Setting.get(key) == "Craft"
 
-    def test_setting_the_same_key_twice_updates_it(self):
-        Setting.set("site_title", "First")
-        Setting.set("site_title", "Second")
+    def test_setting_the_same_key_twice_updates_it(self, key):
+        Setting.set(key, "First")
+        Setting.set(key, "Second")
 
         rows = DB.statement(
-            "SELECT value FROM settings WHERE key = ?", ["site_title"], read=True
+            "SELECT value FROM settings WHERE key = ?", [key], read=True
         ).fetchall()
         assert len(rows) == 1
         assert rows[0]["value"] == '"Second"'  # values are stored JSON-encoded
 
     def test_missing_key_returns_the_default(self):
-        assert Setting.get("never_set", "fallback") == "fallback"
+        assert Setting.get(f"never_set_{uuid.uuid4().hex[:8]}", "fallback") == "fallback"
 
     def test_values_keep_their_type(self):
         # Values used to be flattened through str(), so set("x", False) came
         # back as the truthy string "False". JSON encoding keeps the type.
-        Setting.set("max_items", 42)
-        Setting.set("feature_on", False)
+        suffix = uuid.uuid4().hex[:8]
+        max_items_key, feature_key = f"max_items_{suffix}", f"feature_on_{suffix}"
+        Setting.set(max_items_key, 42)
+        Setting.set(feature_key, False)
         SettingManager._memory_settings = {}
-        assert Setting.get("max_items") == 42
-        assert Setting.get("feature_on") is False
+        assert Setting.get(max_items_key) == 42
+        assert Setting.get(feature_key) is False
 
-    def test_plain_string_rows_are_read_back_as_is(self):
+    def test_plain_string_rows_are_read_back_as_is(self, key):
         # Rows written before JSON encoding hold raw strings.
         DB.statement(
-            "INSERT INTO settings (key, value) VALUES (?, ?)", ["legacy", "Craft"]
+            "INSERT INTO settings (key, value) VALUES (?, ?)", [key, "Craft"]
         )
-        assert Setting.get("legacy") == "Craft"
+        assert Setting.get(key) == "Craft"
 
 
 class TestModulePersistence:
     @pytest.fixture
-    def seeded(self):
+    def seeded(self, slug):
         DB.statement(
             "INSERT INTO modules (name, slug, enabled) VALUES (?, ?, ?)",
-            ["Billing", "billing", True],
+            ["Billing", slug, True],
         )
 
     def _enabled_in_db(self, slug: str):
@@ -96,22 +109,22 @@ class TestModulePersistence:
         ).fetchone()
         return bool(row["enabled"]) if row is not None else None
 
-    def test_disable_writes_to_the_database(self, seeded):
-        Module.disable("billing")
-        assert self._enabled_in_db("billing") is False
+    def test_disable_writes_to_the_database(self, slug, seeded):
+        Module.disable(slug)
+        assert self._enabled_in_db(slug) is False
 
-    def test_enable_writes_to_the_database(self, seeded):
-        Module.disable("billing")
-        Module.enable("billing")
-        assert self._enabled_in_db("billing") is True
+    def test_enable_writes_to_the_database(self, slug, seeded):
+        Module.disable(slug)
+        Module.enable(slug)
+        assert self._enabled_in_db(slug) is True
 
-    def test_is_enabled_reads_from_the_database(self, seeded):
-        DB.statement("UPDATE modules SET enabled = ? WHERE slug = ?", [False, "billing"])
-        assert Module.is_enabled("billing") is False
+    def test_is_enabled_reads_from_the_database(self, slug, seeded):
+        DB.statement("UPDATE modules SET enabled = ? WHERE slug = ?", [False, slug])
+        assert Module.is_enabled(slug) is False
 
-    def test_all_lists_database_modules(self, seeded):
+    def test_all_lists_database_modules(self, slug, seeded):
         slugs = [m["slug"] for m in Module.all()]
-        assert "billing" in slugs
+        assert slug in slugs
 
     def test_enabling_an_unknown_module_reports_failure(self):
         # It used to return True unconditionally, so a typo in the slug looked
@@ -132,28 +145,34 @@ class TestModulePersistence:
 
 
 class TestTenantSettings:
-    def test_a_tenant_never_reads_another_tenants_value(self):
+    def test_a_tenant_never_reads_another_tenants_value(self, key, tenants):
         from craft.orm.tenancy import TenantManager
 
-        with TenantManager().scope("tenant-a"):
-            Setting.set("site_title", "Alpha Funeral Home")
-        with TenantManager().scope("tenant-b"):
-            assert Setting.get("site_title", "default") == "default"
+        tenant_a, tenant_b = tenants
 
-    def test_a_tenant_falls_back_to_the_installation_value(self):
+        with TenantManager().scope(tenant_a):
+            Setting.set(key, "Alpha Funeral Home")
+        with TenantManager().scope(tenant_b):
+            assert Setting.get(key, "default") == "default"
+
+    def test_a_tenant_falls_back_to_the_installation_value(self, key, tenants):
         from craft.orm.tenancy import TenantManager
 
-        Setting.set("site_title", "Installation")
-        with TenantManager().scope("tenant-a"):
-            assert Setting.get("site_title") == "Installation"
-            Setting.set("site_title", "Alpha")
-            assert Setting.get("site_title") == "Alpha"
-        assert Setting.get("site_title") == "Installation"
+        tenant_a, tenant_b = tenants
 
-    def test_global_scope_writes_the_installation_value_from_a_tenant(self):
+        Setting.set(key, "Installation")
+        with TenantManager().scope(tenant_a):
+            assert Setting.get(key) == "Installation"
+            Setting.set(key, "Alpha")
+            assert Setting.get(key) == "Alpha"
+        assert Setting.get(key) == "Installation"
+
+    def test_global_scope_writes_the_installation_value_from_a_tenant(self, key, tenants):
         from craft.orm.tenancy import TenantManager
 
-        with TenantManager().scope("tenant-a"):
-            Setting.set("site_title", "Everyone", global_scope=True)
-        with TenantManager().scope("tenant-b"):
-            assert Setting.get("site_title") == "Everyone"
+        tenant_a, tenant_b = tenants
+
+        with TenantManager().scope(tenant_a):
+            Setting.set(key, "Everyone", global_scope=True)
+        with TenantManager().scope(tenant_b):
+            assert Setting.get(key) == "Everyone"

@@ -41,7 +41,7 @@ def test_grid_query_compilation_with_allowed_filters():
         {
             "fc": ["title", "status", "malicious_col"],
             "fo": ["contains", "eq", "eq"],
-            "fv": ["Craft", "active", "drop table"],
+            "fv": ["Craft", "active", "drop table"],  # nr02: hostile filter value, passed as a bound parameter
         }
     )
 

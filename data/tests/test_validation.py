@@ -3,9 +3,10 @@
 # Copyright (c) 2026 Antonio Santos <snarthost@gmail.com>
 # Licensed under the MIT License. See LICENSE in the project root.
 
+import uuid
+
 import pytest
 
-from craft.facades import DB
 from craft.exceptions.handler import ValidationException
 from craft.validation.validator import Validator
 
@@ -164,37 +165,39 @@ class TestSetsAndComparisons:
 
 
 class TestDatabaseRules:
+    @pytest.fixture
+    def taken_email(self) -> str:
+        """An address unique to this test, so no other row can collide with it."""
+        return f"taken-{uuid.uuid4().hex[:8]}@craft.local"
+
     @pytest.fixture(autouse=True)
-    def seeded(self, migrated_database):
-        DB.statement("DELETE FROM users WHERE email = 'taken@craft.local'")
+    def seeded(self, migrated_database, taken_email):
         from tests.support.models import User
 
-        user = User.create(
-            {"name": "Taken", "email": "taken@craft.local", "password": "x"}
-        )
-        yield user
-        DB.statement("DELETE FROM users WHERE email = 'taken@craft.local'")
+        return User.create({"name": "Taken", "email": taken_email, "password": "x"})
 
-    def test_unique_rejects_an_existing_value(self):
+    def test_unique_rejects_an_existing_value(self, taken_email):
         assert check(
-            {"email": "taken@craft.local"}, {"email": ["unique:users,email"]}
+            {"email": taken_email}, {"email": ["unique:users,email"]}
         ).fails()
 
     def test_unique_accepts_a_free_value(self):
+        free = f"free-{uuid.uuid4().hex[:8]}@craft.local"
         assert check(
-            {"email": "free@craft.local"}, {"email": ["unique:users,email"]}
+            {"email": free}, {"email": ["unique:users,email"]}
         ).passes()
 
-    def test_unique_can_ignore_the_current_record(self, seeded):
+    def test_unique_can_ignore_the_current_record(self, seeded, taken_email):
         rules = {"email": [f"unique:users,email,{seeded.get_attribute('id')},id"]}
-        assert check({"email": "taken@craft.local"}, rules).passes()
+        assert check({"email": taken_email}, rules).passes()
 
-    def test_exists(self):
+    def test_exists(self, taken_email):
         assert check(
-            {"email": "taken@craft.local"}, {"email": ["exists:users,email"]}
+            {"email": taken_email}, {"email": ["exists:users,email"]}
         ).passes()
+        ghost = f"ghost-{uuid.uuid4().hex[:8]}@craft.local"
         assert check(
-            {"email": "ghost@craft.local"}, {"email": ["exists:users,email"]}
+            {"email": ghost}, {"email": ["exists:users,email"]}
         ).fails()
 
 

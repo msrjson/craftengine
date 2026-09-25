@@ -2,6 +2,8 @@
 # Copyright (c) 2026 Antonio Santos <snarthost@gmail.com>
 # Licensed under the MIT License. See LICENSE in the project root.
 
+import uuid
+
 import pytest
 from craft.facades import DB, Config, Queue, Route
 from craft.orm.model import Model
@@ -13,6 +15,15 @@ from bootstrap.app import app, asgi_app
 
 # Global variable to test job execution
 JOB_EXECUTED_VAL = None
+
+
+def _unique(prefix: str) -> str:
+    """Return `prefix` with a suffix of its own.
+
+    Nothing is deleted between tests (NR-02), so a fixed email, slug, queue
+    or key would meet the row a previous test left behind.
+    """
+    return f"{prefix}-{uuid.uuid4().hex[:8]}"
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -103,14 +114,10 @@ def test_activerecord_and_relations():
             ),
         )
 
-    # Clean up previous records if any (sqlite in-memory or storage)
-    DB.statement("DELETE FROM posts")
-
-    DB.statement("DELETE FROM users")
-
     # 1. Create a user
+    email = f"{_unique('jane')}@example.com"
     user = User.create(
-        {"name": "Jane Doe", "email": "jane@example.com", "password": "secret_password", "is_admin": False}
+        {"name": "Jane Doe", "email": email, "password": "secret_password", "is_admin": False}
     )
     assert user.get_attribute("id") is not None
     assert user.get_attribute("name") == "Jane Doe"
@@ -138,10 +145,10 @@ def test_activerecord_and_relations():
     # 4. Test BelongsTo Relationship
     author = post1.user().first()
     assert author is not None
-    assert author.get_attribute("email") == "jane@example.com"
+    assert author.get_attribute("email") == email
 
-    # 5. Test ORM Scopes
-    published_posts = Post.query().scope("published").get()
+    # 5. Test ORM Scopes, over this user's posts only
+    published_posts = Post.query().scope("published").where("user_id", user.get_attribute("id")).get()
     assert len(published_posts) == 1
     assert published_posts[0].get_attribute("title") == "First Title"
 
@@ -169,8 +176,9 @@ def test_queue_json_serialization():
     global JOB_EXECUTED_VAL
     JOB_EXECUTED_VAL = None
 
-    # Clear jobs table
-    DB.statement("DELETE FROM jobs")
+    # A queue of this test's own: jobs other tests left behind are never
+    # claimed here, and the counts below see only this test's rows.
+    queue_name = _unique("json")
 
     # Set queue driver config to database dynamically
     config = app.make("config")
@@ -180,30 +188,30 @@ def test_queue_json_serialization():
     try:
         # Push job to database queue
         job = TestJob(999)
-        Queue.push(job)
+        Queue.push(job, queue_name)
 
         # Check that it is inserted in the jobs database table
-        result = DB.statement("SELECT * FROM jobs")
+        result = DB.statement("SELECT * FROM jobs WHERE queue = ?", [queue_name])
         rows = result.fetchall()
         assert len(rows) == 1
 
         # Verify it has JSON payload (non-pickle)
-        payload = rows[0].payload
+        payload = rows[0]["payload"]
         assert "job_class" in payload
         assert "TestJob" in payload
         assert "999" in payload  # checks val: 999 is stored
 
         # Run queue worker to process the job
         queue_mgr = app.make("queue")
-        processed = queue_mgr.work("default")
+        processed = queue_mgr.work(queue_name)
         assert processed is True
 
         # Verify job was executed
         assert JOB_EXECUTED_VAL == 999
 
-        # Verify job was deleted after execution
-        result_after = DB.statement("SELECT COUNT(*) FROM jobs")
-        assert result_after.fetchone()[0] == 0
+        # Verify the queue no longer holds the job after execution
+        result_after = DB.statement("SELECT COUNT(*) AS n FROM jobs WHERE queue = ?", [queue_name])
+        assert result_after.fetchone()["n"] == 0
 
     finally:
         # Restore original driver config
@@ -213,127 +221,88 @@ def test_queue_json_serialization():
 def test_queue_pop_reserves_the_job():
     # A claimed job must not be handed to a second worker, and a failed one
     # must come back with its claim released.
-    DB.statement("DELETE FROM jobs")
+    queue_name = _unique("reserve")
     config = app.make("config")
     original_driver = config.get("queue.connections.default.driver")
     config.set("queue.connections.default.driver", "database")
 
     try:
-        Queue.push(TestJob(1))
+        Queue.push(TestJob(1), queue_name)
         queue_mgr = app.make("queue")
 
-        record = queue_mgr.pop("default")
+        record = queue_mgr.pop(queue_name)
         assert record is not None
         assert record["attempts"] == 1
-        assert queue_mgr.pop("default") is None  # reserved — not re-claimable
+        assert queue_mgr.pop(queue_name) is None  # reserved, so not re-claimable
 
         # Releasing the reservation makes it claimable again.
         DB.statement("UPDATE jobs SET reserved_at = NULL WHERE id = ?", [record["id"]])
-        again = queue_mgr.pop("default")
+        again = queue_mgr.pop(queue_name)
         assert again is not None
         assert again["attempts"] == 2
     finally:
-        DB.statement("DELETE FROM jobs")
         config.set("queue.connections.default.driver", original_driver)
 
 
-def _restore_translations_and_modules_schema(app):
-    """Rebuild `translations`/`modules` to the real migrated shape.
-
-    `test_ai_native_subsystems` replaces both tables with ad-hoc, reduced
-    schemas to exercise DB-driven behavior in isolation. The shared in-memory
-    database is session-scoped, so leaving them reduced broke every later
-    test expecting the real schema — `test_subsystems_persistence.py` worked
-    around this for its own `modules` usage with an identical rebuild, but
-    anything running between this test and that one (alphabetically) still
-    saw the reduced table. Fix at the source instead of adding another
-    downstream workaround.
-    """
-    schema = app.make("schema")
-    for table in ("translations", "modules"):
-        DB.statement(f"DROP TABLE IF EXISTS {table}")
-    schema.create_table(
-        "translations",
-        lambda t: (
-            t.id(),
-            t.string("key"),
-            t.string("locale"),
-            t.text("value"),
-            t.timestamps(),
-        ),
-    )
-    schema.create_table(
-        "modules",
-        lambda t: (
-            t.id(),
-            t.string("name"),
-            t.string("slug").unique(),
-            t.boolean("enabled").default(True),
-            t.timestamps(),
-        ),
-    )
-
-
 def test_ai_native_subsystems():
-    from craft.facades import DB, Route
     from craft.support import __
 
-    # Drop existing tables to avoid test contamination from global seeders
-    DB.statement("DROP TABLE IF EXISTS translations")
-    DB.statement("DROP TABLE IF EXISTS modules")
-
-    try:
-        _test_ai_native_subsystems_body(__, Config, DB, Route)
-    finally:
-        _restore_translations_and_modules_schema(app)
-
-
-def _test_ai_native_subsystems_body(__, Config, DB, Route):
-    # 1. Test Bilingual dynamic DB and config translations
-    assert __("greeting") == "greeting"
+    # 1. Test Bilingual dynamic DB and config translations. Keys and the module
+    # slug are this test's own: it writes to the migrated `translations` and
+    # `modules` tables, which nothing ever empties (NR-02).
+    greeting = _unique("greeting")
+    assert __(greeting) == greeting
 
     # Config is shared for the whole session, so anything set here has to be
-    # cleared again — leaving `lang.pt.greeting` behind made every later test
-    # that reads a pt translation see this value instead of the real one.
-    Config.set("lang.pt.greeting", "Ola")
+    # cleared again.
+    Config.set(f"lang.pt.{greeting}", "Ola")
     try:
-        assert __("greeting", "pt") == "Ola"
+        assert __(greeting, "pt") == "Ola"
     finally:
-        Config.set("lang.pt.greeting", None)
+        Config.set(f"lang.pt.{greeting}", None)
 
-    # Create dummy translations table
-    DB.statement("CREATE TABLE translations (key text, locale text, value text)")
-    DB.statement("INSERT INTO translations (key, locale, value) VALUES ('welcome', 'en', 'Welcome to Craft')")
-    DB.statement("INSERT INTO translations (key, locale, value) VALUES ('welcome', 'es', 'Bienvenido a Craft')")
+    welcome = _unique("welcome")
+    for locale, value in (("en", "Welcome to Craft"), ("es", "Bienvenido a Craft")):
+        DB.statement(
+            "INSERT INTO translations (key, locale, value) VALUES (?, ?, ?)",
+            [welcome, locale, value],
+        )
 
-    assert __("welcome", "en") == "Welcome to Craft"
-    assert __("welcome", "es") == "Bienvenido a Craft"
+    assert __(welcome, "en") == "Welcome to Craft"
+    assert __(welcome, "es") == "Bienvenido a Craft"
 
     # 2. Test Dynamic Start/Stop Modules Routing
+    module = _unique("inventory")
+    try:
+        _assert_module_routing(module)
+    finally:
+        Config.set(f"modules.{module}.enabled", None)
+
+
+def _assert_module_routing(module: str) -> None:
     # Register a new route dynamically under a module
-    Route.get("/test-dynamic-module", lambda: "active").module("inventory")
+    path = f"/t/framework/{module}"
+    Route.get(path, lambda: "active").module(module)
 
     client = TestClient(asgi_app)
 
-    # By default, modules.inventory.enabled defaults to True (config check fallback)
-    response = client.get("/test-dynamic-module")
+    # With no row and no registration, `modules.<slug>.enabled` defaults to True
+    response = client.get(path)
     assert response.status_code == 200
     assert response.text == "active"
 
     # Disable module via config
-    Config.set("modules.inventory.enabled", False)
-    response = client.get("/test-dynamic-module")
-    assert response.status_code == 404
+    Config.set(f"modules.{module}.enabled", False)
+    assert client.get(path).status_code == 404
 
     # Re-enable module via config
-    Config.set("modules.inventory.enabled", True)
-    response = client.get("/test-dynamic-module")
-    assert response.status_code == 200
+    Config.set(f"modules.{module}.enabled", True)
+    assert client.get(path).status_code == 200
 
-    # Create modules table to test DB-driven start/stop
-    DB.statement("DROP TABLE IF EXISTS modules")
-    DB.statement("CREATE TABLE modules (slug text, enabled integer)")
-    DB.statement("INSERT INTO modules (slug, enabled) VALUES ('inventory', 0)")
+    # A row in the migrated `modules` table wins over config.
+    DB.statement(
+        "INSERT INTO modules (name, slug, enabled) VALUES (?, ?, ?)", [module, module, False]
+    )
 
     # The router reads module state through the ModuleManager, which caches it
     # for `cache_ttl` seconds. Writing the table with raw SQL goes behind the
@@ -341,42 +310,37 @@ def _test_ai_native_subsystems_body(__, Config, DB, Route):
     # cache has to be dropped explicitly. `enable()`/`disable()` do it on their
     # own.
     modules = app.make("module")
-    modules.forget_cached_state("inventory")
+    modules.forget_cached_state(module)
 
     # Disabled in DB
-    response = client.get("/test-dynamic-module")
-    assert response.status_code == 404
+    assert client.get(path).status_code == 404
 
     # Enabled in DB
-    DB.statement("UPDATE modules SET enabled = 1 WHERE slug = 'inventory'")
-    modules.forget_cached_state("inventory")
-    response = client.get("/test-dynamic-module")
+    DB.statement("UPDATE modules SET enabled = ? WHERE slug = ?", [True, module])
+    modules.forget_cached_state(module)
+    response = client.get(path)
     assert response.status_code == 200
     assert response.text == "active"
 
 
 def test_rbac_relationships_and_permissions():
-    from craft.facades import DB
-
     from tests.support.models import Permission, Role, User
 
-    # Clean tables
-    DB.statement("DELETE FROM permission_role")
-    DB.statement("DELETE FROM role_user")
-    DB.statement("DELETE FROM permissions")
-    DB.statement("DELETE FROM roles")
-    DB.statement("DELETE FROM users")
+    # Every name is this test's own: roles and permissions are unique by name
+    # and slug, and nothing is deleted between tests (NR-02).
+    role_slug, permission_slug = _unique("admin"), _unique("manage-users")
 
     # Create admin user
     user = User.create(
-        {"name": "Super User", "email": "superuser@example.com", "password": "secret_password", "is_admin": False}
+        {"name": "Super User", "email": f"{_unique('superuser')}@example.com",
+         "password": "secret_password", "is_admin": False}
     )
 
     # Create role
-    admin_role = Role.create({"name": "Administrator", "slug": "admin"})
+    admin_role = Role.create({"name": role_slug, "slug": role_slug})
 
     # Create permission
-    manage_users = Permission.create({"name": "Manage Users", "slug": "manage-users"})
+    manage_users = Permission.create({"name": permission_slug, "slug": permission_slug})
 
     # Associate role to user
     DB.statement(
@@ -393,14 +357,14 @@ def test_rbac_relationships_and_permissions():
     # Verify relationships
     user_roles = user.roles().get()
     assert user_roles.count() == 1
-    assert user_roles.first().get_attribute("slug") == "admin"
+    assert user_roles.first().get_attribute("slug") == role_slug
 
     role_perms = user_roles.first().permissions().get()
     assert role_perms.count() == 1
-    assert role_perms.first().get_attribute("slug") == "manage-users"
+    assert role_perms.first().get_attribute("slug") == permission_slug
 
     # Verify user has permission check
-    assert user.has_permission("manage-users") is True
+    assert user.has_permission(permission_slug) is True
     assert user.has_permission("non-existing-permission") is False
 
 
@@ -633,12 +597,13 @@ def test_framework_subsystems_modules_plugins_settings():
     from craft.facades import Module, Plugin, Setting
 
     # 1. Test ModuleManager
-    Module.register("billing", "Billing Module", "Manages payments and invoices", "2.0.0")
-    assert Module.is_enabled("billing") is True
-    Module.disable("billing")
-    assert Module.is_enabled("billing") is False
-    Module.enable("billing")
-    assert Module.is_enabled("billing") is True
+    billing = _unique("billing")
+    Module.register(billing, "Billing Module", "Manages payments and invoices", "2.0.0")
+    assert Module.is_enabled(billing) is True
+    Module.disable(billing)
+    assert Module.is_enabled(billing) is False
+    Module.enable(billing)
+    assert Module.is_enabled(billing) is True
 
     # 2. Test PluginManager
     hook_triggered = []
@@ -650,8 +615,9 @@ def test_framework_subsystems_modules_plugins_settings():
 
     # 3. Test SettingManager
     assert Setting.get("FRAMEWORK_NAME", "Craft") == "Craft"
-    Setting.set("site_title", "My Craft Application")
-    assert Setting.get("site_title") == "My Craft Application"
+    site_title = _unique("site_title")
+    Setting.set(site_title, "My Craft Application")
+    assert Setting.get(site_title) == "My Craft Application"
 
 
 def test_route_parameter_binding():

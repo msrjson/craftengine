@@ -107,7 +107,7 @@ def test_an_index_name_cannot_smuggle_sql():
     with pytest.raises(ValueError):
         compile_pg(lambda t: (
             t.string("slug"),
-            t.index_on(["slug"], name='x" ON t; DROP TABLE users; --'),
+            t.index_on(["slug"], name='x" ON t; DROP TABLE users; --'),  # nr02: hostile index name, refused before any SQL runs
         ))
 
 
@@ -115,7 +115,7 @@ def test_an_opclass_cannot_smuggle_sql():
     with pytest.raises(ValueError):
         compile_pg(lambda t: (
             t.jsonb("payload"),
-            t.gin_index("payload", ops="a); DROP TABLE users; --", name="p"),
+            t.gin_index("payload", ops="a); DROP TABLE users; --", name="p"),  # nr02: hostile operator class, refused before any SQL runs
         ))
 
 
@@ -160,7 +160,7 @@ def test_an_exclusion_constraint_guards_double_booking():
 
 def test_an_exclusion_operator_comes_from_a_fixed_set():
     with pytest.raises(ValueError, match="exclusion operator"):
-        Blueprint("things").exclude_with(("room_id", "; DROP TABLE users --"))
+        Blueprint("things").exclude_with(("room_id", "; DROP TABLE users --"))  # nr02: hostile column, refused before any SQL runs
 
 
 def test_no_exclusion_is_faked_on_a_driver_that_lacks_it():
@@ -230,7 +230,7 @@ def test_a_default_partition_is_the_backstop():
 
 def test_a_partition_name_cannot_smuggle_sql():
     with pytest.raises(ValueError):
-        Grammar("postgresql").compile_partition("events", 'x"; DROP TABLE users; --')
+        Grammar("postgresql").compile_partition("events", 'x"; DROP TABLE users; --')  # nr02: hostile partition name, refused before any SQL runs
 
 
 def test_partitioning_refuses_a_driver_without_it(migrated_database):
@@ -285,7 +285,7 @@ def test_a_migration_is_applied_as_one_unit(migrated_database, tmp_path):
         "    Schema.create_table('phase6_ok', lambda t: t.id(type='integer'))\n"
         "    raise RuntimeError('halfway')\n"
         "def down():\n"
-        "    Schema.drop_table('phase6_ok')\n",
+        "    Schema.drop_table('phase6_ok')\n",  # nr02: down() of a temporary migration, never run: rollback is refused
         encoding="utf-8",
     )
 

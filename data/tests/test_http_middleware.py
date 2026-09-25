@@ -3,6 +3,8 @@
 # Copyright (c) 2026 Antonio Santos <snarthost@gmail.com>
 # Licensed under the MIT License. See LICENSE in the project root.
 
+import uuid
+
 import pytest
 from starlette.testclient import TestClient
 
@@ -70,9 +72,9 @@ def client():
 def user(migrated_database):
     from tests.support.models import User
 
-    DB.statement("DELETE FROM users WHERE email = 'mw@craft.local'")
+    email = f"mw-{uuid.uuid4().hex[:8]}@craft.local"
     return User.create(
-        {"name": "MW", "email": "mw@craft.local", "password": "s3cret", "is_admin": False}
+        {"name": "MW", "email": email, "password": "s3cret", "is_admin": False}
     )
 
 
@@ -348,17 +350,17 @@ class TestAuthenticationAcrossRequests:
         token = csrf_for(client)
         assert client.post(
             "/t/login",
-            data={"email": "mw@craft.local", "password": "s3cret", "_token": token},
+            data={"email": user.get_attribute("email"), "password": "s3cret", "_token": token},
         ).json()["ok"] is True
 
         # The real proof: a *separate* request still knows who we are.
-        assert client.get("/t/whoami").json()["user"] == "mw@craft.local"
+        assert client.get("/t/whoami").json()["user"] == user.get_attribute("email")
 
     def test_wrong_password_does_not_authenticate(self, client, user):
         token = csrf_for(client)
         client.post(
             "/t/login",
-            data={"email": "mw@craft.local", "password": "wrong", "_token": token},
+            data={"email": user.get_attribute("email"), "password": "wrong", "_token": token},
         )
         assert client.get("/t/whoami").json()["user"] is None
 
@@ -366,9 +368,9 @@ class TestAuthenticationAcrossRequests:
         token = csrf_for(client)
         client.post(
             "/t/login",
-            data={"email": "mw@craft.local", "password": "s3cret", "_token": token},
+            data={"email": user.get_attribute("email"), "password": "s3cret", "_token": token},
         )
-        assert client.get("/t/whoami").json()["user"] == "mw@craft.local"
+        assert client.get("/t/whoami").json()["user"] == user.get_attribute("email")
 
         client.post("/t/logout", data={"_token": csrf_for(client)})
         assert client.get("/t/whoami").json()["user"] is None
@@ -377,18 +379,24 @@ class TestAuthenticationAcrossRequests:
         token = csrf_for(client)
         client.post(
             "/t/login",
-            data={"email": "mw@craft.local", "password": "s3cret", "_token": token},
+            data={"email": user.get_attribute("email"), "password": "s3cret", "_token": token},
         )
         stranger = TestClient(asgi_app)
         assert stranger.get("/t/whoami").json()["user"] is None
 
     def test_a_deleted_user_does_not_stay_authenticated(self, client, user):
+        """The session keeps only the user id; once no row answers to it, the
+        next request is a guest's. The row is moved to an id no sequence ever
+        issues (its negation) instead of being deleted, which is the same
+        condition for the session without destroying a record (NR-02)."""
         token = csrf_for(client)
         client.post(
             "/t/login",
-            data={"email": "mw@craft.local", "password": "s3cret", "_token": token},
+            data={"email": user.get_attribute("email"), "password": "s3cret", "_token": token},
         )
-        DB.statement("DELETE FROM users WHERE email = 'mw@craft.local'")
+        assert client.get("/t/whoami").json()["user"] == user.get_attribute("email")
+
+        DB.statement("UPDATE users SET id = -id WHERE id = ?", [user.get_attribute("id")])
         assert client.get("/t/whoami").json()["user"] is None
 
     def test_login_rotates_the_session_id(self, client, user):
@@ -398,7 +406,7 @@ class TestAuthenticationAcrossRequests:
         token = csrf_for(client)
         after = client.post(
             "/t/login",
-            data={"email": "mw@craft.local", "password": "s3cret", "_token": token},
+            data={"email": user.get_attribute("email"), "password": "s3cret", "_token": token},
         )
         assert after.cookies.get("craft_session") != cookie_before
 

@@ -183,6 +183,14 @@ full policy (categories to use, what counts as security-relevant, how
 
 ### Changed
 
+- The test suite no longer deletes, truncates or drops anything. About 190 statements across
+  36 files were replaced by isolation through unique data (per-test emails, slugs, IPs,
+  queue names, scratch tables with a session suffix); tests of delete APIs themselves run on
+  a private in-memory SQLite. `tests/test_fixture_safety.py` fails on any destructive
+  statement in `tests/` unless the line carries a justified `# nr02:` comment. On
+  PostgreSQL, `conftest.py` creates a fresh database per session (never dropped) instead of
+  exiting, and still refuses to start while that scan finds anything. The CI job sets
+  `DB_SSLMODE: disable` for its TLS-less service.
 - A model without `__table__` infers its table with the rule the generators use
   (`Category` -> `categories`, `BlogPost` -> `blog_posts`, `Address` -> `addresses`), shared
   from the new `craft.support.naming`. It used to lowercase the class name and add "s"

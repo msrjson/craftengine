@@ -3,6 +3,7 @@
 # Copyright (c) 2026 Antonio Santos <snarthost@gmail.com>
 # Licensed under the MIT License. See LICENSE in the project root.
 
+import uuid
 from typing import Any
 
 import pytest
@@ -13,32 +14,57 @@ from craft.orm.tenancy import TenantManager
 from craft.orm.tenant_scoped import TenantScoped
 
 
+#: Nothing is dropped between tests (NR-02): the scratch tables carry a
+#: suffix of this module's own and are built once.
+_SUFFIX = uuid.uuid4().hex[:8]
+TICKETS = f"tracking_tickets_{_SUFFIX}"
+INVOICES = f"tracking_invoices_{_SUFFIX}"
+
+
 class Ticket(Model):
-    __table__ = "tracking_tickets"
+    __table__ = TICKETS
     fillable = ["title", "status"]
     casts = {"meta": "json"}
 
 
 class Invoice(TenantScoped, Model):
-    __table__ = "tracking_invoices"
+    __table__ = INVOICES
     fillable = ["number", "tenant_id"]
 
 
-@pytest.fixture(autouse=True)
+@pytest.fixture(scope="module", autouse=True)
 def tables(migrated_database):
     schema = migrated_database.make("schema")
-    for table in ("tracking_tickets", "tracking_invoices"):
-        schema.drop_table(table)
-    schema.create_table("tracking_tickets", lambda t: (
+    schema.create_table(TICKETS, lambda t: (
         t.id(), t.string("title").nullable(), t.string("status").nullable(),
         t.text("meta").nullable(), t.timestamps(),
     ))
-    schema.create_table("tracking_invoices", lambda t: (
+    schema.create_table(INVOICES, lambda t: (
         t.id(), t.string("number").nullable(), t.string("tenant_id").nullable(), t.timestamps(),
     ))
-    yield
-    for table in ("tracking_tickets", "tracking_invoices"):
-        schema.drop_table(table)
+
+
+@pytest.fixture
+def private_db():
+    """Bind the container's `db` to a private in-memory SQLite for one test.
+
+    The cross-tenant delete probe issues a real `DELETE`; if the guard ever
+    regressed it would destroy a row, so it never runs on the shared database.
+    """
+    from craft.orm.db import DatabaseManager
+
+    container = Container.getInstance()
+    original = container.make("db")
+    db = DatabaseManager(config={"driver": "sqlite", "database": ":memory:"})
+    db.statement(
+        f"CREATE TABLE {INVOICES} (id INTEGER PRIMARY KEY AUTOINCREMENT, number TEXT, "
+        "tenant_id TEXT, created_at TEXT, updated_at TEXT)"
+    )
+    container.instance("db", db)
+    try:
+        yield db
+    finally:
+        container.instance("db", original)
 
 
 def _capture_statements(monkeypatch: pytest.MonkeyPatch) -> list[str]:
@@ -103,10 +129,11 @@ def test_update_never_reaches_a_row_of_another_tenant() -> None:
         assert Invoice.find(victim.id).number == "B-1"
 
 
-def test_delete_never_reaches_a_row_of_another_tenant() -> None:
+def test_delete_never_reaches_a_row_of_another_tenant(private_db: Any) -> None:
     with TenantManager().scope("tenant-b"):
         victim = Invoice.create({"number": "B-2"})
     with TenantManager().scope("tenant-a"):
-        Invoice({"id": victim.id, "tenant_id": "tenant-a"}).delete()
+        Invoice({"id": victim.id, "tenant_id": "tenant-a"}).delete()  # nr02: private in-memory SQLite, not the shared database
     with TenantManager().scope("tenant-b"):
         assert Invoice.find(victim.id) is not None
+    assert private_db.statement(f"SELECT COUNT(*) AS n FROM {INVOICES}").fetchone()["n"] == 1

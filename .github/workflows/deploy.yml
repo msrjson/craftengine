@@ -53,8 +53,10 @@ jobs:
           python -m pytest --cov=engine --cov-report=term-missing
 
   test-postgres:
-    # This job intentionally fails closed in tests/conftest.py until every
-    # legacy fixture uses non-destructive isolation. Never bypass that guard.
+    # tests/conftest.py creates a fresh database for the session through the
+    # one named below (never dropped - the service container is thrown away)
+    # and refuses to run while any test deletes, truncates or drops
+    # (tests/test_fixture_safety.py). Never bypass that guard.
     name: Pytest (PostgreSQL) — Python 3.14
     runs-on: ubuntu-latest
 
@@ -96,9 +98,12 @@ jobs:
           CRAFT_TEST_DB: pgsql
           DB_HOST: 127.0.0.1
           DB_PORT: 5432
+          # Only the database the session's own database is created through.
           DB_DATABASE: craft_validation
           DB_USERNAME: craft
           DB_PASSWORD: secretpassword
+          # The service container has no TLS; the application default is `require`.
+          DB_SSLMODE: disable
         run: |
           python -m pytest --cov=engine --cov-report=term-missing
 

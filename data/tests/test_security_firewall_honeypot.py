@@ -9,6 +9,7 @@ Category: Core Framework Tests (Security).
 from __future__ import annotations
 
 import hashlib
+import uuid
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -34,6 +35,24 @@ def _make_scope(path: str = "/", query_string: bytes = b"", client_ip: str = "12
     }
 
 
+def _unique_ip() -> str:
+    """Return a single IPv4 address no other test uses in this session.
+
+    Firewall rules, security events and cooldowns persist for the whole session
+    (tests never delete), so each test owns its address. Single addresses live
+    in 198.18.0.0/15, disjoint from the CIDR ranges `_unique_cidr` hands out.
+    """
+    raw = uuid.uuid4().bytes
+    return "198.%d.%d.%d" % (18 + raw[0] % 2, raw[1], 1 + raw[2] % 254)
+
+
+def _unique_cidr() -> tuple[str, str]:
+    """Return a unique /24 inside 100.64.0.0/10 and one address within it."""
+    raw = uuid.uuid4().bytes
+    prefix = "100.%d.%d" % (64 + raw[0] % 64, raw[1])
+    return f"{prefix}.0/24", f"{prefix}.42"
+
+
 def test_honeypot_target_detection():
     honeypot = HoneypotService(app)
     assert honeypot.is_honeypot_target("admin") is True
@@ -45,7 +64,7 @@ def test_honeypot_target_detection():
 
 def test_honeypot_trap_logs_and_blocks():
     honeypot = HoneypotService(app)
-    ip = "198.51.100.42"
+    ip = _unique_ip()
 
     result = honeypot.record_attempt(ip=ip, username="root", user_agent="curl/7.68.0")
     assert result["status"] == "HONEYPOT"
@@ -63,8 +82,8 @@ def test_honeypot_trap_logs_and_blocks():
 
 def test_brute_force_cooldown_escalation():
     honeypot = HoneypotService(app)
-    ip = "203.0.113.10"
-    username = "attacker_target"
+    ip = _unique_ip()
+    username = f"attacker_target_{uuid.uuid4().hex[:8]}"
 
     # 4 failed attempts should not trigger full cooldown block
     for _ in range(4):
@@ -110,7 +129,7 @@ def test_firewall_threat_signature_detection():
 
 def test_firewall_whitelist_and_blacklist():
     fw = Firewall(app)
-    ip = "192.0.2.55"
+    ip = _unique_ip()
 
     assert fw.is_whitelisted(ip) is False
     assert fw.is_blacklisted(ip) is False
@@ -126,7 +145,7 @@ def test_firewall_whitelist_and_blacklist():
 
 def test_firewall_reputation_auto_blacklisting():
     fw = Firewall(app)
-    ip = "198.51.100.99"
+    ip = _unique_ip()
 
     # 1. First threat: 50 points
     is_blacklisted = fw.record_threat(ip, "SQL_INJECTION_DETECTED", 50, "/login", "POST")
@@ -142,7 +161,7 @@ def test_firewall_reputation_auto_blacklisting():
 
 def test_firewall_middleware_blocks_blacklisted_ip():
     fw = Firewall(app)
-    ip = "192.0.2.88"
+    ip = _unique_ip()
     fw.blacklist_ip(ip, reason="Blacklisted test IP")
 
     mw = FirewallMiddleware(app)
@@ -154,7 +173,7 @@ def test_firewall_middleware_blocks_blacklisted_ip():
 
 def test_firewall_middleware_blocks_malicious_query():
     mw = FirewallMiddleware(app)
-    scope = _make_scope(path="/search", query_string=b"q=UNION+SELECT+1,2,3--", client_ip="192.0.2.90")
+    scope = _make_scope(path="/search", query_string=b"q=UNION+SELECT+1,2,3--", client_ip=_unique_ip())
     request = StarletteRequest(scope)
 
     with pytest.raises(AuthorizationException):
@@ -164,12 +183,12 @@ def test_firewall_middleware_blocks_malicious_query():
 def test_authenticate_api_token_with_hashed_token():
     from tests.support.models import User
 
-    raw_token = "secret-super-api-token-1234"
+    raw_token = f"secret-super-api-token-{uuid.uuid4().hex}"
     hashed_token = hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
 
     user = User.force_create({
         "name": "API Service User",
-        "email": "service@craft.local",
+        "email": f"service_{uuid.uuid4().hex[:8]}@craft.local",
         "password": "hashed_pw",
         "api_token": hashed_token,
     })
@@ -197,68 +216,52 @@ def test_security_facades_exposed():
 
 def test_cidr_blacklist_matches_an_ip_within_the_range():
     firewall = Firewall(app)
-    DB.statement("DELETE FROM firewall_rules WHERE ip_address = ?", ["203.0.113.0/24"])
-    try:
-        DB.table("firewall_rules").insert({
-            "ip_address": "203.0.113.0/24", "status": "blacklist", "reputation_score": 100,
-        })
-        assert firewall.is_blacklisted("203.0.113.42") is True
-        assert firewall.is_blacklisted("198.51.100.1") is False
-    finally:
-        DB.statement("DELETE FROM firewall_rules WHERE ip_address = ?", ["203.0.113.0/24"])
+    cidr, inside_ip = _unique_cidr()
+    DB.table("firewall_rules").insert({
+        "ip_address": cidr, "status": "blacklist", "reputation_score": 100,
+    })
+    assert firewall.is_blacklisted(inside_ip) is True
+    assert firewall.is_blacklisted(_unique_ip()) is False
 
 
 def test_cidr_whitelist_matches_an_ip_within_the_range():
     firewall = Firewall(app)
-    DB.statement("DELETE FROM firewall_rules WHERE ip_address = ?", ["10.0.0.0/8"])
-    try:
-        DB.table("firewall_rules").insert({
-            "ip_address": "10.0.0.0/8", "status": "whitelist", "reputation_score": 0,
-        })
-        assert firewall.is_whitelisted("10.1.2.3") is True
-        assert firewall.is_whitelisted("11.1.2.3") is False
-    finally:
-        DB.statement("DELETE FROM firewall_rules WHERE ip_address = ?", ["10.0.0.0/8"])
+    cidr, inside_ip = _unique_cidr()
+    DB.table("firewall_rules").insert({
+        "ip_address": cidr, "status": "whitelist", "reputation_score": 0,
+    })
+    assert firewall.is_whitelisted(inside_ip) is True
+    assert firewall.is_whitelisted(_unique_ip()) is False
 
 
 def test_reputation_score_decays_with_elapsed_time(monkeypatch: pytest.MonkeyPatch):
     firewall = Firewall(app)
-    ip = "198.51.100.77"
-    DB.statement("DELETE FROM firewall_rules WHERE ip_address = ?", [ip])
-    try:
-        old_event = (datetime.now(timezone.utc) - timedelta(days=10)).strftime("%Y-%m-%d %H:%M:%S")
-        DB.table("firewall_rules").insert({
-            "ip_address": ip, "status": "monitored", "reputation_score": 80,
-            "last_event_at": old_event,
-        })
-        # 5 points/day (default) * 10 days = 50 decayed off 80 -> 30.
-        assert firewall.get_reputation_score(ip) == 30
-    finally:
-        DB.statement("DELETE FROM firewall_rules WHERE ip_address = ?", [ip])
+    ip = _unique_ip()
+    old_event = (datetime.now(timezone.utc) - timedelta(days=10)).strftime("%Y-%m-%d %H:%M:%S")
+    DB.table("firewall_rules").insert({
+        "ip_address": ip, "status": "monitored", "reputation_score": 80,
+        "last_event_at": old_event,
+    })
+    # 5 points/day (default) * 10 days = 50 decayed off 80 -> 30.
+    assert firewall.get_reputation_score(ip) == 30
 
 
 def test_reputation_score_decay_floors_at_zero():
     firewall = Firewall(app)
-    ip = "198.51.100.88"
-    DB.statement("DELETE FROM firewall_rules WHERE ip_address = ?", [ip])
-    try:
-        old_event = (datetime.now(timezone.utc) - timedelta(days=365)).strftime("%Y-%m-%d %H:%M:%S")
-        DB.table("firewall_rules").insert({
-            "ip_address": ip, "status": "monitored", "reputation_score": 50,
-            "last_event_at": old_event,
-        })
-        assert firewall.get_reputation_score(ip) == 0
-    finally:
-        DB.statement("DELETE FROM firewall_rules WHERE ip_address = ?", [ip])
+    ip = _unique_ip()
+    old_event = (datetime.now(timezone.utc) - timedelta(days=365)).strftime("%Y-%m-%d %H:%M:%S")
+    DB.table("firewall_rules").insert({
+        "ip_address": ip, "status": "monitored", "reputation_score": 50,
+        "last_event_at": old_event,
+    })
+    assert firewall.get_reputation_score(ip) == 0
 
 
 def test_shadow_mode_records_but_does_not_block(monkeypatch: pytest.MonkeyPatch):
     config = app.make("config")
     original = config.get("firewall.shadow_mode")
     config.set("firewall.shadow_mode", True)
-    ip = "198.51.100.99"
-    DB.statement("DELETE FROM firewall_rules WHERE ip_address = ?", [ip])
-    DB.statement("DELETE FROM security_events WHERE ip_address = ?", [ip])
+    ip = _unique_ip()
     try:
         mw = FirewallMiddleware(app)
         request = StarletteRequest(_make_scope(path="/", query_string=b"q=<script>alert(1)</script>", client_ip=ip))
@@ -269,16 +272,13 @@ def test_shadow_mode_records_but_does_not_block(monkeypatch: pytest.MonkeyPatch)
         assert len(events) >= 1, "shadow mode must still record the would-be threat"
     finally:
         config.set("firewall.shadow_mode", original)
-        DB.statement("DELETE FROM firewall_rules WHERE ip_address = ?", [ip])
-        DB.statement("DELETE FROM security_events WHERE ip_address = ?", [ip])
 
 
 def test_a_health_exempt_path_skips_the_firewall_entirely():
     config = app.make("config")
     original = config.get("firewall.health_exempt_paths")
     config.set("firewall.health_exempt_paths", "/healthz")
-    ip = "203.0.113.200"
-    DB.statement("DELETE FROM firewall_rules WHERE ip_address = ?", [ip])
+    ip = _unique_ip()
     try:
         DB.table("firewall_rules").insert({"ip_address": ip, "status": "blacklist", "reputation_score": 100})
         mw = FirewallMiddleware(app)
@@ -288,20 +288,15 @@ def test_a_health_exempt_path_skips_the_firewall_entirely():
         assert len(called) == 1, "a health-exempt path must skip even a blacklisted IP's block"
     finally:
         config.set("firewall.health_exempt_paths", original)
-        DB.statement("DELETE FROM firewall_rules WHERE ip_address = ?", [ip])
 
 
 def test_a_non_exempt_path_still_enforces_the_blacklist():
-    ip = "203.0.113.201"
-    DB.statement("DELETE FROM firewall_rules WHERE ip_address = ?", [ip])
-    try:
-        DB.table("firewall_rules").insert({"ip_address": ip, "status": "blacklist", "reputation_score": 100})
-        mw = FirewallMiddleware(app)
-        request = StarletteRequest(_make_scope(path="/dashboard", client_ip=ip))
-        with pytest.raises(AuthorizationException):
-            mw.handle(request, lambda req: PlainTextResponse("OK"))
-    finally:
-        DB.statement("DELETE FROM firewall_rules WHERE ip_address = ?", [ip])
+    ip = _unique_ip()
+    DB.table("firewall_rules").insert({"ip_address": ip, "status": "blacklist", "reputation_score": 100})
+    mw = FirewallMiddleware(app)
+    request = StarletteRequest(_make_scope(path="/dashboard", client_ip=ip))
+    with pytest.raises(AuthorizationException):
+        mw.handle(request, lambda req: PlainTextResponse("OK"))
 
 
 # -- Slice 0 item 0.11 / Slice 2 step 7: atomic sliding-window cooldown --------
@@ -317,98 +312,62 @@ def test_concurrent_failed_attempts_are_not_lost_to_a_race():
     produce (two calls both returning 2, for instance).
     """
     honeypot = HoneypotService(app)
-    ip = "203.0.113.50"
-    DB.statement("DELETE FROM auth_cooldowns WHERE identifier_value = ?", [ip])
-    try:
-        now_str = honeypot._format_time(datetime.now(timezone.utc))
-        results = [honeypot._atomic_increment_cooldown(ip, "ip", now_str) for _ in range(10)]
-        assert results == list(range(1, 11)), "an atomic increment must never skip or repeat a count"
-    finally:
-        DB.statement("DELETE FROM auth_cooldowns WHERE identifier_value = ?", [ip])
+    ip = _unique_ip()
+    now_str = honeypot._format_time(datetime.now(timezone.utc))
+    results = [honeypot._atomic_increment_cooldown(ip, "ip", now_str) for _ in range(10)]
+    assert results == list(range(1, 11)), "an atomic increment must never skip or repeat a count"
 
 
 def test_username_is_stored_hashed_not_in_clear():
     honeypot = HoneypotService(app)
-    ip = "203.0.113.51"
-    username = "victim@example.com"
-    DB.statement("DELETE FROM auth_cooldowns WHERE identifier_value = ?", [ip])
-    DB.statement(
-        "DELETE FROM auth_cooldowns WHERE identifier_type = 'username' AND identifier_value = ?",
-        [honeypot._hash_username(username)],
-    )
-    try:
-        honeypot.record_attempt(ip=ip, username=username, success=False)
-        row = DB.table("auth_cooldowns").where("identifier_type", "username").where(
-            "identifier_value", honeypot._hash_username(username)
-        ).first()
-        assert row is not None, "the hashed username must be the lookup key"
-        stored_values = [
-            r["identifier_value"]
-            for r in DB.table("auth_cooldowns").where("identifier_type", "username").get()
-        ]
-        assert username not in stored_values, "the raw username must never be stored"
-    finally:
-        DB.statement("DELETE FROM auth_cooldowns WHERE identifier_value = ?", [ip])
-        DB.statement(
-            "DELETE FROM auth_cooldowns WHERE identifier_type = 'username' AND identifier_value = ?",
-            [honeypot._hash_username(username)],
-        )
+    ip = _unique_ip()
+    username = f"victim_{uuid.uuid4().hex[:8]}@example.com"
+    honeypot.record_attempt(ip=ip, username=username, success=False)
+    row = DB.table("auth_cooldowns").where("identifier_type", "username").where(
+        "identifier_value", honeypot._hash_username(username)
+    ).first()
+    assert row is not None, "the hashed username must be the lookup key"
+    stored_values = [
+        r["identifier_value"]
+        for r in DB.table("auth_cooldowns").where("identifier_type", "username").get()
+    ]
+    assert username not in stored_values, "the raw username must never be stored"
 
 
 def test_check_cooldown_still_finds_a_hashed_username():
     honeypot = HoneypotService(app)
-    ip = "203.0.113.52"
-    username = "target@example.com"
-    DB.statement("DELETE FROM auth_cooldowns WHERE identifier_value = ?", [ip])
-    DB.statement(
-        "DELETE FROM auth_cooldowns WHERE identifier_type = 'username' AND identifier_value = ?",
-        [honeypot._hash_username(username)],
-    )
-    try:
-        for _ in range(HoneypotService.MAX_FAILED_ATTEMPTS):
-            honeypot.record_attempt(ip=ip, username=username, success=False)
-        is_blocked, _, _ = honeypot.check_cooldown("198.51.100.1", username)
-        assert is_blocked is True, "the cooldown lookup must still find the hashed username"
-    finally:
-        DB.statement("DELETE FROM auth_cooldowns WHERE identifier_value = ?", [ip])
-        DB.statement(
-            "DELETE FROM auth_cooldowns WHERE identifier_type = 'username' AND identifier_value = ?",
-            [honeypot._hash_username(username)],
-        )
+    ip = _unique_ip()
+    username = f"target_{uuid.uuid4().hex[:8]}@example.com"
+    for _ in range(HoneypotService.MAX_FAILED_ATTEMPTS):
+        honeypot.record_attempt(ip=ip, username=username, success=False)
+    is_blocked, _, _ = honeypot.check_cooldown(_unique_ip(), username)
+    assert is_blocked is True, "the cooldown lookup must still find the hashed username"
 
 
 def test_a_failure_outside_the_window_resets_the_streak_instead_of_accumulating():
     honeypot = HoneypotService(app)
-    ip = "203.0.113.53"
-    DB.statement("DELETE FROM auth_cooldowns WHERE identifier_value = ?", [ip])
-    try:
-        stale = honeypot._format_time(
-            datetime.now(timezone.utc) - timedelta(minutes=HoneypotService.WINDOW_MINUTES + 5)
-        )
-        DB.table("auth_cooldowns").insert({
-            "identifier_type": "ip", "identifier_value": ip,
-            "failed_attempts": HoneypotService.MAX_FAILED_ATTEMPTS - 1,
-            "blocked_until": stale, "created_at": stale, "updated_at": stale,
-        })
-        now_str = honeypot._format_time(datetime.now(timezone.utc))
-        attempts = honeypot._atomic_increment_cooldown(ip, "ip", now_str)
-        assert attempts == 1, "a failure outside the window must reset the streak, not add to a stale one"
-    finally:
-        DB.statement("DELETE FROM auth_cooldowns WHERE identifier_value = ?", [ip])
+    ip = _unique_ip()
+    stale = honeypot._format_time(
+        datetime.now(timezone.utc) - timedelta(minutes=HoneypotService.WINDOW_MINUTES + 5)
+    )
+    DB.table("auth_cooldowns").insert({
+        "identifier_type": "ip", "identifier_value": ip,
+        "failed_attempts": HoneypotService.MAX_FAILED_ATTEMPTS - 1,
+        "blocked_until": stale, "created_at": stale, "updated_at": stale,
+    })
+    now_str = honeypot._format_time(datetime.now(timezone.utc))
+    attempts = honeypot._atomic_increment_cooldown(ip, "ip", now_str)
+    assert attempts == 1, "a failure outside the window must reset the streak, not add to a stale one"
 
 
 def test_a_failure_inside_the_window_still_accumulates():
     honeypot = HoneypotService(app)
-    ip = "203.0.113.54"
-    DB.statement("DELETE FROM auth_cooldowns WHERE identifier_value = ?", [ip])
-    try:
-        recent = honeypot._format_time(datetime.now(timezone.utc) - timedelta(minutes=1))
-        DB.table("auth_cooldowns").insert({
-            "identifier_type": "ip", "identifier_value": ip, "failed_attempts": 2,
-            "blocked_until": recent, "created_at": recent, "updated_at": recent,
-        })
-        now_str = honeypot._format_time(datetime.now(timezone.utc))
-        attempts = honeypot._atomic_increment_cooldown(ip, "ip", now_str)
-        assert attempts == 3, "a failure inside the window must add to the existing streak"
-    finally:
-        DB.statement("DELETE FROM auth_cooldowns WHERE identifier_value = ?", [ip])
+    ip = _unique_ip()
+    recent = honeypot._format_time(datetime.now(timezone.utc) - timedelta(minutes=1))
+    DB.table("auth_cooldowns").insert({
+        "identifier_type": "ip", "identifier_value": ip, "failed_attempts": 2,
+        "blocked_until": recent, "created_at": recent, "updated_at": recent,
+    })
+    now_str = honeypot._format_time(datetime.now(timezone.utc))
+    attempts = honeypot._atomic_increment_cooldown(ip, "ip", now_str)
+    assert attempts == 3, "a failure inside the window must add to the existing streak"

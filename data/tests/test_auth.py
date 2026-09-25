@@ -83,15 +83,14 @@ class TestAuthManager:
 
     @pytest.fixture
     def user(self):
+        import uuid
+
         from tests.support.models import User
 
-        from craft.facades import DB
-
-        DB.statement("DELETE FROM users WHERE email = 'auth-test@craft.local'")
         return User.create(
             {
                 "name": "Auth Test",
-                "email": "auth-test@craft.local",
+                "email": f"auth-test-{uuid.uuid4().hex[:8]}@craft.local",
                 "password": "correct-horse",
                 "is_admin": False,
             }
@@ -108,14 +107,14 @@ class TestAuthManager:
 
     def test_attempt_succeeds_with_valid_credentials(self, auth, user):
         assert auth.attempt(
-            {"email": "auth-test@craft.local", "password": "correct-horse"}
+            {"email": user.get_attribute("email"), "password": "correct-horse"}
         ) is True
         assert auth.check() is True
-        assert auth.user().get_attribute("email") == "auth-test@craft.local"
+        assert auth.user().get_attribute("email") == user.get_attribute("email")
 
     def test_attempt_fails_with_a_wrong_password(self, auth, user):
         assert auth.attempt(
-            {"email": "auth-test@craft.local", "password": "nope"}
+            {"email": user.get_attribute("email"), "password": "nope"}
         ) is False
         assert auth.guest() is True
 
@@ -123,10 +122,10 @@ class TestAuthManager:
         assert auth.attempt({"email": "ghost@craft.local", "password": "x"}) is False
 
     def test_attempt_without_a_password_fails(self, auth, user):
-        assert auth.attempt({"email": "auth-test@craft.local"}) is False
+        assert auth.attempt({"email": user.get_attribute("email")}) is False
 
     def test_logout_clears_the_user(self, auth, user):
-        auth.attempt({"email": "auth-test@craft.local", "password": "correct-horse"})
+        auth.attempt({"email": user.get_attribute("email"), "password": "correct-horse"})
         auth.logout()
         assert auth.check() is False
 
@@ -142,10 +141,10 @@ class TestAuthManager:
         an exact alias of `validate()` under a name that promises a login.
         """
         assert auth.once(
-            {"email": "auth-test@craft.local", "password": "correct-horse"}
+            {"email": user.get_attribute("email"), "password": "correct-horse"}
         ) is True
         assert auth.check() is True
-        assert auth.user().get_attribute("email") == "auth-test@craft.local"
+        assert auth.user().get_attribute("email") == user.get_attribute("email")
 
     def test_once_does_not_persist_to_the_session(self, auth, user):
         """"Without persisting" is about the session, not about the request:
@@ -165,13 +164,13 @@ class TestAuthManager:
 
         session = RecordingSession()
         auth.set_session(session)
-        auth.once({"email": "auth-test@craft.local", "password": "correct-horse"})
+        auth.once({"email": user.get_attribute("email"), "password": "correct-horse"})
 
         assert session.writes == []
 
     def test_once_rejects_bad_credentials(self, auth, user):
         assert auth.once(
-            {"email": "auth-test@craft.local", "password": "wrong"}
+            {"email": user.get_attribute("email"), "password": "wrong"}
         ) is False
         assert auth.check() is False
 

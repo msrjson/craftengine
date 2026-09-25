@@ -21,6 +21,7 @@ row-level security — and say which, so a skip is never mistaken for a pass.
 
 import threading
 import time
+import uuid
 
 import pytest
 
@@ -51,10 +52,25 @@ def requires(extension: str) -> None:
         pytest.skip(f"{extension} is not available on this server: {exc}")
 
 
-def table(schema, name, build):
-    """A throwaway table for one test, dropped whether or not it passes."""
-    schema.drop_if_exists(name)
-    schema.create_table(name, build)
+# NR-02: nothing here is dropped or deleted. Every object a test creates carries
+# this session suffix, so it never collides with a previous run's leftovers and
+# isolation comes from uniqueness instead of cleanup.
+_SUFFIX = uuid.uuid4().hex[:8]
+
+
+def unique(base: str) -> str:
+    """`base` made unique to this test session."""
+    return f"{base}_{_SUFFIX}"
+
+
+def table(schema, base, build):
+    """A table private to this session, created once and kept.
+
+    `build` receives the blueprint and the unique table name, so index and
+    constraint names can be derived from it and stay unique as well.
+    """
+    name = unique(base)
+    schema.create_table(name, lambda t: build(t, name))
     return name
 
 
@@ -95,11 +111,11 @@ def test_installing_an_unknown_extension_is_refused_before_any_sql():
 
 @pytest.fixture(scope="module")
 def accounts(schema):
-    name = table(schema, "pg_accounts", lambda t: (
+    name = table(schema, "pg_accounts", lambda t, name: (
         t.id(type="integer"),
         t.string("name"),
         t.jsonb("meta"),
-        t.gin_index("meta", ops="jsonb_path_ops", name="pg_accounts_meta_gin"),
+        t.gin_index("meta", ops="jsonb_path_ops", name=f"{name}_meta_gin"),
     ))
     rows = [
         ("acme", '{"plan":"pro","usage":{"seats":25},"flags":["beta"]}'),
@@ -108,11 +124,10 @@ def accounts(schema):
     ]
     for account_name, meta in rows:
         DB.statement(
-            "INSERT INTO pg_accounts (name, meta) VALUES (?, ?::jsonb)",
+            f"INSERT INTO {name} (name, meta) VALUES (?, ?::jsonb)",
             [account_name, meta],
         )
-    yield name
-    schema.drop_if_exists(name)
+    return name
 
 
 def names(builder) -> list:
@@ -157,14 +172,13 @@ def test_the_gin_index_can_serve_a_containment_query(accounts):
         f"SELECT * FROM {accounts} WHERE meta @> '{{\"plan\":\"pro\"}}'::jsonb",
         no_seqscan=True,
     )
-    assert "pg_accounts_meta_gin" in plan
+    assert f"{accounts}_meta_gin" in plan
 
 
 def test_a_hostile_json_path_stays_a_binding(accounts):
     """The path is bound as a text array; nothing of it reaches the SQL text."""
-    query = DB.table(accounts).where_json_key(
-        "meta", "usage.seats'; DROP TABLE pg_accounts; --", "=", "25"
-    )
+    hostile = f"usage.seats'; DROP TABLE {accounts}; --"  # nr02: hostile payload bound as a parameter, never executed as SQL
+    query = DB.table(accounts).where_json_key("meta", hostile, "=", "25")
     assert list(query.get()) == []
     assert DB.table(accounts).count() == 3
 
@@ -174,21 +188,20 @@ def test_a_hostile_json_path_stays_a_binding(accounts):
 
 @pytest.fixture(scope="module")
 def posts(schema):
-    name = table(schema, "pg_posts", lambda t: (
+    name = table(schema, "pg_posts", lambda t, name: (
         t.id(type="integer"),
         t.string("name"),
         t.array("tags", of="text"),
         t.timestamps(),
-        t.gin_index("tags", name="pg_posts_tags_gin"),
+        t.gin_index("tags", name=f"{name}_tags_gin"),
     ))
     for post_name, tags in [
         ("one", ["python", "postgres"]),
         ("two", ["python", "rust", "wasm"]),
         ("three", ["go"]),
     ]:
-        DB.statement("INSERT INTO pg_posts (name, tags) VALUES (?, ?)", [post_name, tags])
-    yield name
-    schema.drop_if_exists(name)
+        DB.statement(f"INSERT INTO {name} (name, tags) VALUES (?, ?)", [post_name, tags])
+    return name
 
 
 def test_array_contains_requires_every_element(posts):
@@ -207,9 +220,18 @@ def test_array_length_counts_elements(posts):
     assert names(DB.table(posts).where_array_length("tags", ">", 2)) == ["two"]
 
 
-def test_an_array_round_trips_through_a_model(posts):
+def test_an_array_round_trips_through_a_model(schema):
+    # A table of its own, so the row this test writes never reaches the
+    # shared `posts` fixture the other array tests count.
+    tagged = table(schema, "pg_tagged_posts", lambda t, name: (
+        t.id(type="integer"),
+        t.string("name"),
+        t.array("tags", of="text"),
+        t.timestamps(),
+    ))
+
     class Post(Model):
-        __table__ = "pg_posts"
+        __table__ = tagged
         fillable = ["name", "tags"]
         uses_uuid = False
         casts = {"tags": "array:str"}
@@ -220,7 +242,6 @@ def test_an_array_round_trips_through_a_model(posts):
 
     fetched.update({"tags": ["elixir"]})
     assert Post.query().where("name", "four").first().get_attribute("tags") == ["elixir"]
-    DB.statement("DELETE FROM pg_posts WHERE name = ?", ["four"])
     assert created is not None
 
 
@@ -228,76 +249,70 @@ def test_an_array_round_trips_through_a_model(posts):
 
 
 def test_a_range_overlap_is_half_open(schema):
-    name = table(schema, "pg_bookings", lambda t: (
+    name = table(schema, "pg_bookings", lambda t, name: (
         t.id(type="integer"),
         t.string("name"),
         t.tsrange("period"),
     ))
-    try:
-        DB.statement(
-            "INSERT INTO pg_bookings (name, period) VALUES (?, ?::tsrange)",
-            ["morning", "[2026-08-20 09:00,2026-08-20 14:00)"],
-        )
+    DB.statement(
+        f"INSERT INTO {name} (name, period) VALUES (?, ?::tsrange)",
+        ["morning", "[2026-08-20 09:00,2026-08-20 14:00)"],
+    )
 
-        # Touching at 14:00 must NOT overlap — that is what half-open buys.
-        query = DB.table(name).where_range_overlaps(
-            "period", "2026-08-20 14:00", "2026-08-20 18:00"
-        )
-        assert list(query.get()) == []
+    # Touching at 14:00 must NOT overlap — that is what half-open buys.
+    query = DB.table(name).where_range_overlaps(
+        "period", "2026-08-20 14:00", "2026-08-20 18:00"
+    )
+    assert list(query.get()) == []
 
-        # One minute earlier does overlap.
-        query = DB.table(name).where_range_overlaps(
-            "period", "2026-08-20 13:59", "2026-08-20 18:00"
-        )
-        assert names(query) == ["morning"]
+    # One minute earlier does overlap.
+    query = DB.table(name).where_range_overlaps(
+        "period", "2026-08-20 13:59", "2026-08-20 18:00"
+    )
+    assert names(query) == ["morning"]
 
-        # And they are adjacent, which is a different question again.
-        query = DB.table(name).where_range_adjacent(
-            "period", "2026-08-20 14:00", "2026-08-20 18:00"
-        )
-        assert names(query) == ["morning"]
+    # And they are adjacent, which is a different question again.
+    query = DB.table(name).where_range_adjacent(
+        "period", "2026-08-20 14:00", "2026-08-20 18:00"
+    )
+    assert names(query) == ["morning"]
 
-        query = DB.table(name).where_range_contains("period", "2026-08-20 10:00")
-        assert names(query) == ["morning"]
-    finally:
-        schema.drop_if_exists(name)
+    query = DB.table(name).where_range_contains("period", "2026-08-20 10:00")
+    assert names(query) == ["morning"]
 
 
 def test_an_exclusion_constraint_actually_rejects_a_double_booking(schema):
     """The guard has to be the database's, or it is advisory."""
     requires("btree_gist")
-    name = table(schema, "pg_rooms", lambda t: (
+    name = table(schema, "pg_rooms", lambda t, name: (
         t.id(type="integer"),
         t.big_integer("room_id"),
         t.tsrange("period"),
-        t.exclude_with(("room_id", "="), ("period", "&&"), name="pg_rooms_no_overlap"),
+        t.exclude_with(("room_id", "="), ("period", "&&"), name=f"{name}_no_overlap"),
     ))
-    try:
-        DB.statement(
-            "INSERT INTO pg_rooms (room_id, period) VALUES (?, ?::tsrange)",
-            [1, "[2026-08-20 09:00,2026-08-20 12:00)"],
-        )
+    DB.statement(
+        f"INSERT INTO {name} (room_id, period) VALUES (?, ?::tsrange)",
+        [1, "[2026-08-20 09:00,2026-08-20 12:00)"],
+    )
 
-        with pytest.raises(Exception) as excinfo:
-            DB.statement(
-                "INSERT INTO pg_rooms (room_id, period) VALUES (?, ?::tsrange)",
-                [1, "[2026-08-20 11:00,2026-08-20 13:00)"],
-            )
-        assert "pg_rooms_no_overlap" in str(excinfo.value)
+    with pytest.raises(Exception) as excinfo:
+        DB.statement(
+            f"INSERT INTO {name} (room_id, period) VALUES (?, ?::tsrange)",
+            [1, "[2026-08-20 11:00,2026-08-20 13:00)"],
+        )
+    assert f"{name}_no_overlap" in str(excinfo.value)
 
-        # A different room at the same hour is fine, and so is the same room
-        # in an adjacent slot.
-        DB.statement(
-            "INSERT INTO pg_rooms (room_id, period) VALUES (?, ?::tsrange)",
-            [2, "[2026-08-20 11:00,2026-08-20 13:00)"],
-        )
-        DB.statement(
-            "INSERT INTO pg_rooms (room_id, period) VALUES (?, ?::tsrange)",
-            [1, "[2026-08-20 12:00,2026-08-20 13:00)"],
-        )
-        assert DB.table(name).count() == 3
-    finally:
-        schema.drop_if_exists(name)
+    # A different room at the same hour is fine, and so is the same room
+    # in an adjacent slot.
+    DB.statement(
+        f"INSERT INTO {name} (room_id, period) VALUES (?, ?::tsrange)",
+        [2, "[2026-08-20 11:00,2026-08-20 13:00)"],
+    )
+    DB.statement(
+        f"INSERT INTO {name} (room_id, period) VALUES (?, ?::tsrange)",
+        [1, "[2026-08-20 12:00,2026-08-20 13:00)"],
+    )
+    assert DB.table(name).count() == 3
 
 
 # -- full-text search ----------------------------------------------------------
@@ -305,13 +320,13 @@ def test_an_exclusion_constraint_actually_rejects_a_double_booking(schema):
 
 @pytest.fixture(scope="module")
 def articles(schema):
-    name = table(schema, "pg_articles", lambda t: (
+    name = table(schema, "pg_articles", lambda t, name: (
         t.id(type="integer"),
         t.string("name"),
         t.string("title"),
         t.text("body").nullable(),
         t.tsvector("doc").generated_from({"title": "A", "body": "B"}),
-        t.gin_index("doc", name="pg_articles_doc_gin"),
+        t.gin_index("doc", name=f"{name}_doc_gin"),
     ))
     for article_name, title, body in [
         ("queue", "Postgres queue design", "Claiming jobs with skip locked."),
@@ -319,22 +334,21 @@ def articles(schema):
         ("nulls", "No body at all", None),
     ]:
         DB.statement(
-            "INSERT INTO pg_articles (name, title, body) VALUES (?, ?, ?)",
+            f"INSERT INTO {name} (name, title, body) VALUES (?, ?, ?)",
             [article_name, title, body],
         )
-    yield name
-    schema.drop_if_exists(name)
+    return name
 
 
 def test_the_generated_document_is_computed_by_the_database(articles):
-    row = DB.select_one("SELECT doc FROM pg_articles WHERE name = 'queue'")
+    row = DB.select_one(f"SELECT doc FROM {articles} WHERE name = 'queue'")
     assert "queue" in row["doc"]
     assert "lock" in row["doc"], "the body was not folded into the document"
 
 
 def test_a_null_source_does_not_erase_the_document(articles):
     """Concatenating a NULL would make the whole document NULL, silently."""
-    row = DB.select_one("SELECT doc FROM pg_articles WHERE name = 'nulls'")
+    row = DB.select_one(f"SELECT doc FROM {articles} WHERE name = 'nulls'")
     assert row["doc"], "coalesce() is what keeps this row searchable"
     assert names(DB.table(articles).where_search("doc", "body")) == ["nulls"]
 
@@ -360,10 +374,10 @@ def test_weights_make_a_title_match_outrank_a_body_mention(articles):
 
 def test_the_gin_index_can_serve_the_search(articles):
     plan = explain(
-        "SELECT * FROM pg_articles WHERE doc @@ websearch_to_tsquery('english', 'queue')",
+        f"SELECT * FROM {articles} WHERE doc @@ websearch_to_tsquery('english', 'queue')",
         no_seqscan=True,
     )
-    assert "pg_articles_doc_gin" in plan
+    assert f"{articles}_doc_gin" in plan
 
 
 # -- trigram -------------------------------------------------------------------
@@ -371,103 +385,88 @@ def test_the_gin_index_can_serve_the_search(articles):
 
 def test_trigram_matches_a_typo_and_orders_by_distance(schema):
     requires("pg_trgm")
-    name = table(schema, "pg_people", lambda t: (
+    name = table(schema, "pg_people", lambda t, name: (
         t.id(type="integer"),
         t.string("name"),
-        t.gist_index("name", ops="gist_trgm_ops", name="pg_people_name_trgm"),
+        t.gist_index("name", ops="gist_trgm_ops", name=f"{name}_name_trgm"),
     ))
-    try:
-        for person in ("John Doe", "Jane Roe", "Jonathan Doerr"):
-            DB.statement("INSERT INTO pg_people (name) VALUES (?)", [person])
+    for person in ("John Doe", "Jane Roe", "Jonathan Doerr"):
+        DB.statement(f"INSERT INTO {name} (name) VALUES (?)", [person])
 
-        matched = names(DB.table(name).where_similar("name", "Jonh Doe", threshold=0.3))
-        assert "John Doe" in matched
+    matched = names(DB.table(name).where_similar("name", "Jonh Doe", threshold=0.3))
+    assert "John Doe" in matched
 
-        closest = list(DB.table(name).order_by_distance("name", "Jonh Doe").get())
-        assert closest[0]["name"] == "John Doe"
-    finally:
-        schema.drop_if_exists(name)
+    closest = list(DB.table(name).order_by_distance("name", "Jonh Doe").get())
+    assert closest[0]["name"] == "John Doe"
 
 
 # -- partitioning --------------------------------------------------------------
 
 
 def test_a_partitioned_table_routes_rows_and_keeps_a_backstop(schema):
-    name = "pg_events"
-    schema.drop_if_exists(name)
+    name = unique("pg_events")
     schema.create_table(name, lambda t: (
         t.big_increments("id"),
         t.timestamptz("occurred_at"),
         t.jsonb("payload"),
         t.partition_by_range("occurred_at"),
     ))
-    try:
-        schema.partition(name, "pg_events_2026_08",
-                         values_from="2026-08-01", values_to="2026-09-01")
-        schema.partition(name, "pg_events_2026_09",
-                         values_from="2026-09-01", values_to="2026-10-01")
-        schema.partition(name, "pg_events_default", default=True)
+    schema.partition(name, f"{name}_2026_08",
+                     values_from="2026-08-01", values_to="2026-09-01")
+    schema.partition(name, f"{name}_2026_09",
+                     values_from="2026-09-01", values_to="2026-10-01")
+    schema.partition(name, f"{name}_default", default=True)
 
-        for stamp in ("2026-08-15", "2026-09-15", "2030-01-01"):
-            DB.statement(
-                "INSERT INTO pg_events (occurred_at, payload) VALUES (?::timestamptz, '{}'::jsonb)",
-                [stamp],
-            )
+    for stamp in ("2026-08-15", "2026-09-15", "2030-01-01"):
+        DB.statement(
+            f"INSERT INTO {name} (occurred_at, payload) VALUES (?::timestamptz, '{{}}'::jsonb)",
+            [stamp],
+        )
 
-        assert DB.table(name).count() == 3
-        assert DB.table("pg_events_2026_08").count() == 1
-        assert DB.table("pg_events_2026_09").count() == 1
-        # The backstop caught the row no partition covered — an alert, not a
-        # rejected insert.
-        assert DB.table("pg_events_default").count() == 1
-    finally:
-        schema.drop_if_exists(name)
+    assert DB.table(name).count() == 3
+    assert DB.table(f"{name}_2026_08").count() == 1
+    assert DB.table(f"{name}_2026_09").count() == 1
+    # The backstop caught the row no partition covered — an alert, not a
+    # rejected insert.
+    assert DB.table(f"{name}_default").count() == 1
 
 
 def test_a_partitioned_table_rejects_a_row_no_partition_covers(schema):
     """Without a DEFAULT partition this is a hard failure, which is why the
     maintenance task keeps the table writable rather than merely tidy."""
-    name = "pg_gapped"
-    schema.drop_if_exists(name)
+    name = unique("pg_gapped")
     schema.create_table(name, lambda t: (
         t.big_increments("id"),
         t.timestamptz("occurred_at"),
         t.partition_by_range("occurred_at"),
     ))
-    try:
-        schema.partition(name, "pg_gapped_2026_08",
-                         values_from="2026-08-01", values_to="2026-09-01")
-        with pytest.raises(Exception, match="partition"):
-            DB.statement(
-                "INSERT INTO pg_gapped (occurred_at) VALUES (?::timestamptz)",
-                ["2030-01-01"],
-            )
-    finally:
-        schema.drop_if_exists(name)
+    schema.partition(name, f"{name}_2026_08",
+                     values_from="2026-08-01", values_to="2026-09-01")
+    with pytest.raises(Exception, match="partition"):
+        DB.statement(
+            f"INSERT INTO {name} (occurred_at) VALUES (?::timestamptz)",
+            ["2030-01-01"],
+        )
 
 
 def test_ensure_partitions_is_idempotent(schema):
-    name = "pg_monthly"
-    schema.drop_if_exists(name)
+    name = unique("pg_monthly")
     schema.create_table(name, lambda t: (
         t.big_increments("id"),
         t.timestamptz("occurred_at"),
         t.partition_by_range("occurred_at"),
     ))
-    try:
-        first = schema.ensure_partitions(name, ahead=2)
-        second = schema.ensure_partitions(name, ahead=2)
-        assert first == second
-        assert len(first) == 3
+    first = schema.ensure_partitions(name, ahead=2)
+    second = schema.ensure_partitions(name, ahead=2)
+    assert first == second
+    assert len(first) == 3
 
-        rows = DB.select(
-            "SELECT c.relname FROM pg_inherits i "
-            "JOIN pg_class c ON c.oid = i.inhrelid "
-            "JOIN pg_class p ON p.oid = i.inhparent WHERE p.relname = ?", [name]
-        )
-        assert sorted(r["relname"] for r in rows) == sorted(first)
-    finally:
-        schema.drop_if_exists(name)
+    rows = DB.select(
+        "SELECT c.relname FROM pg_inherits i "
+        "JOIN pg_class c ON c.oid = i.inhrelid "
+        "JOIN pg_class p ON p.oid = i.inhparent WHERE p.relname = ?", [name]
+    )
+    assert sorted(r["relname"] for r in rows) == sorted(first)
 
 
 # -- the queue -----------------------------------------------------------------
@@ -500,18 +499,18 @@ def test_skip_locked_hands_two_workers_different_rows(migrated_database):
 
     db = migrated_database.make("db")
     driver = PostgresQueueDriver(db, {})
-    DB.statement("DELETE FROM jobs WHERE queue = ?", ["pgclaim"])
+    queue = unique("pgclaim")
 
     total = 60
     for _ in range(total):
-        driver.push(serialize_job(Noop()), "pgclaim")
+        driver.push(serialize_job(Noop()), queue)
 
     claimed, guard = [], threading.Lock()
 
     def worker():
         try:
             while True:
-                batch = driver.claim("pgclaim", count=3)
+                batch = driver.claim(queue, count=3)
                 if not batch:
                     return
                 with guard:
@@ -527,7 +526,6 @@ def test_skip_locked_hands_two_workers_different_rows(migrated_database):
 
     assert len(claimed) == total, "a job went unclaimed"
     assert len(set(claimed)) == total, "a job was claimed by two workers"
-    DB.statement("DELETE FROM jobs WHERE queue = ?", ["pgclaim"])
 
 
 def test_a_notification_fires_on_insert_and_only_after_commit(migrated_database):
@@ -535,8 +533,9 @@ def test_a_notification_fires_on_insert_and_only_after_commit(migrated_database)
     from craft.queue.listener import Listener, queue_channel
 
     db = migrated_database.make("db")
+    queue = unique("pgnotify")
     received, stop = [], threading.Event()
-    listener = Listener(db, [queue_channel("pgnotify")], poll_interval=0.2)
+    listener = Listener(db, [queue_channel(queue)], poll_interval=0.2)
 
     def run():
         listener.run(
@@ -553,7 +552,7 @@ def test_a_notification_fires_on_insert_and_only_after_commit(migrated_database)
             "INSERT INTO jobs (uuid, queue, payload, attempts, priority, "
             "  max_attempts, available_at, created_at) "
             "VALUES (?, ?, ?, 0, 0, 3, ?, ?)",
-            ["33333333-3333-3333-3333-333333333333", "pgnotify", "{}",
+            [str(uuid.uuid4()), queue, "{}",
              "2000-01-01T00:00:00", "2000-01-01T00:00:00"],
         )
         deadline = time.time() + 10
@@ -563,7 +562,6 @@ def test_a_notification_fires_on_insert_and_only_after_commit(migrated_database)
     finally:
         stop.set()
         thread.join(timeout=10)
-        DB.statement("DELETE FROM jobs WHERE queue = ?", ["pgnotify"])
 
 
 def test_a_rolled_back_insert_never_notifies(migrated_database):
@@ -572,7 +570,8 @@ def test_a_rolled_back_insert_never_notifies(migrated_database):
 
     db = migrated_database.make("db")
     received, stop = [], threading.Event()
-    listener = Listener(db, [queue_channel("pgrollback")], poll_interval=0.2)
+    queue = unique("pgrollback")
+    listener = Listener(db, [queue_channel(queue)], poll_interval=0.2)
 
     thread = threading.Thread(
         target=lambda: listener.run(
@@ -590,7 +589,7 @@ def test_a_rolled_back_insert_never_notifies(migrated_database):
             "INSERT INTO jobs (uuid, queue, payload, attempts, priority, "
             "  max_attempts, available_at, created_at) "
             "VALUES (?, ?, ?, 0, 0, 3, ?, ?)",
-            ["44444444-4444-4444-4444-444444444444", "pgrollback", "{}",
+            [str(uuid.uuid4()), queue, "{}",
              "2000-01-01T00:00:00", "2000-01-01T00:00:00"],
         )
         db.rollback()
@@ -724,14 +723,17 @@ def test_ddl_rolls_back_with_its_ledger_row(migrated_database, tmp_path):
     """PostgreSQL has transactional DDL and the migrator now uses it."""
     from craft.migrations.migrator import Migrator
 
+    half_a, half_b = unique("pg_half_a"), unique("pg_half_b")
+    # `down()` is never reached: `up()` fails, and rolling back its
+    # transaction is what removes the half-built tables - not a drop.
     (tmp_path / "2026_08_21_090000_partial.py").write_text(
         "from craft.facades import Schema\n"
         "def up():\n"
-        "    Schema.create_table('pg_half_a', lambda t: t.id(type='integer'))\n"
-        "    Schema.create_table('pg_half_b', lambda t: t.id(type='integer'))\n"
+        f"    Schema.create_table('{half_a}', lambda t: t.id(type='integer'))\n"
+        f"    Schema.create_table('{half_b}', lambda t: t.id(type='integer'))\n"
         "    raise RuntimeError('halfway')\n"
         "def down():\n"
-        "    Schema.drop_table('pg_half_a')\n",
+        "    pass\n",
         encoding="utf-8",
     )
 
@@ -741,8 +743,8 @@ def test_ddl_rolls_back_with_its_ledger_row(migrated_database, tmp_path):
     with pytest.raises(RuntimeError, match="halfway"):
         migrator.run()
 
-    assert db.table_exists("pg_half_a") is False
-    assert db.table_exists("pg_half_b") is False
+    assert db.table_exists(half_a) is False
+    assert db.table_exists(half_b) is False
     assert "2026_08_21_090000_partial" not in migrator.applied()
 
 
@@ -786,50 +788,41 @@ def test_uuidv7_is_gated_on_the_server_having_it(schema, migrated_database):
             dialect.require("uuidv7", "generates time-ordered keys in the database")
         pytest.skip(f"this server is {dialect.version}; uuidv7() arrived in 18")
 
-    name = table(schema, "pg_uuidv7", lambda t: (
+    name = table(schema, "pg_uuidv7", lambda t, name: (
         t.uuid_primary(default="uuidv7()"),
         t.string("name"),
     ))
-    try:
-        for label in ("first", "second"):
-            DB.statement("INSERT INTO pg_uuidv7 (name) VALUES (?)", [label])
-            time.sleep(0.005)
+    for label in ("first", "second"):
+        DB.statement(f"INSERT INTO {name} (name) VALUES (?)", [label])
+        time.sleep(0.005)
 
-        rows = DB.select("SELECT id, name FROM pg_uuidv7 ORDER BY name")
-        keys = {row["name"]: str(row["id"]) for row in rows}
-        assert keys["first"][14] == "7", "not a version 7 UUID"
-        # Time-ordered: that is the whole reason to prefer it over v4.
-        assert keys["second"] > keys["first"]
-    finally:
-        schema.drop_if_exists(name)
+    rows = DB.select(f"SELECT id, name FROM {name} ORDER BY name")
+    keys = {row["name"]: str(row["id"]) for row in rows}
+    assert keys["first"][14] == "7", "not a version 7 UUID"
+    # Time-ordered: that is the whole reason to prefer it over v4.
+    assert keys["second"] > keys["first"]
 
 
 def test_a_uuid_key_can_default_in_the_database(schema):
     requires("pgcrypto")
-    name = table(schema, "pg_uuid_keyed", lambda t: (
+    name = table(schema, "pg_uuid_keyed", lambda t, name: (
         t.uuid_primary(default="gen_random_uuid()"),
         t.string("name"),
     ))
-    try:
-        DB.statement("INSERT INTO pg_uuid_keyed (name) VALUES (?)", ["generated"])
-        row = DB.select_one("SELECT id FROM pg_uuid_keyed WHERE name = 'generated'")
-        assert str(row["id"]).count("-") == 4
-    finally:
-        schema.drop_if_exists(name)
+    DB.statement(f"INSERT INTO {name} (name) VALUES (?)", ["generated"])
+    row = DB.select_one(f"SELECT id FROM {name} WHERE name = 'generated'")
+    assert str(row["id"]).count("-") == 4
 
 
 def test_a_raw_default_is_not_stored_as_a_string(schema):
-    name = table(schema, "pg_defaults", lambda t: (
+    name = table(schema, "pg_defaults", lambda t, name: (
         t.id(type="integer"),
         t.timestamptz("created_at").default(Raw("now()")),
     ))
-    try:
-        DB.statement("INSERT INTO pg_defaults DEFAULT VALUES")
-        row = DB.select_one("SELECT created_at FROM pg_defaults")
-        assert row["created_at"] is not None
-        assert not isinstance(row["created_at"], str)
-    finally:
-        schema.drop_if_exists(name)
+    DB.statement(f"INSERT INTO {name} DEFAULT VALUES")
+    row = DB.select_one(f"SELECT created_at FROM {name}")
+    assert row["created_at"] is not None
+    assert not isinstance(row["created_at"], str)
 
 
 # -- expression seam -----------------------------------------------------------

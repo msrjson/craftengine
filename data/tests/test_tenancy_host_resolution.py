@@ -5,6 +5,8 @@ mismatched host instead of silently falling back to the authenticated user.
 # Copyright (c) 2026 Antonio Santos <snarthost@gmail.com>
 # Licensed under the MIT License. See LICENSE in the project root.
 
+import uuid
+
 import pytest
 
 from craft.facades import DB
@@ -42,23 +44,36 @@ def _container_for(migrated_database, user_tenant_id=None):
 
 @pytest.fixture
 def tenant_rows(migrated_database):
-    """One active, one suspended tenant, cleaned up after the test."""
+    """One active and one suspended tenant under slugs no other test uses.
+
+    NR-02: the rows are kept. Unique slugs are what keep one test's tenants
+    from answering another test's host.
+    """
+    suffix = uuid.uuid4().hex[:8]
     active_id = Model.new_uuid()
     suspended_id = Model.new_uuid()
+    active_slug, suspended_slug = f"active-co-{suffix}", f"suspended-co-{suffix}"
     DB.table("tenants").insert(
-        {"id": active_id, "name": "Active Co", "slug": "active-co", "status": "active"}
+        {"id": active_id, "name": "Active Co", "slug": active_slug, "status": "active"}
     )
     DB.table("tenants").insert(
-        {"id": suspended_id, "name": "Suspended Co", "slug": "suspended-co", "status": "suspended"}
+        {"id": suspended_id, "name": "Suspended Co", "slug": suspended_slug, "status": "suspended"}
     )
-    yield {"active": active_id, "suspended": suspended_id}
-    DB.table("tenants").where_in("id", [active_id, suspended_id]).delete()
+    return {
+        "active": active_id,
+        "suspended": suspended_id,
+        "active_host": f"{active_slug}.example.com",
+        "suspended_host": f"{suspended_slug}.example.com",
+    }
 
 
 def test_an_unrecognised_subdomain_raises_404(migrated_database):
     middleware = ScopeTenant(app=migrated_database, require_isolation=False)
     with pytest.raises(UnboundTenantHostError) as excinfo:
-        middleware.resolve(_Request("nobody-here.example.com"), _container_for(migrated_database))
+        middleware.resolve(
+            _Request(f"nobody-here-{uuid.uuid4().hex[:8]}.example.com"),
+            _container_for(migrated_database),
+        )
     assert excinfo.value.status_code == 404
 
 
@@ -66,7 +81,7 @@ def test_a_suspended_tenants_host_raises_403(tenant_rows, migrated_database):
     middleware = ScopeTenant(app=migrated_database, require_isolation=False)
     with pytest.raises(TenantSuspendedError) as excinfo:
         middleware.resolve(
-            _Request("suspended-co.example.com"), _container_for(migrated_database)
+            _Request(tenant_rows["suspended_host"]), _container_for(migrated_database)
         )
     assert excinfo.value.status_code == 403
     assert excinfo.value.params["tenant_id"] == tenant_rows["suspended"]
@@ -75,7 +90,7 @@ def test_a_suspended_tenants_host_raises_403(tenant_rows, migrated_database):
 def test_an_active_tenants_host_resolves_normally(tenant_rows, migrated_database):
     middleware = ScopeTenant(app=migrated_database, require_isolation=False)
     resolved = middleware.resolve(
-        _Request("active-co.example.com"), _container_for(migrated_database)
+        _Request(tenant_rows["active_host"]), _container_for(migrated_database)
     )
     assert resolved == tenant_rows["active"]
 
@@ -86,7 +101,7 @@ def test_a_host_tenant_mismatched_with_the_session_raises_403(tenant_rows, migra
     other_tenant_id = "99999999-9999-9999-9999-999999999999"
     with pytest.raises(TenantHostMismatchError) as excinfo:
         middleware.resolve(
-            _Request("active-co.example.com"),
+            _Request(tenant_rows["active_host"]),
             _container_for(migrated_database, user_tenant_id=other_tenant_id),
         )
     assert excinfo.value.status_code == 403
@@ -97,7 +112,7 @@ def test_a_host_tenant_mismatched_with_the_session_raises_403(tenant_rows, migra
 def test_a_host_tenant_matching_the_session_resolves_normally(tenant_rows, migrated_database):
     middleware = ScopeTenant(app=migrated_database, require_isolation=False)
     resolved = middleware.resolve(
-        _Request("active-co.example.com"),
+        _Request(tenant_rows["active_host"]),
         _container_for(migrated_database, user_tenant_id=tenant_rows["active"]),
     )
     assert resolved == tenant_rows["active"]

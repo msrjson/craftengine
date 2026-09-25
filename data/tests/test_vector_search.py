@@ -4,6 +4,8 @@
 # Licensed under the MIT License. See LICENSE in the project root.
 
 import json
+import uuid
+
 import pytest
 from craft.facades import DB, Schema
 from craft.orm.model import Model
@@ -15,8 +17,15 @@ class Article(Model):
 
 
 @pytest.fixture
-def articles_table(migrated_database):
-    Schema.create_table("articles", lambda t: (
+def articles_table(migrated_database, monkeypatch):
+    """Three seeded articles in a table of this test's own.
+
+    NR-02: the table is never dropped. A fresh name per test keeps each test's
+    count of three exact; the model is pointed at it for the test's duration.
+    """
+    table = f"articles_{uuid.uuid4().hex[:8]}"
+    monkeypatch.setattr(Article, "__table__", table)
+    Schema.create_table(table, lambda t: (
         t.id(),
         t.string("title"),
         t.text("content"),
@@ -48,8 +57,7 @@ def articles_table(migrated_database):
         "published": False,
     })
 
-    yield
-    Schema.drop_table("articles")
+    return table
 
 
 class TestVectorSearch:

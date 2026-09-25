@@ -7,9 +7,9 @@ keep. These were the last three found by a full sweep.
 # Copyright (c) 2026 Antonio Santos <snarthost@gmail.com>
 # Licensed under the MIT License. See LICENSE in the project root.
 
-import pytest
+import uuid
 
-from craft.facades import DB
+import pytest
 
 
 class TestNamedRoutesFailLoudly:
@@ -78,26 +78,19 @@ class TestUniqueAndExistsFailClosed:
 
         with pytest.raises(ValueError):
             Validator(
-                {"email": "x"}, {"email": "unique:users; DROP TABLE users --,email"}
+                {"email": "x"}, {"email": "unique:users; DROP TABLE users --,email"}  # nr02: hostile payload, rejected before any SQL runs
             )
 
     def test_unique_still_works_against_a_real_table(self, migrated_database):
         from tests.support.models import User
         from craft.validation.validator import Validator
 
-        DB.statement("DELETE FROM users WHERE email = 'dup@craft.local'")
-        User.force_create(
-            {"name": "Dup", "email": "dup@craft.local", "password": "s3cret"}
-        )
-        try:
-            taken = Validator(
-                {"email": "dup@craft.local"}, {"email": "unique:users,email"}
-            )
-            assert taken.passes() is False
+        suffix = uuid.uuid4().hex[:8]
+        taken_email, free_email = f"dup_{suffix}@craft.local", f"free_{suffix}@craft.local"
+        User.force_create({"name": "Dup", "email": taken_email, "password": "s3cret"})
 
-            free = Validator(
-                {"email": "free@craft.local"}, {"email": "unique:users,email"}
-            )
-            assert free.passes() is True
-        finally:
-            DB.statement("DELETE FROM users WHERE email = 'dup@craft.local'")
+        taken = Validator({"email": taken_email}, {"email": "unique:users,email"})
+        assert taken.passes() is False
+
+        free = Validator({"email": free_email}, {"email": "unique:users,email"})
+        assert free.passes() is True

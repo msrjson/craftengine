@@ -17,49 +17,42 @@ so unconditional grants only) and `can(slug, resource)`.
 # Copyright (c) 2026 Antonio Santos <snarthost@gmail.com>
 # Licensed under the MIT License. See LICENSE in the project root.
 
+import uuid
+
 import pytest
 
 from craft.auth.conditions import ConditionError, dump, matches, parse
 from craft.facades import DB
 
 
-def _wipe():
-    for table in (
-        "permission_user", "permission_group", "group_role", "group_user",
-        "permission_role", "role_user", "groups", "permissions", "roles",
-    ):
-        DB.statement(f"DELETE FROM {table}")
-
-
 @pytest.fixture
 def rbac(migrated_database):
-    """A user, a group, a role and two permissions — wired by the test itself.
+    """A user, a group, a role and two permissions, wired by the test itself.
 
-    Cleans up *after* itself as well as before. The test database is shared for
-    the whole session, and `roles.name` is unique: leaving an "Editor" row
-    behind broke an unrelated file that runs later in the alphabet. Wiping only
-    on setup protects this file and nobody else.
+    Nothing is deleted between tests (NR-02) and `roles.name`, `roles.slug`
+    and the group and permission slugs are unique, so every name here carries
+    a suffix of this test's own. A fresh user holds no grant but the ones the
+    test writes, which keeps the assertions scoped to this test's rows.
     """
     from tests.support.models import Group, Permission, Role, User
 
-    DB.statement("DELETE FROM users WHERE email LIKE '%@abac.local'")
-    _wipe()
+    suffix = uuid.uuid4().hex[:8]
+    slugs = {
+        "group": f"content-team-{suffix}", "role": f"editor-{suffix}",
+        "edit": f"edit-articles-{suffix}", "publish": f"publish-articles-{suffix}",
+    }
+    user = User.create({"name": "Ana", "email": f"ana-{suffix}@abac.local", "password": "s3cret"})
+    other = User.create({"name": "Bo", "email": f"bo-{suffix}@abac.local", "password": "s3cret"})
+    group = Group.create({"name": slugs["group"], "slug": slugs["group"]})
+    role = Role.create({"name": slugs["role"], "slug": slugs["role"]})
+    edit = Permission.create({"name": slugs["edit"], "slug": slugs["edit"]})
+    publish = Permission.create({"name": slugs["publish"], "slug": slugs["publish"]})
 
-    user = User.create({"name": "Ana", "email": "ana@abac.local", "password": "s3cret"})
-    other = User.create({"name": "Bo", "email": "bo@abac.local", "password": "s3cret"})
-    group = Group.create({"name": "Content Team", "slug": "content-team"})
-    role = Role.create({"name": "Editor", "slug": "editor"})
-    edit = Permission.create({"name": "Edit Articles", "slug": "edit-articles"})
-    publish = Permission.create({"name": "Publish", "slug": "publish-articles"})
-
-    yield {
+    return {
         "user": user, "other": other, "group": group, "role": role,
-        "edit": edit, "publish": publish,
+        "edit": edit, "publish": publish, "slugs": slugs,
         "access": migrated_database.make("access"),
     }
-
-    _wipe()
-    DB.statement("DELETE FROM users WHERE email LIKE '%@abac.local'")
 
 
 def _id(model):
@@ -87,35 +80,35 @@ class TestTheFourGrantPaths:
 
     def test_direct_grant_to_the_user(self, rbac):
         join("permission_user", permission_id=_id(rbac["edit"]), user_id=_id(rbac["user"]))
-        assert rbac["user"].has_permission("edit-articles") is True
-        assert rbac["other"].has_permission("edit-articles") is False
+        assert rbac["user"].has_permission(rbac["slugs"]["edit"]) is True
+        assert rbac["other"].has_permission(rbac["slugs"]["edit"]) is False
 
     def test_through_a_role(self, rbac):
         join("role_user", user_id=_id(rbac["user"]), role_id=_id(rbac["role"]))
         join("permission_role", role_id=_id(rbac["role"]), permission_id=_id(rbac["edit"]))
-        assert rbac["user"].has_permission("edit-articles") is True
+        assert rbac["user"].has_permission(rbac["slugs"]["edit"]) is True
 
     def test_through_a_group_that_grants_a_role(self, rbac):
         join("group_user", user_id=_id(rbac["user"]), group_id=_id(rbac["group"]))
         join("group_role", group_id=_id(rbac["group"]), role_id=_id(rbac["role"]))
         join("permission_role", role_id=_id(rbac["role"]), permission_id=_id(rbac["edit"]))
 
-        assert rbac["user"].has_permission("edit-articles") is True
+        assert rbac["user"].has_permission(rbac["slugs"]["edit"]) is True
         # And the role itself is held, which is what `role:` middleware asks.
-        assert rbac["user"].has_role("editor") is True
+        assert rbac["user"].has_role(rbac["slugs"]["role"]) is True
 
     def test_through_a_group_that_grants_the_permission_directly(self, rbac):
         join("group_user", user_id=_id(rbac["user"]), group_id=_id(rbac["group"]))
         join("permission_group", group_id=_id(rbac["group"]), permission_id=_id(rbac["edit"]))
-        assert rbac["user"].has_permission("edit-articles") is True
+        assert rbac["user"].has_permission(rbac["slugs"]["edit"]) is True
 
     def test_a_user_outside_the_group_gets_nothing(self, rbac):
         join("group_user", user_id=_id(rbac["user"]), group_id=_id(rbac["group"]))
         join("permission_group", group_id=_id(rbac["group"]), permission_id=_id(rbac["edit"]))
 
-        assert rbac["other"].has_permission("edit-articles") is False
-        assert rbac["other"].in_group("content-team") is False
-        assert rbac["user"].in_group("content-team") is True
+        assert rbac["other"].has_permission(rbac["slugs"]["edit"]) is False
+        assert rbac["other"].in_group(rbac["slugs"]["group"]) is False
+        assert rbac["user"].in_group(rbac["slugs"]["group"]) is True
 
 
 class TestConditionalGrants:
@@ -132,8 +125,8 @@ class TestConditionalGrants:
         mine = Article(user_id=_id(rbac["user"]))
         theirs = Article(user_id=_id(rbac["other"]))
 
-        assert rbac["user"].can("edit-articles", mine) is True
-        assert rbac["user"].can("edit-articles", theirs) is False
+        assert rbac["user"].can(rbac["slugs"]["edit"], mine) is True
+        assert rbac["user"].can(rbac["slugs"]["edit"], theirs) is False
 
     def test_a_conditional_grant_does_not_answer_the_unconditional_question(self, rbac):
         """`has_permission()` is asked with no resource in hand.
@@ -149,8 +142,8 @@ class TestConditionalGrants:
             conditions=dump({"user_id": "@user.id"}),
         )
 
-        assert rbac["user"].has_permission("edit-articles") is False
-        assert rbac["user"].can("edit-articles", Article(user_id=_id(rbac["user"]))) is True
+        assert rbac["user"].has_permission(rbac["slugs"]["edit"]) is False
+        assert rbac["user"].can(rbac["slugs"]["edit"], Article(user_id=_id(rbac["user"]))) is True
 
     def test_grants_add_up_rather_than_veto_each_other(self, rbac):
         """One narrow grant and one broad grant means the broad one wins."""
@@ -163,8 +156,8 @@ class TestConditionalGrants:
         join("group_user", user_id=_id(rbac["user"]), group_id=_id(rbac["group"]))
         join("permission_group", group_id=_id(rbac["group"]), permission_id=_id(rbac["edit"]))
 
-        assert rbac["user"].can("edit-articles", Article(user_id=_id(rbac["other"]))) is True
-        assert rbac["user"].has_permission("edit-articles") is True
+        assert rbac["user"].can(rbac["slugs"]["edit"], Article(user_id=_id(rbac["other"]))) is True
+        assert rbac["user"].has_permission(rbac["slugs"]["edit"]) is True
 
     def test_a_ceiling_condition(self, rbac):
         join(
@@ -175,8 +168,8 @@ class TestConditionalGrants:
         )
         join("group_user", user_id=_id(rbac["user"]), group_id=_id(rbac["group"]))
 
-        assert rbac["user"].can("publish-articles", Article(amount=9999)) is True
-        assert rbac["user"].can("publish-articles", Article(amount=10001)) is False
+        assert rbac["user"].can(rbac["slugs"]["publish"], Article(amount=9999)) is True
+        assert rbac["user"].can(rbac["slugs"]["publish"], Article(amount=10001)) is False
 
     def test_a_broken_condition_denies_instead_of_allowing(self, rbac):
         """A typo in stored conditions must not become an open grant."""
@@ -185,8 +178,8 @@ class TestConditionalGrants:
             "VALUES (:p, :u, :c)",
             {"p": _id(rbac["edit"]), "u": _id(rbac["user"]), "c": "{not json at all"},
         )
-        assert rbac["user"].can("edit-articles", Article(user_id=_id(rbac["user"]))) is False
-        assert rbac["user"].has_permission("edit-articles") is False
+        assert rbac["user"].can(rbac["slugs"]["edit"], Article(user_id=_id(rbac["user"]))) is False
+        assert rbac["user"].has_permission(rbac["slugs"]["edit"]) is False
 
 
 class TestGateUsesTheGrants:
@@ -199,8 +192,8 @@ class TestGateUsesTheGrants:
         )
         gate = migrated_database.make("gate")
 
-        assert gate.allows("edit-articles", rbac["user"], Article(user_id=_id(rbac["user"]))) is True
-        assert gate.allows("edit-articles", rbac["user"], Article(user_id=_id(rbac["other"]))) is False
+        assert gate.allows(rbac["slugs"]["edit"], rbac["user"], Article(user_id=_id(rbac["user"]))) is True
+        assert gate.allows(rbac["slugs"]["edit"], rbac["user"], Article(user_id=_id(rbac["other"]))) is False
 
     def test_gate_still_denies_an_unknown_ability(self, rbac, migrated_database):
         gate = migrated_database.make("gate")
@@ -218,7 +211,7 @@ class TestExplain:
             conditions=dump({"user_id": "@user.id"}),
         )
 
-        sources = {g["source"] for g in rbac["access"].explain(rbac["user"], "edit-articles")}
+        sources = {g["source"] for g in rbac["access"].explain(rbac["user"], rbac["slugs"]["edit"])}
         assert sources == {"direct", "group"}
 
     def test_listings_report_groups_roles_and_permissions(self, rbac):
@@ -227,9 +220,9 @@ class TestExplain:
         join("permission_role", role_id=_id(rbac["role"]), permission_id=_id(rbac["edit"]))
 
         access = rbac["access"]
-        assert access.groups(rbac["user"]) == ["content-team"]
-        assert access.roles(rbac["user"]) == ["editor"]
-        assert access.permissions(rbac["user"]) == ["edit-articles"]
+        assert access.groups(rbac["user"]) == [rbac["slugs"]["group"]]
+        assert access.roles(rbac["user"]) == [rbac["slugs"]["role"]]
+        assert access.permissions(rbac["user"]) == [rbac["slugs"]["edit"]]
 
 
 class TestConditionLanguage:

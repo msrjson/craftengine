@@ -20,7 +20,7 @@ def up():
     Schema.create_table("alpha", lambda t: (t.id(), t.string("name")))
 
 def down():
-    Schema.drop_table("alpha")
+    Schema.drop_table("alpha")  # nr02: down() of a migration run on a private in-memory SQLite
 '''
 
 MIGRATION_B = '''
@@ -30,7 +30,7 @@ def up():
     Schema.create_table("beta", lambda t: (t.id(), t.string("label")))
 
 def down():
-    Schema.drop_table("beta")
+    Schema.drop_table("beta")  # nr02: down() of a migration run on a private in-memory SQLite
 '''
 
 

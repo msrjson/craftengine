@@ -6,6 +6,7 @@
 import logging
 import os
 import textwrap
+import uuid
 
 import pytest
 
@@ -166,19 +167,22 @@ class TestDiscovery:
         assert [p["slug"] for p in found] == ["valid"]
 
 
-@pytest.fixture(autouse=True)
-def clean_plugins_table(migrated_database):
-    DB.statement("DELETE FROM plugins")
-    yield
-    DB.statement("DELETE FROM plugins")
+@pytest.fixture
+def slug():
+    """A plugin slug no other test uses.
+
+    The `plugins` table is shared for the whole session and tests never delete
+    rows (NR-02), so every database-touching test owns its slug.
+    """
+    return f"billing_{uuid.uuid4().hex[:8]}"
 
 
 class TestPersistence:
     @pytest.fixture
-    def seeded(self):
+    def seeded(self, slug):
         DB.statement(
             "INSERT INTO plugins (name, slug, enabled, path) VALUES (?, ?, ?, ?)",
-            ["Billing Plugin", "billing", True, "/plugins/billing"],
+            ["Billing Plugin", slug, True, f"/plugins/{slug}"],
         )
 
     def _enabled_in_db(self, slug: str):
@@ -187,22 +191,22 @@ class TestPersistence:
         ).fetchone()
         return bool(row["enabled"]) if row is not None else None
 
-    def test_disable_writes_to_the_database(self, plugins, seeded):
-        plugins.disable("billing")
-        assert self._enabled_in_db("billing") is False
+    def test_disable_writes_to_the_database(self, plugins, slug, seeded):
+        plugins.disable(slug)
+        assert self._enabled_in_db(slug) is False
 
-    def test_enable_writes_to_the_database(self, plugins, seeded):
-        plugins.disable("billing")
-        plugins.enable("billing")
-        assert self._enabled_in_db("billing") is True
+    def test_enable_writes_to_the_database(self, plugins, slug, seeded):
+        plugins.disable(slug)
+        plugins.enable(slug)
+        assert self._enabled_in_db(slug) is True
 
-    def test_is_enabled_reads_from_the_database(self, plugins, seeded):
-        DB.statement("UPDATE plugins SET enabled = ? WHERE slug = ?", [False, "billing"])
-        assert plugins.is_enabled("billing") is False
+    def test_is_enabled_reads_from_the_database(self, plugins, slug, seeded):
+        DB.statement("UPDATE plugins SET enabled = ? WHERE slug = ?", [False, slug])
+        assert plugins.is_enabled(slug) is False
 
-    def test_installed_lists_database_plugins(self, plugins, seeded):
+    def test_installed_lists_database_plugins(self, plugins, slug, seeded):
         slugs = [p["slug"] for p in plugins.installed()]
-        assert "billing" in slugs
+        assert slug in slugs
 
     def test_enabling_an_unknown_plugin_reports_failure(self, plugins):
         assert plugins.enable("does-not-exist") is False
@@ -220,24 +224,24 @@ class TestPersistence:
 
 
 class TestSync:
-    def test_sync_registers_newly_discovered_plugins(self, plugins, tmp_path):
-        _write_plugin(str(tmp_path), "billing", name="Billing Plugin")
+    def test_sync_registers_newly_discovered_plugins(self, plugins, slug, tmp_path):
+        _write_plugin(str(tmp_path), slug, name="Billing Plugin")
         newly_registered = plugins.sync(str(tmp_path))
 
-        assert newly_registered == ["billing"]
+        assert newly_registered == [slug]
         slugs = [p["slug"] for p in plugins.installed()]
-        assert "billing" in slugs
-        assert plugins.is_enabled("billing") is True
+        assert slug in slugs
+        assert plugins.is_enabled(slug) is True
 
-    def test_sync_does_not_reenable_a_disabled_plugin(self, plugins, tmp_path):
-        _write_plugin(str(tmp_path), "billing", name="Billing Plugin")
+    def test_sync_does_not_reenable_a_disabled_plugin(self, plugins, slug, tmp_path):
+        _write_plugin(str(tmp_path), slug, name="Billing Plugin")
         plugins.sync(str(tmp_path))
-        plugins.disable("billing")
+        plugins.disable(slug)
 
         newly_registered = plugins.sync(str(tmp_path))
 
         assert newly_registered == []
-        assert plugins.is_enabled("billing") is False
+        assert plugins.is_enabled(slug) is False
 
     def test_sync_returns_no_new_plugins_on_an_empty_directory(self, plugins, tmp_path):
         assert plugins.sync(str(tmp_path)) == []

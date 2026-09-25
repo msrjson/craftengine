@@ -3,6 +3,8 @@
 # Copyright (c) 2026 Antonio Santos <snarthost@gmail.com>
 # Licensed under the MIT License. See LICENSE in the project root.
 
+import uuid
+
 import pytest
 
 from craft.facades import Tenant
@@ -13,6 +15,11 @@ from craft.orm.tenant_scoped import TenantScoped
 ACME = "11111111-1111-1111-1111-111111111111"
 BETA = "22222222-2222-2222-2222-222222222222"
 
+#: Pivot table names, read at call time. NR-02 forbids dropping the tables a
+#: test used, so every test gets fresh ones under names of its own instead:
+#: the fixtures fill this in and point the models' `__table__` at them.
+PIVOTS = {"project_tag": "rel_project_tag", "widget_label": "rel_widget_label"}
+
 
 class Project(TenantScoped, Model):
     __table__ = "rel_projects"
@@ -20,7 +27,7 @@ class Project(TenantScoped, Model):
     uses_uuid = False
 
     def tags(self):
-        return self.belongs_to_many(Tag, pivot_table="rel_project_tag")
+        return self.belongs_to_many(Tag, pivot_table=PIVOTS["project_tag"])
 
 
 class Tag(TenantScoped, Model):
@@ -29,7 +36,7 @@ class Tag(TenantScoped, Model):
     uses_uuid = False
 
     def projects(self):
-        return self.belongs_to_many(Project, pivot_table="rel_project_tag")
+        return self.belongs_to_many(Project, pivot_table=PIVOTS["project_tag"])
 
 
 class Widget(Model):
@@ -38,7 +45,7 @@ class Widget(Model):
     uses_uuid = False
 
     def labels(self):
-        return self.belongs_to_many(Label, pivot_table="rel_widget_label")
+        return self.belongs_to_many(Label, pivot_table=PIVOTS["widget_label"])
 
 
 class Label(Model):
@@ -47,43 +54,52 @@ class Label(Model):
     uses_uuid = False
 
 
+def _fresh(base: str) -> str:
+    """A table name no earlier test or session has used."""
+    return f"{base}_{uuid.uuid4().hex[:8]}"
+
+
 @pytest.fixture
-def tenanted_pivot_tables(migrated_database):
-    """A many-to-many pair whose pivot table carries tenant_id."""
+def tenanted_pivot_tables(migrated_database, monkeypatch):
+    """A fresh many-to-many pair whose pivot table carries tenant_id.
+
+    Fresh per test, so ids restart at 1 in each table - the coincidence of
+    matching foreign keys the detach test depends on.
+    """
     schema = SchemaBuilder(migrated_database.make("db"))
-    for table in ("rel_project_tag", "rel_projects", "rel_tags"):
-        schema.drop_if_exists(table)
-    schema.create_table("rel_projects", lambda t: (
+    projects, tags, pivot = _fresh("rel_projects"), _fresh("rel_tags"), _fresh("rel_project_tag")
+    schema.create_table(projects, lambda t: (
         t.id(type="integer"), t.string("name"), t.tenant_scoped(references=None), t.timestamps(),
     ))
-    schema.create_table("rel_tags", lambda t: (
+    schema.create_table(tags, lambda t: (
         t.id(type="integer"), t.string("label"), t.tenant_scoped(references=None), t.timestamps(),
     ))
-    schema.create_table("rel_project_tag", lambda t: (
+    schema.create_table(pivot, lambda t: (
         t.id(type="integer"),
         t.integer("project_id"),
         t.integer("tag_id"),
         t.tenant_scoped(references=None),
     ))
-    yield
-    for table in ("rel_project_tag", "rel_projects", "rel_tags"):
-        schema.drop_if_exists(table)
+    monkeypatch.setattr(Project, "__table__", projects)
+    monkeypatch.setattr(Tag, "__table__", tags)
+    monkeypatch.setitem(PIVOTS, "project_tag", pivot)
+    return pivot
 
 
 @pytest.fixture
-def untenanted_pivot_tables(migrated_database):
-    """A many-to-many pair whose pivot table has no tenant column at all."""
+def untenanted_pivot_tables(migrated_database, monkeypatch):
+    """A fresh many-to-many pair whose pivot table has no tenant column at all."""
     schema = SchemaBuilder(migrated_database.make("db"))
-    for table in ("rel_widget_label", "rel_widgets", "rel_labels"):
-        schema.drop_if_exists(table)
-    schema.create_table("rel_widgets", lambda t: (t.id(type="integer"), t.string("name"), t.timestamps()))
-    schema.create_table("rel_labels", lambda t: (t.id(type="integer"), t.string("name"), t.timestamps()))
-    schema.create_table("rel_widget_label", lambda t: (
+    widgets, labels, pivot = _fresh("rel_widgets"), _fresh("rel_labels"), _fresh("rel_widget_label")
+    schema.create_table(widgets, lambda t: (t.id(type="integer"), t.string("name"), t.timestamps()))
+    schema.create_table(labels, lambda t: (t.id(type="integer"), t.string("name"), t.timestamps()))
+    schema.create_table(pivot, lambda t: (
         t.id(type="integer"), t.integer("widget_id"), t.integer("label_id"),
     ))
-    yield
-    for table in ("rel_widget_label", "rel_widgets", "rel_labels"):
-        schema.drop_if_exists(table)
+    monkeypatch.setattr(Widget, "__table__", widgets)
+    monkeypatch.setattr(Label, "__table__", labels)
+    monkeypatch.setitem(PIVOTS, "widget_label", pivot)
+    return pivot
 
 
 def test_attach_stamps_the_bound_tenant_on_the_pivot_row(tenanted_pivot_tables):
@@ -94,7 +110,7 @@ def test_attach_stamps_the_bound_tenant_on_the_pivot_row(tenanted_pivot_tables):
 
         from craft.facades import DB
 
-        row = DB.table("rel_project_tag").where("project_id", project.id).first()
+        row = DB.table(tenanted_pivot_tables).where("project_id", project.id).first()
         assert row["tenant_id"] == ACME
 
 
@@ -117,7 +133,7 @@ def test_detach_never_reaches_another_tenants_pivot_row(tenanted_pivot_tables):
         beta_project.tags().detach(beta_tag.id)
 
     with Tenant.scope(ACME):
-        surviving = DB.table("rel_project_tag").where("project_id", acme_project.id).first()
+        surviving = DB.table(tenanted_pivot_tables).where("project_id", acme_project.id).first()
         assert surviving is not None
 
 
@@ -132,7 +148,7 @@ def test_sync_replaces_only_the_bound_tenants_pivot_rows(tenanted_pivot_tables):
 
         from craft.facades import DB
 
-        rows = DB.table("rel_project_tag").where("project_id", project.id).get()
+        rows = DB.table(tenanted_pivot_tables).where("project_id", project.id).get()
         assert [row["tag_id"] for row in rows] == [tag_b.id]
         assert all(row["tenant_id"] == ACME for row in rows)
 
@@ -148,9 +164,9 @@ def test_attach_and_detach_are_unchanged_when_the_pivot_has_no_tenant_column(
 
     from craft.facades import DB
 
-    row = DB.table("rel_widget_label").where("widget_id", widget.id).first()
+    row = DB.table(untenanted_pivot_tables).where("widget_id", widget.id).first()
     assert row is not None
     assert "tenant_id" not in row
 
     widget.labels().detach(label.id)
-    assert DB.table("rel_widget_label").where("widget_id", widget.id).first() is None
+    assert DB.table(untenanted_pivot_tables).where("widget_id", widget.id).first() is None
