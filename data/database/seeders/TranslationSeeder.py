@@ -1,8 +1,9 @@
 """Seeds the `translations` table from the locale catalog.
 
-Locales follow BCP 47. `pt` is European Portuguese and `pt-BR` is Brazilian —
-they are genuinely different copy, not a relabel. Lookups fall back
-`pt-BR -> pt -> en`, so a locale only needs the keys where it differs.
+Locales follow the governance roles: `en` is the source, `pt-BR` the default
+runtime locale and `es` the alternative. A separate `pt` locale was drift and
+is no longer seeded; rows an earlier run wrote are left in place (records are
+never deleted) and are unreachable once `pt` is not an offered locale.
 """
 # Craft Framework
 # Copyright (c) 2026 Antonio Santos <snarthost@gmail.com>
@@ -40,34 +41,6 @@ TRANSLATIONS = {
         "framework_description": "Craft is a Python MVC framework with a very small footprint, built for developers who want a simple, elegant toolkit for full-featured web applications.",
         "msr.entity.tagline": "A web application built on Craft Engine.",
         "msr.entity.summary": "A Python web application built on Craft Engine, the batteries-included MVC framework.",
-    },
-    # European Portuguese.
-    "pt": {
-        "greeting": "Olá",
-        "welcome": "Bem-vindo ao Craft",
-        "discuss": "Fórum",
-        "contribute": "Contribuir",
-        "learn": "Aprender",
-        "dashboard": "Painel de Controlo",
-        "download": "Transferir",
-        "login": "Iniciar sessão",
-        "register": "Registar",
-        "logout": "Terminar sessão",
-        "why_craft": "Porquê o Craft?",
-        "small_footprint_title": "Framework com consumo mínimo",
-        "small_footprint_desc": "O Craft tem consumo nulo de arranque a quente e importações preguiçosas de dependências, mantendo a utilização de memória no mínimo.",
-        "exceptional_perf_title": "Desempenho excecional",
-        "exceptional_perf_desc": "Assente em pipelines ASGI e controladores de base de dados diretos, o Craft responde a pedidos em microssegundos.",
-        "simple_solutions_title": "Simplicidade acima da complexidade",
-        "simple_solutions_desc": "O Craft privilegia a estrutura MVC padrão, um contentor com injeção automática e modelos Active Record sem configuração forçada.",
-        "strong_security_title": "Segurança robusta",
-        "strong_security_desc": "Inclui proteção CSRF, sessões assinadas, palavras-passe cifradas e suporte a CAPTCHA.",
-        "recent_posts": "Publicações recentes",
-        "small_framework_title": "O framework pequeno com funcionalidades poderosas",
-        "learn_more": "Saber mais",
-        "framework_description": "O Craft é uma framework MVC em Python com consumo mínimo de recursos, criada para programadores que procuram um conjunto de ferramentas simples e elegante para aplicações web completas.",
-        "msr.entity.tagline": "Uma aplicação web criada com o Craft Engine.",
-        "msr.entity.summary": "Uma aplicação web em Python criada com o Craft Engine, a framework MVC completa.",
     },
     # Brazilian Portuguese.
     "pt-BR": {

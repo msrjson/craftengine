@@ -213,25 +213,37 @@ class SetLocale(Middleware):
             configured = _container(self.app).make("config").get("app.APP_LOCALES")
         except Exception:
             configured = None
-        return list(configured or ["en", "pt", "pt-BR", "es"])
+        return list(configured or ["en", "pt-BR", "es"])
 
     def _from_header(self, request: Any) -> Optional[str]:
         from engine.support.translation import normalize_locale
 
         header = request.headers.get("accept-language", "")
-        supported = {normalize_locale(s) for s in self.supported()}
+        supported = [normalize_locale(s) for s in self.supported()]
 
         for chunk in header.split(","):
-            tag = normalize_locale(chunk.split(";")[0].strip())
-            if not tag:
-                continue
-            if tag in supported:
-                return tag
-            # `pt-PT` with only `pt` supported should still resolve to `pt`.
-            base = tag.split("-")[0]
-            if base in supported:
-                return base
+            match = self._match(normalize_locale(chunk.split(";")[0].strip()), supported)
+            if match:
+                return match
         return None
+
+    @staticmethod
+    def _match(tag: Optional[str], supported: List[str]) -> Optional[str]:
+        """Return the offered locale closest to `tag`, or None.
+
+        An exact tag wins, then its base language (`pt-PT` -> `pt`), then the
+        first offered variant of the same language (`pt` -> `pt-BR`), so a
+        visitor asking for Portuguese is not served English just because only
+        the Brazilian variant is offered.
+        """
+        if not tag:
+            return None
+        if tag in supported:
+            return tag
+        base = tag.split("-")[0]
+        if base in supported:
+            return base
+        return next((s for s in supported if s.split("-")[0] == base), None)
 
     def default(self) -> str:
         """The configured locale, captured before anything overwrites it."""
@@ -249,10 +261,10 @@ class SetLocale(Middleware):
         """Pick the locale for this request, most specific source first."""
         from engine.support.translation import normalize_locale
 
-        supported = {normalize_locale(s) for s in self.supported()}
+        supported = [normalize_locale(s) for s in self.supported()]
 
-        requested = normalize_locale(request.query_params.get(self.QUERY_KEY))
-        if requested in supported:
+        requested = self._match(normalize_locale(request.query_params.get(self.QUERY_KEY)), supported)
+        if requested:
             if session is not None:
                 session.put(self.SESSION_KEY, requested)
             return requested

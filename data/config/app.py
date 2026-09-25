@@ -35,7 +35,7 @@ from craft import __release__ as APP_RELEASE  # noqa: E402
 from craft import __version__ as APP_VERSION  # noqa: E402
 
 #: Locales offered by the language switcher, most specific first.
-APP_LOCALES = ["en", "pt", "pt-BR", "es"]
+APP_LOCALES = ["en", "pt-BR", "es"]
 
 version = APP_VERSION
 

@@ -102,4 +102,4 @@ MIGRATION_LOCK_TIMEOUT = env("MIGRATION_LOCK_TIMEOUT", 120)
 
 # Default locale & timezone
 DEFAULT_LOCALE = env("APP_LOCALE", "en")
-SUPPORTED_LOCALES = ["en", "pt", "es"]
+SUPPORTED_LOCALES = ["en", "pt-BR", "es"]

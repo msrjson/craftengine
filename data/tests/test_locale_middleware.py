@@ -48,7 +48,7 @@ class TestQueryParameter:
         client.get("/t/locale?lang=en")
         assert client.get("/t/locale?lang=kl").json()["locale"] == "en"
 
-    @pytest.mark.parametrize("tag", ["en", "pt", "pt-BR", "es"])
+    @pytest.mark.parametrize("tag", ["en", "pt-BR", "es"])
     def test_every_offered_locale_is_accepted(self, client, tag):
         assert client.get(f"/t/locale?lang={tag}").json()["locale"] == tag
 
@@ -61,8 +61,8 @@ class TestPersistence:
 
     def test_switching_again_replaces_it(self, client):
         client.get("/t/locale?lang=es")
-        client.get("/t/locale?lang=pt")
-        assert client.get("/t/locale").json()["locale"] == "pt"
+        client.get("/t/locale?lang=pt-BR")
+        assert client.get("/t/locale").json()["locale"] == "pt-BR"
 
     def test_one_visitors_choice_does_not_affect_another(self, client):
         client.get("/t/locale?lang=es")
@@ -75,10 +75,13 @@ class TestAcceptLanguage:
         response = client.get("/t/locale", headers={"Accept-Language": "es-ES,es;q=0.9"})
         assert response.json()["locale"] == "es"
 
-    def test_a_regional_tag_falls_back_to_its_base(self, client):
-        # pt-PT is not offered, but pt is.
+    def test_a_sibling_variant_is_served_when_the_tag_is_not_offered(self, client):
+        # Neither pt-PT nor pt is offered; pt-BR is the closest Portuguese.
         response = client.get("/t/locale", headers={"Accept-Language": "pt-PT,pt;q=0.9"})
-        assert response.json()["locale"] == "pt"
+        assert response.json()["locale"] == "pt-BR"
+
+    def test_a_regional_tag_falls_back_to_its_base(self):
+        assert SetLocale._match("es-MX", ["en", "es"]) == "es"
 
     def test_an_exact_regional_match_wins(self, client):
         response = client.get("/t/locale", headers={"Accept-Language": "pt-BR,pt;q=0.9"})
@@ -93,12 +96,12 @@ class TestAcceptLanguage:
         response = client.get(
             "/t/locale?lang=pt", headers={"Accept-Language": "es-ES,es;q=0.9"}
         )
-        assert response.json()["locale"] == "pt"
+        assert response.json()["locale"] == "pt-BR"
 
 
 class TestUnit:
     def test_supported_comes_from_config(self, migrated_database):
-        assert SetLocale(migrated_database).supported() == ["en", "pt", "pt-BR", "es"]
+        assert SetLocale(migrated_database).supported() == ["en", "pt-BR", "es"]
 
     def test_supported_can_be_overridden(self):
         assert SetLocale(supported=["en", "fr"]).supported() == ["en", "fr"]

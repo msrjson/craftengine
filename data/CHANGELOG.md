@@ -18,6 +18,15 @@ full policy (categories to use, what counts as security-relevant, how
 
 ## [Unreleased]
 
+### Changed
+
+- Collapse the `pt` locale into `pt-BR`. `APP_LOCALES`, `SUPPORTED_LOCALES`, the `SetLocale`
+  fallback list and the `craft new` config stubs now offer `en`, `pt-BR` and `es` only, and
+  `TranslationSeeder` no longer seeds `pt`. Rows an earlier run wrote stay in the database.
+- `SetLocale` matches a requested locale to the closest offered one: exact tag, then base
+  language, then the first offered variant of the same language. A visitor sending
+  `Accept-Language: pt-PT` or `?lang=pt` now lands on `pt-BR` instead of the default locale.
+
 ## [4.0.1] r00018 — 2026-09-24
 
 ### Fixed
