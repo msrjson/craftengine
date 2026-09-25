@@ -25,6 +25,7 @@ References:
 
 from __future__ import annotations
 
+import logging
 from contextvars import ContextVar
 from typing import Any, List, Optional
 
@@ -72,6 +73,30 @@ def locale_chain(locale: Optional[str], fallback: Optional[str] = None) -> List[
     return chain
 
 
+_logger = logging.getLogger("craft.i18n")
+
+#: (locale, key) pairs already reported missing, so each is logged once.
+_reported_missing: set = set()
+
+
+def _report_missing(key: str, locale: str) -> None:
+    """Count a missing translation and log it the first time it is seen.
+
+    A key rendered as itself used to leave no trace, so untranslated copy
+    shipped unnoticed. The counter is `i18n_missing_keys_total{locale,key}`.
+    """
+    from engine.support.metrics import registry
+
+    registry.increment("i18n_missing_keys_total", locale=locale, key=key)
+    if (locale, key) in _reported_missing:
+        return
+    _reported_missing.add((locale, key))
+    _logger.warning(
+        "i18n.missing_key key=%s locale=%s hint=add a row to `translations` for en, pt-BR and es",
+        key, locale,
+    )
+
+
 def translate(key: str, locale: Optional[str] = None, **replacements: Any) -> str:
     """Translate `key`, falling back through the locale chain.
 
@@ -87,9 +112,9 @@ def translate(key: str, locale: Optional[str] = None, **replacements: Any) -> st
     try:
         app = Container.getInstance()
         config = app.make("config")
-        active = locale or current_locale.get() or config.get("app.APP_LOCALE") or config.get("app.locale") or "en"
+        active = locale or current_locale.get() or config.get("app.APP_LOCALE") or "en"
         active_locale = str(active)
-        fallback = config.get("app.APP_FALLBACK_LOCALE") or config.get("app.fallback_locale") or "en"
+        fallback = config.get("app.APP_FALLBACK_LOCALE") or "en"
 
         for candidate in locale_chain(active, fallback):
             # 1. Database-backed dynamic translation (Primary source of truth)
@@ -118,6 +143,8 @@ def translate(key: str, locale: Optional[str] = None, **replacements: Any) -> st
     except Exception:
         text = None
 
+    if text is None:
+        _report_missing(key, active_locale)
     result = text if text is not None else key
 
     if replacements:

@@ -20,6 +20,12 @@ full policy (categories to use, what counts as security-relevant, how
 
 ### Added
 
+- `config.require(key)` returns a configuration value or raises `MissingConfigKeyError` (a
+  `KeyError`) naming the closest existing keys; `config.suggest(key)` returns them. `get()`
+  still answers the default for a missing key.
+- A translation key that resolves in no locale is counted in
+  `i18n_missing_keys_total{locale,key}` and logged once as `i18n.missing_key`, instead of
+  rendering as the key with no trace.
 - `craft.exceptions.MisconfigurationError(code, hint, **params)`: an HTTP 500 carrying a
   stable code and the exact fix, raised where the engine used to degrade silently.
 - A route action parameter annotated with a `FormRequest` subclass receives an instance that
@@ -34,6 +40,9 @@ full policy (categories to use, what counts as security-relevant, how
   followed by `save()` wrote the plaintext to the column. It now hashes in `save()` too.
 
 ### Fixed
+
+- `translate()` stops probing `app.locale` and `app.fallback_locale`, keys that never exist
+  (configuration is keyed by module attribute: `app.APP_LOCALE`).
 
 - The container no longer hides why a dotted path failed to resolve. An error raised while
   importing a module that exists (a syntax error, a missing dependency inside it) propagates

@@ -63,6 +63,22 @@ def env(key: str, default: Any = None) -> Any:
     return val
 
 
+class MissingConfigKeyError(KeyError):
+    """A required configuration key does not exist."""
+
+    def __init__(self, key: str, suggestions: list) -> None:
+        super().__init__(key)
+        self.key = key
+        self.suggestions = suggestions
+
+    def __str__(self) -> str:
+        hint = f" Did you mean: {', '.join(self.suggestions)}?" if self.suggestions else ""
+        return (
+            f"Configuration key '{self.key}' does not exist.{hint} Keys are "
+            f"<file>.<MODULE_ATTRIBUTE>, e.g. app.APP_DEBUG."
+        )
+
+
 class ConfigRepository:
     """Repository storing application configurations with dot notation access."""
 
@@ -98,6 +114,38 @@ class ConfigRepository:
                 return default
 
         return current
+
+    def require(self, key: str) -> Any:
+        """Return the value at `key`, or raise naming the closest existing keys.
+
+        `get()` answers None for a key that does not exist, so a typo reads as
+        "not configured". Keys use the module attribute name: `app.APP_DEBUG`
+        (or `app.app_debug`), never `app.debug`.
+
+        Raises:
+            MissingConfigKeyError: `key` does not exist.
+        """
+        missing = object()
+        value = self.get(key, missing)
+        if value is missing:
+            raise MissingConfigKeyError(key, self.suggest(key))
+        return value
+
+    def suggest(self, key: str) -> list:
+        """Return up to three existing keys closest to `key`."""
+        import difflib
+
+        flat: list = []
+
+        def walk(prefix: str, node: Any) -> None:
+            for name, child in node.items():
+                path = f"{prefix}.{name}" if prefix else str(name)
+                flat.append(path)
+                if isinstance(child, dict) and len(flat) < 5000:
+                    walk(path, child)
+
+        walk("", self._items)
+        return difflib.get_close_matches(key, flat, n=3, cutoff=0.5)
 
     def set(self, key: str, value: Any) -> None:
         parts = key.split(".")
