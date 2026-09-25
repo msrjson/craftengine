@@ -115,3 +115,64 @@ or plan a forward-only consolidation.
 - **Site DNS:** on 2026-09-24 `craftengine.org` did not resolve from the
   development machine, while other domains did. Confirm the domain's
   nameservers at the registrar.
+
+---
+
+## 🤖 Done automatically
+
+Work done during the 4.0.0 cut that was not in the original request, recorded
+so it is not mistaken for unexplained change. Each was found by running the
+code rather than reading it, and each is in the v4.0.0-r00017 history.
+
+**Found by walking the generated code end to end in a project from `craft new`:**
+
+- `craft migrate` failed with "database is locked" on file-backed SQLite. The
+  console booted two applications, so migration DDL ran on one connection while
+  the migrator held its transaction on another; PostgreSQL masked it but ran
+  migration DDL outside the transaction. Fixed at the root in `get_app()`.
+- Every generated login answered 500: the generated bootstrap registered 14
+  engine providers against this repository's 23, missing AntiSpam and
+  Honeypot. Both bootstraps now call one list,
+  `engine/providers/engine_providers.py`.
+- The generated `AuthController` called two APIs that do not exist
+  (`Validator.make`, `AntiSpam.verify(..., ip_address=...)`) and flashed old
+  input as an empty dict. Rewritten on the engine's API through the generated
+  FormRequests.
+- `role:admin` refused everyone, administrators included: the generated user
+  had no `has_role`. Added `AuthorizableMixin` to the engine.
+- `make:admin` linked to `/panel` and extended `layouts.panel`, both demo-only.
+- `make:crud` printed its API URL but never registered the route when
+  `routes/api.py` was absent.
+- `craft new` generated an empty project from an installed package: templates
+  were not package data, and setuptools drops hidden files such as
+  `.env.example`.
+- `make:auth` registered no routes when `routes/web.py` did not exist - the
+  suite's only failing test when this work began.
+
+**Found along the way:**
+
+- The engine's RBAC console commands imported `app.Models.*` in 21 places;
+  they now resolve models through `craft.auth.registry`.
+- The schema tenancy strategy lived in the demo application; it moved into the
+  engine as `craft.http.tenant_schema`.
+- The bundled `plugins/audit-log` wrote nothing once the demo's `SystemLog`
+  model was gone; it writes through the `DB` facade.
+- `/ready` disclosed the database driver, pool census and cache store without
+  authentication, and ran a query plus a cache write on every hit. Reduced
+  payload without `HEALTH_READINESS_TOKEN`; one result shared per interval.
+- `documentation/ai_agents.md` taught `Validator.make`, the non-existent call
+  the generated controller made; `llms.txt` linked a missing page and described
+  a removed login route.
+- The origin-based CSRF test hardcoded port 9000 and passed only where a local
+  `.env` set it. Every container run in this work read that `.env`, so none
+  reproduced CI until the suite was run with it moved aside.
+- The CI template language pass scanned demo view directories that no longer
+  exist and exited 2.
+- A write-ahead-log change added to fix the SQLite lock did not fix it and
+  broke read/write replica handling; it was removed.
+
+**Decided with the owner during the work:** the framework stays in the public
+`msrjson/craftengine` rather than moving to a new repository (keeping stars,
+links and history; older shapes remain reachable by tag), the cut is 4.0.0,
+identity models are generated rather than shipped, the admin panel is a
+generator, and the site carries the gear-and-ignition mark.

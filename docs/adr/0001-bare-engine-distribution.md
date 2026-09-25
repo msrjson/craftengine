@@ -1,6 +1,6 @@
 # ADR 0001 — The distributed framework is the bare engine
 
-- **Status:** accepted
+- **Status:** accepted; implemented in v4.0.0-r00017 (2026-09-24)
 - **Date:** 2026-09-22
 - **Supersedes:** nothing
 - **Scope:** what a developer downloads, how a new project starts, how the
