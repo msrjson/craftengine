@@ -289,3 +289,25 @@ class TestPrivilegeLadder:
         assert ladder["plain"].has_permission("manage-users") is False
 
 
+
+
+class TestUserModelWithoutAuthorization:
+    """A user model that cannot answer a role check must say so, not deny everyone."""
+
+    class _PlainUser:
+        pass
+
+    @pytest.mark.parametrize("alias", ["role:admin", "permission:manage-users", "group:support"])
+    def test_the_middleware_names_the_missing_mixin(self, alias):
+        from craft.exceptions import MisconfigurationError
+        from craft.http.kernel import Kernel
+
+        [instance] = Kernel(app).resolve_route_middleware([alias])
+
+        class _Auth:
+            def user(self):
+                return TestUserModelWithoutAuthorization._PlainUser()
+
+        instance.app = type("_App", (), {"make": lambda self, key: _Auth()})()
+        with pytest.raises(MisconfigurationError, match="AuthorizableMixin"):
+            instance.handle(object(), lambda request: "passed")

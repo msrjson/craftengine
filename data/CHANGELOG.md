@@ -26,6 +26,11 @@ full policy (categories to use, what counts as security-relevant, how
 
 ### Fixed
 
+- `role:`, `permission:` and `group:` route middleware raise `MisconfigurationError`
+  (`USER_MODEL_NOT_AUTHORIZABLE`, HTTP 500) naming `AuthorizableMixin` when the signed-in
+  user's model has no `has_role`/`has_permission`/`in_group`. They answered 403 to everyone,
+  administrators included, with nothing logged. Guests are still redirected or refused.
+
 - Route middleware parameters are declared, typed and checked when routes are built. Engine
   middleware lists the constructor parameters its alias accepts in `alias_parameters`, and
   values are converted to each default's type. `throttle:10` passed the string `"10"` and

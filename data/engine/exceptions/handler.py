@@ -22,6 +22,27 @@ class CraftException(Exception):
     status_code = 500
 
 
+class MisconfigurationError(CraftException):
+    """The application is wired in a way that cannot work, and says how to fix it.
+
+    Raised instead of degrading silently - a check that denies everyone, a
+    parameter dropped on the floor - so the first request surfaces the mistake
+    with the exact change to make.
+
+    Attributes:
+        code: Stable machine code for this failure.
+        hint: The change that fixes it, for the developer reading the log.
+    """
+
+    status_code = 500
+
+    def __init__(self, code: str, hint: str, **params: object) -> None:
+        super().__init__(f"{code}: {hint}")
+        self.code = code
+        self.hint = hint
+        self.params = params
+
+
 class NotFoundHttpException(CraftException):
     status_code = 404
 
@@ -270,6 +291,7 @@ font-family:system-ui,-apple-system,'Segoe UI',sans-serif">
 
 __all__ = [
     "CraftException",
+    "MisconfigurationError",
     "NotFoundHttpException",
     "AuthorizationException",
     "ValidationException",

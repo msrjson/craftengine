@@ -126,9 +126,9 @@ def _access_config() -> Any:
 class AuthorizableMixin:
     """Role, permission and group checks for an authenticated model.
 
-    The engine's `role:` and `permission:` route middleware and `Auth.can()`
-    call these methods on the current user. Without them, `role:` refuses
-    everyone and `permission:` raises. A generated `User` inherits them rather
+    The engine's `role:`, `permission:` and `group:` route middleware and
+    `Auth.can()` call these methods on the current user. Without them, the
+    middleware raises `MisconfigurationError` naming this mixin. A generated `User` inherits them rather
     than reimplementing them, because a permission reaches a user by four
     paths - direct, through a role, through a group's role, through a group -
     and every hand-written check misses at least one.

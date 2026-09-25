@@ -5,6 +5,7 @@
 
 from engine.exceptions.handler import (
     CraftException,
+    MisconfigurationError,
     NotFoundHttpException,
     AuthorizationException,
     ValidationException,

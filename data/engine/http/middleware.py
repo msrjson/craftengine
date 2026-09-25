@@ -47,6 +47,30 @@ def _container(app: Any = None) -> Any:
     return Container.getInstance()
 
 
+def _user_can_answer(user: Any, method: str, alias: str) -> bool:
+    """Return whether `user` exists, raising if its model cannot answer `method`.
+
+    A user model without the method used to make every `role:`/`permission:`/
+    `group:` check deny, including for administrators, with nothing in the log.
+
+    Raises:
+        MisconfigurationError: The signed-in user's model lacks `method`.
+    """
+    if user is None:
+        return False
+    if callable(getattr(user, method, None)):
+        return True
+    from engine.exceptions.handler import MisconfigurationError
+
+    raise MisconfigurationError(
+        "USER_MODEL_NOT_AUTHORIZABLE",
+        f"The '{alias}:' route middleware calls {type(user).__name__}.{method}(), which does "
+        f"not exist. Mix craft.auth.models.AuthorizableMixin into {type(user).__module__}."
+        f"{type(user).__name__}.",
+        model=f"{type(user).__module__}.{type(user).__name__}", method=method,
+    )
+
+
 def _as_starlette(response: Any) -> Any:
     """Normalise a framework response into a Starlette response, if possible."""
     from starlette.responses import Response as StarletteResponse
@@ -650,7 +674,7 @@ class RequireRole(Middleware):
     def handle(self, request: Any, next_callable: Callable) -> Any:
         user = _container(self.app).make("auth").user()
 
-        if user is not None and getattr(user, "has_role", None) and user.has_role(self.role):
+        if _user_can_answer(user, "has_role", "role") and user.has_role(self.role):
             return next_callable(request)
 
         if getattr(request, "expects_json", lambda: False)():
@@ -725,7 +749,7 @@ class RequireGroup(Middleware):
     def handle(self, request: Any, next_callable: Callable) -> Any:
         user = _container(self.app).make("auth").user()
 
-        if user is not None and callable(getattr(user, "in_group", None)) and user.in_group(self.group):
+        if _user_can_answer(user, "in_group", "group") and user.in_group(self.group):
             return next_callable(request)
 
         if getattr(request, "expects_json", lambda: False)():
@@ -766,11 +790,7 @@ class RequirePermission(Middleware):
     def handle(self, request: Any, next_callable: Callable) -> Any:
         user = _container(self.app).make("auth").user()
 
-        if (
-            user is not None
-            and getattr(user, "has_permission", None)
-            and user.has_permission(self.permission)
-        ):
+        if _user_can_answer(user, "has_permission", "permission") and user.has_permission(self.permission):
             return next_callable(request)
 
         if getattr(request, "expects_json", lambda: False)():
