@@ -77,6 +77,40 @@ _logger = logging.getLogger("craft.i18n")
 
 #: (locale, key) pairs already reported missing, so each is logged once.
 _reported_missing: set = set()
+#: In-memory translation bundles loaded in bulk per locale
+_locale_bundles: dict[str, dict[str, str]] = {}
+_locale_bundles_loaded: set[str] = set()
+#: Cache for keys known not to exist in DB for a given locale
+_negative_cache: set[tuple[str, str]] = set()
+
+
+def clear_translation_cache() -> None:
+    """Clear in-memory translation bundles and negative cache."""
+    _locale_bundles.clear()
+    _locale_bundles_loaded.clear()
+    _negative_cache.clear()
+    _reported_missing.clear()
+
+
+def _load_locale_bundle(app: Any, locale: str) -> dict[str, str]:
+    if locale in _locale_bundles_loaded:
+        return _locale_bundles.get(locale, {})
+    try:
+        rows = (
+            app.make("db")
+            .statement(
+                "SELECT key, value FROM translations WHERE locale = ?",
+                [locale],
+                read=True,
+            )
+            .fetchall()
+        )
+        bundle = {str(row["key"]): str(row["value"]) for row in rows if row.get("value") is not None}
+        _locale_bundles[locale] = bundle
+        _locale_bundles_loaded.add(locale)
+        return bundle
+    except Exception:
+        return _locale_bundles.get(locale, {})
 
 
 def _report_missing(key: str, locale: str) -> None:
@@ -117,23 +151,34 @@ def translate(key: str, locale: Optional[str] = None, **replacements: Any) -> st
         fallback = config.get("app.APP_FALLBACK_LOCALE") or "en"
 
         for candidate in locale_chain(active, fallback):
-            # 1. Database-backed dynamic translation (Primary source of truth)
-            try:
-                row = (
-                    app.make("db")
-                    .statement(
-                        "SELECT value FROM translations WHERE key = ? AND locale = ?",
-                        [key, candidate],
-                        read=True,
-                    )
-                    .fetchone()
-                )
-            except Exception:
-                row = None  # DB offline or not yet migrated — fallback to config
-
-            if row is not None and row["value"]:
-                text = str(row["value"])
+            # 1. Database-backed dynamic translation with in-memory bulk memoization
+            bundle = _load_locale_bundle(app, candidate)
+            if key in bundle:
+                text = bundle[key]
                 break
+
+            # Fallback for dynamic rows inserted after bundle was loaded (if not negatively cached)
+            if (candidate, key) not in _negative_cache:
+                try:
+                    row = (
+                        app.make("db")
+                        .statement(
+                            "SELECT value FROM translations WHERE key = ? AND locale = ?",
+                            [key, candidate],
+                            read=True,
+                        )
+                        .fetchone()
+                    )
+                    if row is not None and row["value"]:
+                        text = str(row["value"])
+                        if candidate not in _locale_bundles:
+                            _locale_bundles[candidate] = {}
+                        _locale_bundles[candidate][key] = text
+                        break
+                    else:
+                        _negative_cache.add((candidate, key))
+                except Exception:
+                    pass
 
             # 2. Config-defined fallback translations (e.g. config/lang.py)
             value = config.get(f"lang.{candidate}.{key}")
@@ -166,4 +211,5 @@ __all__ = [
     "normalize_locale",
     "current_locale",
     "get_current_locale",
+    "clear_translation_cache",
 ]

@@ -376,7 +376,10 @@ class DatabaseSessionStore(SessionStore):
             stored = json.loads(row.get("payload") or "{}")
         except ValueError:
             stored = {}
-        return Session(stored, session_id=session_id)
+        session = Session(stored, session_id=session_id)
+        session._modified = False
+        session._persisted = True
+        return session
 
     def _is_lifetime_expired(self, row: Dict[str, Any]) -> bool:
         created_at = self._parse_stored_time(row.get("created_at"))
@@ -405,28 +408,41 @@ class DatabaseSessionStore(SessionStore):
 
     def save(self, session: Session) -> str:
         session.age_flash_data()
+        original_id = getattr(session, "_original_id", None)
+        id_changed = bool(original_id and original_id != session.id)
+
+        # Avoid redundant database writes on read-only requests
+        if not session._modified and not id_changed and getattr(session, "_persisted", False):
+            return self._encode({"id": session.id})
+
         payload = json.dumps(session.to_dict(), default=str)
         now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
         db = self._db()
 
-        original_id = getattr(session, "_original_id", None)
-        if original_id and original_id != session.id:
+        if id_changed:
             self.destroy(original_id)
             session._original_id = session.id
 
         try:
-            existing = db.table("sessions").where("id", session.id).first()
-            if existing:
+            if getattr(session, "_persisted", False) and not id_changed:
                 db.table("sessions").where("id", session.id).update({
                     "payload": payload, "last_activity_at": now, "updated_at": now,
                 })
             else:
-                db.table("sessions").insert({
-                    "id": session.id, "payload": payload,
-                    "last_activity_at": now, "created_at": now, "updated_at": now,
-                })
+                existing = db.table("sessions").where("id", session.id).first()
+                if existing:
+                    db.table("sessions").where("id", session.id).update({
+                        "payload": payload, "last_activity_at": now, "updated_at": now,
+                    })
+                else:
+                    db.table("sessions").insert({
+                        "id": session.id, "payload": payload,
+                        "last_activity_at": now, "created_at": now, "updated_at": now,
+                    })
+                session._persisted = True
         except Exception:
             pass
+        session._modified = False
         return self._encode({"id": session.id})
 
     def destroy(self, session_id: str) -> None:

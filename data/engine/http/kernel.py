@@ -279,15 +279,19 @@ class DynamicStarletteApp:
 
         # The body can only be consumed once, so buffer it and hand the app a
         # receive channel that replays exactly what we read.
+        # Limit scanning to the first 64KB so large uploads do not cause OOM.
         body = b""
         messages = []
+        MAX_INSPECT_BYTES = 65536
         while True:
             message = await receive()
             messages.append(message)
             if message["type"] != "http.request":
                 break
-            body += message.get("body", b"")
-            if not message.get("more_body", False):
+            chunk = message.get("body", b"")
+            if len(body) < MAX_INSPECT_BYTES:
+                body += chunk[: MAX_INSPECT_BYTES - len(body)]
+            if not message.get("more_body", False) or len(body) >= MAX_INSPECT_BYTES:
                 break
 
         override = self._extract_method(body, content_type)
@@ -703,6 +707,16 @@ class Kernel:
                     # the thread that borrowed it.
                     try:
                         self.app.make("db").release()
+                    except Exception:
+                        pass
+                    try:
+                        self.app.make("auth").reset()
+                    except Exception:
+                        pass
+                    try:
+                        from engine.auth.access import clear_access_cache
+
+                        clear_access_cache()
                     except Exception:
                         pass
 

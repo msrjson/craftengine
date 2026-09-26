@@ -21,7 +21,13 @@ import io
 import secrets
 from typing import Any
 
-from PIL import Image, ImageDraw, ImageFont
+def _pillow():
+    try:
+        from PIL import Image, ImageDraw, ImageFont
+
+        return Image, ImageDraw, ImageFont
+    except ImportError as exc:
+        raise RuntimeError("Pillow is required to generate captcha images. Run `pip install pillow`.") from exc
 
 
 class Captcha:
@@ -54,14 +60,16 @@ class Captcha:
         return code
 
     @staticmethod
-    def _glyph(character: str, font: Any) -> Image.Image:
+    def _glyph(character: str, font: Any) -> Any:
+        Image, ImageDraw, _ = _pillow()
         tile = Image.new("RGBA", (30, 40), (0, 0, 0, 0))
         shade = tuple(secrets.randbelow(90) for _ in range(3)) + (255,)
         ImageDraw.Draw(tile).text((6, 4), character, font=font, fill=shade)
         return tile.rotate(secrets.randbelow(51) - 25, resample=Image.BICUBIC, expand=False)
 
     @staticmethod
-    def _add_noise(canvas: Image.Image) -> None:
+    def _add_noise(canvas: Any) -> None:
+        _, ImageDraw, _ = _pillow()
         draw = ImageDraw.Draw(canvas)
         width, height = canvas.size
         for _ in range(6):
@@ -80,6 +88,7 @@ class Captcha:
         Returns:
             The PNG bytes.
         """
+        Image, _, ImageFont = _pillow()
         font = ImageFont.load_default(size=28)
         canvas = Image.new("RGB", (Captcha.WIDTH, Captcha.HEIGHT), (241, 245, 249))
         for index, character in enumerate(code):

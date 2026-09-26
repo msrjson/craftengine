@@ -16,44 +16,44 @@ References:
 from __future__ import annotations
 
 import importlib
-import threading
+from contextvars import ContextVar
 from typing import Any, Dict, Optional
 
 from engine.auth import registry
 from engine.auth.password import Hash
+
+_current_auth_user: ContextVar[Optional[Any]] = ContextVar("_current_auth_user", default=None)
+_current_auth_session: ContextVar[Optional[Any]] = ContextVar("_current_auth_session", default=None)
 
 
 class AuthManager:
     """Resolves, authenticates and remembers the current user.
 
     The manager is a container singleton, but "the current user" and "the
-    current session" belong to the request being served. Once requests are
-    handled on a thread pool, two of them share this object - so that state is
-    kept per-thread. Storing it on the instance would mean one visitor's
-    request could observe, or overwrite, another visitor's identity.
+    current session" belong to the request being served. Maintained via
+    ContextVar for complete isolation across async ASGI tasks and worker threads.
     """
 
     def __init__(self, app: Any = None):
         self.app = app
-        self._state = threading.local()
 
     # -- per-request state -----------------------------------------------------
 
     @property
     def _user(self) -> Optional[Any]:
-        return getattr(self._state, "user", None)
+        return _current_auth_user.get()
 
     @_user.setter
     def _user(self, value: Optional[Any]) -> None:
-        self._state.user = value
+        _current_auth_user.set(value)
 
     @property
     def _session(self) -> Any:
-        return getattr(self._state, "session", None)
+        return _current_auth_session.get()
 
     @_session.setter
     def _session(self, value: Any) -> None:
-        self._state.session = value
+        _current_auth_session.set(value)
 
     # -- provider resolution ---------------------------------------------------
 
@@ -156,6 +156,7 @@ class AuthManager:
         session, which is what `logout()` does.
         """
         self._user = None
+        self._session = None
 
     def logout(self) -> None:
         """End the session - clears memory and forgets the stored user."""
@@ -165,6 +166,7 @@ class AuthManager:
         departing = self._user
         self._user = None
         self._forget_session()
+        self._session = None
         if departing is not None:
             fire(UserLoggedOut(departing))
 
@@ -198,7 +200,7 @@ class AuthManager:
 
     def _forget_session(self) -> None:
         session = self._current_session()
-        if session is not None:
+        if session is not None and hasattr(session, "invalidate"):
             # `invalidate()`, not just `forget()`: a stale-but-still-valid
             # session id left behind after logout is a lesser fixation risk
             # (nothing sensitive is keyed to it), but there is no reason to

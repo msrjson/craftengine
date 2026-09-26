@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import os
 import threading
+from contextvars import ContextVar
 from typing import Any, Callable, Dict, List, Optional
 
 from engine.orm.connection import (
@@ -35,6 +36,23 @@ from engine.orm.connection import (
 RowWrapper = Row
 DatabaseStatementResult = StatementResult
 
+_current_tenant_schema: ContextVar[Optional[str]] = ContextVar("_current_tenant_schema", default=None)
+_request_query_log: ContextVar[Optional[List[str]]] = ContextVar("_request_query_log", default=None)
+
+
+def get_request_query_log() -> Optional[List[str]]:
+    return _request_query_log.get()
+
+
+def start_query_logging() -> None:
+    _request_query_log.set([])
+
+
+def stop_query_logging() -> Optional[List[str]]:
+    log = _request_query_log.get()
+    _request_query_log.set(None)
+    return log
+
 
 class DatabaseManager:
     """Resolves and manages database connections from the application config."""
@@ -47,14 +65,12 @@ class DatabaseManager:
         self._write: Optional[Connection] = None
         self._read: Optional[Connection] = None
         self._explicit_config = config
-        #: The active tenant is per-thread, because it is per-request: a
-        #: process-wide value would let one tenant's request repoint the schema
-        #: while another tenant's request is still running.
-        self._tenant = threading.local()
         self._boot_lock = threading.RLock()
         self._booted = False
         #: table -> set of columns, invalidated whenever the connection changes.
         self._column_cache: Dict[str, set] = {}
+        #: Known tenant schemas already validated/created in database
+        self._known_tenant_schemas: set[str] = set()
 
     # -- configuration ---------------------------------------------------------
 
@@ -83,11 +99,11 @@ class DatabaseManager:
 
     @property
     def _tenant_schema(self) -> Optional[str]:
-        return getattr(self._tenant, "schema", None)
+        return _current_tenant_schema.get()
 
     @_tenant_schema.setter
     def _tenant_schema(self, value: Optional[str]) -> None:
-        self._tenant.schema = value
+        _current_tenant_schema.set(value)
 
     def boot(self, name: Optional[str] = None) -> "DatabaseManager":
         """(Re)build the read/write connections from the current config."""
@@ -192,6 +208,17 @@ class DatabaseManager:
     # -- statements ------------------------------------------------------------
 
     def statement(self, query: str, bindings: Bindings = None, read: bool = False) -> StatementResult:
+        query_log = _request_query_log.get()
+        if query_log is not None:
+            query_log.append(query)
+            count = query_log.count(query)
+            if count == 10:
+                import logging
+
+                logging.getLogger("craft.orm").warning(
+                    "Potential N+1 query detected (%d executions): %s", count, query
+                )
+
         write = self.write_connection
         # Inside an open transaction, reads must see the transaction's own
         # writes — which are invisible to a separate read connection.
@@ -344,16 +371,22 @@ class DatabaseManager:
         if self.driver != "postgresql" or not schema_name:
             return False
 
+        if schema_name in self._known_tenant_schemas:
+            self.set_tenant_schema(schema_name)
+            return False
+
         existing = self.statement(
             "SELECT schema_name FROM information_schema.schemata WHERE schema_name = ?",
             [schema_name],
             read=True,
         ).fetchone()
         if existing is not None:
+            self._known_tenant_schemas.add(schema_name)
             self.set_tenant_schema(schema_name)
             return False
 
         self.create_tenant_schema(schema_name)
+        self._known_tenant_schemas.add(schema_name)
         self.set_tenant_schema(schema_name)
 
         if self.app is not None:

@@ -6,8 +6,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "craft"
-version = "4.1.0"
-description = "A batteries-included Python web framework built on Starlette"
+version = "4.2.0"
+description = "A batteries-included, high-performance Python web framework built on Starlette"
 readme = "README.md"
 requires-python = ">=3.14"
 license = "MIT"
@@ -36,7 +36,6 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
-    "fastapi>=0.104.0",
     "starlette>=0.27.0",
     "uvicorn[standard]>=0.24.0",
     "jinja2>=3.1",
@@ -58,7 +57,6 @@ dependencies = [
     # AES-GCM for the credential vault (`engine/security/vault.py`). A
     # maintained, audited library - never a hand-rolled cipher.
     "cryptography>=42.0",
-    "faker>=20.0",
     "psycopg2-binary>=2.9",
     "pillow>=10.0.0",
 ]
@@ -70,11 +68,13 @@ dev = [
     "pytest-cov>=4.1",
     "ruff>=0.6",
     "jsonschema>=4.18",
+    "faker>=20.0",
 ]
 # `dev msr:validate` checks the MSR JSON manifest against the canonical schema.
 msr = ["jsonschema>=4.18"]
 mysql = ["pymysql>=1.1"]
 redis = ["redis>=5.0"]
+s3 = ["boto3>=1.28.0"]
 # The Gemini and OpenAI drivers call an HTTP API. The `mock` driver needs
 # nothing, so this is optional like every other backend.
 ai = ["httpx>=0.25"]

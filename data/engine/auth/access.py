@@ -26,11 +26,27 @@ adding a fifth path later changes one file, not five.
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List
+from contextvars import ContextVar
+from typing import Any, Dict, List, Optional
 
 from engine.auth.conditions import matches_safely
 
 _LOG = logging.getLogger("craft")
+
+_request_access_cache: ContextVar[Optional[Dict[str, Any]]] = ContextVar("_request_access_cache", default=None)
+
+
+def get_access_cache() -> Dict[str, Any]:
+    cache = _request_access_cache.get()
+    if cache is None:
+        cache = {}
+        _request_access_cache.set(cache)
+    return cache
+
+
+def clear_access_cache() -> None:
+    """Clear request-scoped access and permission resolution cache."""
+    _request_access_cache.set(None)
 
 #: Every route by which a permission slug can reach a user, unioned into one
 #: query. `source` is carried through purely so a human (or an audit screen)
@@ -156,8 +172,15 @@ class AccessResolver:
         anything, and guessing "yes" is the one answer that can never be
         corrected after the fact.
         """
+        cache = get_access_cache()
+        cache_key = f"rows:{user_id}:{hash(sql)}"
+        if cache_key in cache:
+            return cache[cache_key]
+
         try:
-            return self._db().statement(sql, {"user": user_id}, read=True).fetchall()
+            res = self._db().statement(sql, {"user": user_id}, read=True).fetchall()
+            cache[cache_key] = res
+            return res
         except Exception:
             _LOG.error(
                 "Authorization query failed; denying. This is not a permission "
@@ -179,6 +202,11 @@ class AccessResolver:
         return self._grants(user_id, slug)
 
     def _grants(self, user_id: Any, slug: str) -> List[Dict[str, Any]]:
+        cache = get_access_cache()
+        cache_key = f"grants:{user_id}:{slug}"
+        if cache_key in cache:
+            return cache[cache_key]
+
         try:
             rows = (
                 self._db()
@@ -191,7 +219,9 @@ class AccessResolver:
                 exc_info=True,
             )
             return []
-        return [{"source": row["source"], "conditions": row["conditions"]} for row in rows]
+        res = [{"source": row["source"], "conditions": row["conditions"]} for row in rows]
+        cache[cache_key] = res
+        return res
 
     # -- questions -------------------------------------------------------------
 
@@ -272,4 +302,4 @@ class AccessResolver:
         return self._grants(_user_id(user), slug)
 
 
-__all__ = ["AccessResolver"]
+__all__ = ["AccessResolver", "clear_access_cache", "get_access_cache"]
