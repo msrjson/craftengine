@@ -331,6 +331,10 @@ class DatabaseSessionStore(SessionStore):
     browser can be timed out sooner than its full lifetime.
     """
 
+    #: An unmodified session refreshes `last_activity_at` at most this often,
+    #: so reads keep a user active without one write per request.
+    ACTIVITY_TOUCH_SECONDS = 60
+
     def __init__(self, key: str, app: Any = None, lifetime: int = 7200, idle_timeout: Optional[int] = None):
         super().__init__(key, lifetime)
         self.app = app
@@ -379,6 +383,7 @@ class DatabaseSessionStore(SessionStore):
         session = Session(stored, session_id=session_id)
         session._modified = False
         session._persisted = True
+        session._last_activity = self._parse_stored_time(row.get("last_activity_at"))
         return session
 
     def _is_lifetime_expired(self, row: Dict[str, Any]) -> bool:
@@ -390,6 +395,24 @@ class DatabaseSessionStore(SessionStore):
             return False
         last_activity = self._parse_stored_time(row.get("last_activity_at"))
         return last_activity is not None and (time.time() - last_activity) > self.idle_timeout
+
+    def _touch_activity(self, session: Session) -> None:
+        """Record activity on an unmodified session, at most once per interval.
+
+        Args:
+            session: A persisted session whose payload did not change.
+        """
+        last = getattr(session, "_last_activity", None)
+        if last is not None and time.time() - last < self.ACTIVITY_TOUCH_SECONDS:
+            return
+        now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+        try:
+            self._db().table("sessions").where("id", session.id).update(
+                {"last_activity_at": now, "updated_at": now}
+            )
+        except Exception:
+            return
+        session._last_activity = time.time()
 
     @staticmethod
     def _parse_stored_time(value: Any) -> Optional[float]:
@@ -411,8 +434,10 @@ class DatabaseSessionStore(SessionStore):
         original_id = getattr(session, "_original_id", None)
         id_changed = bool(original_id and original_id != session.id)
 
-        # Avoid redundant database writes on read-only requests
+        # A read-only request does not rewrite the payload, but it is still
+        # activity: idle tracking would log out a user who only reads.
         if not session._modified and not id_changed and getattr(session, "_persisted", False):
+            self._touch_activity(session)
             return self._encode({"id": session.id})
 
         payload = json.dumps(session.to_dict(), default=str)
@@ -443,6 +468,7 @@ class DatabaseSessionStore(SessionStore):
         except Exception:
             pass
         session._modified = False
+        session._last_activity = time.time()
         return self._encode({"id": session.id})
 
     def destroy(self, session_id: str) -> None:

@@ -27,7 +27,7 @@ from __future__ import annotations
 
 import logging
 from contextvars import ContextVar
-from typing import Any, List, Optional
+from typing import Any, Dict, List, Optional
 
 #: Locale for the request being handled, published by the SetLocale middleware.
 #: It lives here rather than in the config repository because that repository is
@@ -77,40 +77,59 @@ _logger = logging.getLogger("craft.i18n")
 
 #: (locale, key) pairs already reported missing, so each is logged once.
 _reported_missing: set = set()
-#: In-memory translation bundles loaded in bulk per locale
-_locale_bundles: dict[str, dict[str, str]] = {}
-_locale_bundles_loaded: set[str] = set()
-#: Cache for keys known not to exist in DB for a given locale
-_negative_cache: set[tuple[str, str]] = set()
+#: Slot in the request store that holds this request's translation bundles.
+_BUNDLES_SLOT = "craft.i18n.bundles"
 
 
 def clear_translation_cache() -> None:
-    """Clear in-memory translation bundles and negative cache."""
-    _locale_bundles.clear()
-    _locale_bundles_loaded.clear()
-    _negative_cache.clear()
+    """Forget this request's bundles and the missing-key log."""
+    from engine.container.application import Container
+
+    store = Container.request_store()
+    if store is not None:
+        store.pop(_BUNDLES_SLOT, None)
     _reported_missing.clear()
 
 
-def _load_locale_bundle(app: Any, locale: str) -> dict[str, str]:
-    if locale in _locale_bundles_loaded:
-        return _locale_bundles.get(locale, {})
+def _fetch_bundle(app: Any, locale: str) -> Dict[str, str]:
+    """Load every translation of `locale` in one query."""
     try:
-        rows = (
-            app.make("db")
-            .statement(
-                "SELECT key, value FROM translations WHERE locale = ?",
-                [locale],
-                read=True,
-            )
-            .fetchall()
-        )
-        bundle = {str(row["key"]): str(row["value"]) for row in rows if row.get("value") is not None}
-        _locale_bundles[locale] = bundle
-        _locale_bundles_loaded.add(locale)
-        return bundle
+        rows = app.make("db").statement(
+            "SELECT key, value FROM translations WHERE locale = ?", [locale], read=True
+        ).fetchall()
     except Exception:
-        return _locale_bundles.get(locale, {})
+        return {}  # DB offline or not yet migrated - fall back to config
+    return {str(row["key"]): str(row["value"]) for row in rows if row["value"]}
+
+
+def _fetch_one(app: Any, locale: str, key: str) -> Optional[str]:
+    """Load one translation; used outside a request, where nothing is cached."""
+    try:
+        row = app.make("db").statement(
+            "SELECT value FROM translations WHERE key = ? AND locale = ?", [key, locale], read=True
+        ).fetchone()
+    except Exception:
+        return None  # DB offline or not yet migrated - fall back to config
+    return str(row["value"]) if row is not None and row["value"] else None
+
+
+def _lookup(app: Any, locale: str, key: str) -> Optional[str]:
+    """Return the stored translation of `key`, one bundle query per request.
+
+    The bundle lives in the request store, keyed by locale and tenant schema,
+    so an edited row shows in the next request and no tenant ever reads a
+    bundle loaded for another. Outside a request nothing is cached.
+    """
+    from engine.container.application import Container
+
+    store = Container.request_store()
+    if store is None:
+        return _fetch_one(app, locale, key)
+    bundles = store.setdefault(_BUNDLES_SLOT, {})
+    slot = (locale, app.make("db").tenant_schema())
+    if slot not in bundles:
+        bundles[slot] = _fetch_bundle(app, locale)
+    return bundles[slot].get(key)
 
 
 def _report_missing(key: str, locale: str) -> None:
@@ -151,34 +170,11 @@ def translate(key: str, locale: Optional[str] = None, **replacements: Any) -> st
         fallback = config.get("app.APP_FALLBACK_LOCALE") or "en"
 
         for candidate in locale_chain(active, fallback):
-            # 1. Database-backed dynamic translation with in-memory bulk memoization
-            bundle = _load_locale_bundle(app, candidate)
-            if key in bundle:
-                text = bundle[key]
+            # 1. Database-backed dynamic translation (primary source of truth)
+            stored = _lookup(app, candidate, key)
+            if stored is not None:
+                text = stored
                 break
-
-            # Fallback for dynamic rows inserted after bundle was loaded (if not negatively cached)
-            if (candidate, key) not in _negative_cache:
-                try:
-                    row = (
-                        app.make("db")
-                        .statement(
-                            "SELECT value FROM translations WHERE key = ? AND locale = ?",
-                            [key, candidate],
-                            read=True,
-                        )
-                        .fetchone()
-                    )
-                    if row is not None and row["value"]:
-                        text = str(row["value"])
-                        if candidate not in _locale_bundles:
-                            _locale_bundles[candidate] = {}
-                        _locale_bundles[candidate][key] = text
-                        break
-                    else:
-                        _negative_cache.add((candidate, key))
-                except Exception:
-                    pass
 
             # 2. Config-defined fallback translations (e.g. config/lang.py)
             value = config.get(f"lang.{candidate}.{key}")

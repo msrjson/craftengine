@@ -695,9 +695,10 @@ class Kernel:
             # duration of the request, so the process served exactly one at a
             # time - the measured ~30 req/s ceiling, flat from 1 to 100 clients.
             # Offloading to the thread pool is only safe because the connection
-            # layer now keeps one session per thread, and because the auth
-            # manager's per-request state is thread-local; without those, two
-            # requests would share a cursor and an identity.
+            # layer keeps one session per thread, and because every subsystem
+            # keeps its per-request state in context variables: each call runs
+            # in a copy of the context, so that state dies with the request.
+            # The kernel therefore cleans up nothing on a subsystem's behalf.
             def serve(req):
                 try:
                     return current_call(req)
@@ -707,16 +708,6 @@ class Kernel:
                     # the thread that borrowed it.
                     try:
                         self.app.make("db").release()
-                    except Exception:
-                        pass
-                    try:
-                        self.app.make("auth").reset()
-                    except Exception:
-                        pass
-                    try:
-                        from engine.auth.access import clear_access_cache
-
-                        clear_access_cache()
                     except Exception:
                         pass
 

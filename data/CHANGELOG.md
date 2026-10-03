@@ -18,6 +18,34 @@ full policy (categories to use, what counts as security-relevant, how
 
 ## [Unreleased]
 
+### Fixed
+
+- **Idle timeout logged out users who only read**: since 4.2.0 an unmodified
+  database session skipped its write, so `last_activity_at` stopped moving.
+  An unmodified session now refreshes only `last_activity_at`, at most once
+  per `DatabaseSessionStore.ACTIVITY_TOUCH_SECONDS` (60).
+- **Translation bundles were shared by the whole process**: 4.2.0 cached every
+  locale bundle and every missing key for the life of the process, keyed by
+  locale alone. An edited or newly added translation never showed, and a
+  tenant schema could read a bundle loaded for another. Bundles now live in
+  the request store, keyed by locale and tenant schema: one query per locale
+  per request, fresh on the next request, nothing cached outside a request.
+- **The kernel cleaned up the auth subsystem**: the request `finally` imported
+  `engine.auth.access` and called `auth.reset()`. Per-request state lives in
+  context variables that die with each thread-pool call, so the kernel no
+  longer reaches into any subsystem.
+- **The N+1 query check was quadratic**: it called `list.count()` on every
+  statement; a counter keeps it constant per statement.
+- The 4.2.0 hardening tests deleted translation rows; they now use unique keys
+  in the per-session test database, with no physical delete.
+
+### Added
+
+- `Container.request_store()` returns the current request's scoped store (or
+  `None`), for subsystems that cache per request.
+- `DatabaseManager.tenant_schema()` returns the tenant schema active in the
+  current context.
+
 ## [4.2.0] r00020 — 2026-09-26
 
 ### Added

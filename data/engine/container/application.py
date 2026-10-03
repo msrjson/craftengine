@@ -254,6 +254,18 @@ class Container:
         return f"{id(self)}:{key}", store
 
     @staticmethod
+    def request_store() -> Optional[Dict[str, Any]]:
+        """Return the current request's scoped store, or None outside a request.
+
+        Engine subsystems keep per-request caches here, so the cache dies with
+        the request and is never shared between requests, tenants or threads.
+
+        Returns:
+            The request's dict, or None in a console, worker or test context.
+        """
+        return _request_scope.get()
+
+    @staticmethod
     def begin_request_scope() -> Token:
         """Open a fresh scoped-instance cache for the current request.
 

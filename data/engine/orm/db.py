@@ -19,8 +19,10 @@ References:
 
 from __future__ import annotations
 
+import logging
 import os
 import threading
+from collections import Counter
 from contextvars import ContextVar
 from typing import Any, Callable, Dict, List, Optional
 
@@ -38,6 +40,10 @@ DatabaseStatementResult = StatementResult
 
 _current_tenant_schema: ContextVar[Optional[str]] = ContextVar("_current_tenant_schema", default=None)
 _request_query_log: ContextVar[Optional[List[str]]] = ContextVar("_request_query_log", default=None)
+#: Executions per query text, so the N+1 check is O(1) per statement.
+_request_query_counts: ContextVar[Optional[Counter]] = ContextVar("_request_query_counts", default=None)
+#: Executions of one identical query, in one request, that trigger the N+1 warning.
+N_PLUS_ONE_THRESHOLD = 10
 
 
 def get_request_query_log() -> Optional[List[str]]:
@@ -46,12 +52,28 @@ def get_request_query_log() -> Optional[List[str]]:
 
 def start_query_logging() -> None:
     _request_query_log.set([])
+    _request_query_counts.set(Counter())
 
 
 def stop_query_logging() -> Optional[List[str]]:
     log = _request_query_log.get()
     _request_query_log.set(None)
+    _request_query_counts.set(None)
     return log
+
+
+def _record_query(query: str) -> None:
+    """Log `query` when request query logging is on; warn once on a likely N+1."""
+    query_log = _request_query_log.get()
+    counts = _request_query_counts.get()
+    if query_log is None or counts is None:
+        return
+    query_log.append(query)
+    counts[query] += 1
+    if counts[query] == N_PLUS_ONE_THRESHOLD:
+        logging.getLogger("craft.orm").warning(
+            "Potential N+1 query detected (%d executions): %s", counts[query], query
+        )
 
 
 class DatabaseManager:
@@ -208,17 +230,7 @@ class DatabaseManager:
     # -- statements ------------------------------------------------------------
 
     def statement(self, query: str, bindings: Bindings = None, read: bool = False) -> StatementResult:
-        query_log = _request_query_log.get()
-        if query_log is not None:
-            query_log.append(query)
-            count = query_log.count(query)
-            if count == 10:
-                import logging
-
-                logging.getLogger("craft.orm").warning(
-                    "Potential N+1 query detected (%d executions): %s", count, query
-                )
-
+        _record_query(query)
         write = self.write_connection
         # Inside an open transaction, reads must see the transaction's own
         # writes — which are invisible to a separate read connection.
@@ -343,6 +355,10 @@ class DatabaseManager:
         self.write_connection.rollback()
 
     # -- multi-tenancy ---------------------------------------------------------
+
+    def tenant_schema(self) -> Optional[str]:
+        """Return the tenant schema active in the current context, if any."""
+        return self._tenant_schema
 
     def set_tenant_schema(self, schema_name: Optional[str] = None) -> None:
         """Point the connection at a tenant schema (PostgreSQL `search_path`)."""

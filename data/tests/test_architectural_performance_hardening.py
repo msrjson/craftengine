@@ -1,9 +1,9 @@
 """Architectural & Performance Hardening Tests for Craft Framework v4.2.0.
 
 Validates the mitigations for:
-1. Translation in-memory bulk memoization & negative caching.
+1. Translation bundles loaded once per request, never shared by the process.
 2. Request-scoped RBAC/ABAC AccessResolver caching.
-3. DatabaseSessionStore dirty-checking & avoidance of redundant writes.
+3. DatabaseSessionStore dirty-checking without freezing idle tracking.
 4. AuthManager ContextVar isolation for ASGI / concurrent request safety.
 5. ORM N+1 query detection & per-request query logging.
 6. HTTP Kernel method override memory bounding.
@@ -13,12 +13,15 @@ Validates the mitigations for:
 # Licensed under the MIT License. See LICENSE in the project root.
 
 import asyncio
+import time
+import uuid
 from unittest.mock import MagicMock
 
 import pytest
 from craft.facades import DB
 from engine.auth.access import AccessResolver, clear_access_cache, get_access_cache
 from engine.auth.manager import AuthManager
+from engine.container.application import Container
 from engine.http.session import DatabaseSessionStore, Session
 from engine.orm.db import (
     DatabaseManager,
@@ -26,47 +29,64 @@ from engine.orm.db import (
     start_query_logging,
     stop_query_logging,
 )
-from engine.support.translation import (
-    __,
-    clear_translation_cache,
-    translate,
-)
+from engine.support.translation import clear_translation_cache, translate
 
 
-class TestTranslationBulkMemoization:
+def _translation_queries(log: list) -> int:
+    """Count the statements in `log` that read the translations table."""
+    return sum(1 for query in log if "FROM translations" in query)
+
+
+class TestTranslationRequestBundles:
+    """Bundles are request-scoped: fresh per request, never shared by the process."""
+
     @pytest.fixture(autouse=True)
-    def setup_translations(self, migrated_database):
-        clear_translation_cache()
-        DB.table("translations").where("key", "like", "bench_%").delete()
+    def seed_translations(self, migrated_database):
+        self.prefix = f"bundle_{uuid.uuid4().hex[:8]}"
         for i in range(10):
-            DB.table("translations").insert({
-                "key": f"bench_key_{i}",
-                "locale": "en",
-                "value": f"English Value {i}",
-            })
-            DB.table("translations").insert({
-                "key": f"bench_key_{i}",
-                "locale": "pt-BR",
-                "value": f"Valor Portugues {i}",
-            })
+            DB.table("translations").insert(
+                {"key": f"{self.prefix}_{i}", "locale": "pt-BR", "value": f"valor {i}"}
+            )
+        clear_translation_cache()
         yield
         clear_translation_cache()
-        DB.table("translations").where("key", "like", "bench_%").delete()
 
-    def test_translation_bulk_loads_and_serves_from_memory(self):
-        clear_translation_cache()
-        # First call loads the bundle for pt-BR
-        assert translate("bench_key_0", "pt-BR") == "Valor Portugues 0"
+    def test_one_bundle_query_serves_every_key_of_the_request(self):
+        token = Container.begin_request_scope()
+        start_query_logging()
+        try:
+            for i in range(10):
+                assert translate(f"{self.prefix}_{i}", "pt-BR") == f"valor {i}"
+            assert _translation_queries(stop_query_logging()) == 1
+        finally:
+            Container.end_request_scope(token)
 
-        # Subsequent lookups for other keys in the same locale hit memory bundle
-        for i in range(1, 10):
-            assert __ (f"bench_key_{i}", "pt-BR") == f"Valor Portugues {i}"
+    def test_an_edited_translation_shows_in_the_next_request(self):
+        key = f"{self.prefix}_0"
+        assert _translate_in_request(key) == "valor 0"
+        DB.table("translations").where("key", key).where("locale", "pt-BR").update({"value": "editado"})
+        assert _translate_in_request(key) == "editado"
 
-    def test_negative_cache_for_missing_keys(self):
-        clear_translation_cache()
-        assert translate("bench_missing_key", "pt-BR") == "bench_missing_key"
-        # Second call hits negative cache without hitting DB
-        assert translate("bench_missing_key", "pt-BR") == "bench_missing_key"
+    def test_a_key_missing_in_one_request_is_found_after_it_is_added(self):
+        key = f"{self.prefix}_late"
+        assert _translate_in_request(key) == key
+        DB.table("translations").insert({"key": key, "locale": "pt-BR", "value": "chegou"})
+        assert _translate_in_request(key) == "chegou"
+
+    def test_nothing_is_cached_outside_a_request(self):
+        key = f"{self.prefix}_1"
+        assert translate(key, "pt-BR") == "valor 1"
+        DB.table("translations").where("key", key).where("locale", "pt-BR").update({"value": "fora"})
+        assert translate(key, "pt-BR") == "fora"
+
+
+def _translate_in_request(key: str) -> str:
+    """Translate `key` inside its own request scope, as one HTTP request would."""
+    token = Container.begin_request_scope()
+    try:
+        return translate(key, "pt-BR")
+    finally:
+        Container.end_request_scope(token)
 
 
 class TestAccessResolverRequestCache:
@@ -101,21 +121,39 @@ class TestAccessResolverRequestCache:
         clear_access_cache()
 
 
+def _persisted_session(seconds_since_activity: float) -> Session:
+    """Return an unmodified, persisted session last active that long ago."""
+    session = Session({"user_id": 101}, session_id="sess_abc123")
+    session._modified = False
+    session._persisted = True
+    session._last_activity = time.time() - seconds_since_activity
+    return session
+
+
 class TestDatabaseSessionDirtyTracking:
-    def test_unmodified_session_skips_database_write(self):
-        store = DatabaseSessionStore(key="test-secret-key-32-chars-long-123")
+    def _store(self) -> tuple:
+        store = DatabaseSessionStore(key="test-secret-key-32-chars-long-123", idle_timeout=900)
         mock_db = MagicMock()
         store._db = lambda: mock_db
+        return store, mock_db
 
-        # Create session marked as persisted and unmodified
-        session = Session({"user_id": 101}, session_id="sess_abc123")
-        session._modified = False
-        session._persisted = True
-
-        cookie = store.save(session)
-        assert cookie is not None
-        # Neither update nor insert should be called
+    def test_recently_active_unmodified_session_skips_database_write(self):
+        store, mock_db = self._store()
+        assert store.save(_persisted_session(5)) is not None
         mock_db.table.assert_not_called()
+
+    def test_stale_unmodified_session_touches_only_its_activity(self):
+        store, mock_db = self._store()
+        store.save(_persisted_session(120))
+        update = mock_db.table.return_value.where.return_value.update
+        update.assert_called_once()
+        assert set(update.call_args.args[0]) == {"last_activity_at", "updated_at"}
+
+    def test_reading_user_is_not_logged_out_by_idle_timeout(self):
+        store, _ = self._store()
+        session = _persisted_session(120)
+        store.save(session)
+        assert time.time() - session._last_activity < 5
 
     def test_modified_session_performs_update(self):
         store = DatabaseSessionStore(key="test-secret-key-32-chars-long-123")
@@ -229,3 +267,51 @@ class TestMethodOverrideMemoryLimit:
 
         total_bytes = asyncio.run(drain())
         assert total_bytes == 102400
+
+
+class TestKernelHoldsNoSubsystemCleanup:
+    """The kernel serves HTTP; subsystems keep their own state per request."""
+
+    def test_kernel_does_not_import_or_call_auth(self):
+        import ast
+        import pathlib
+
+        source = pathlib.Path("engine/http/kernel.py").read_text()
+        imported = {
+            node.module
+            for node in ast.walk(ast.parse(source))
+            if isinstance(node, ast.ImportFrom) and node.module
+        }
+        assert not any(module.startswith("engine.auth") for module in imported)
+        assert 'make("auth")' not in source
+
+    def test_request_state_does_not_leak_between_thread_pool_requests(self):
+        from starlette.concurrency import run_in_threadpool
+
+        auth = AuthManager()
+        user = MagicMock()
+
+        def first_request() -> None:
+            auth.set_user(user)
+            get_access_cache()["rows:1:x"] = ["granted"]
+
+        def second_request() -> tuple:
+            return auth.user(), dict(get_access_cache())
+
+        async def serve_two() -> tuple:
+            await run_in_threadpool(first_request)
+            return await run_in_threadpool(second_request)
+
+        seen_user, seen_cache = asyncio.run(serve_two())
+        assert seen_user is None
+        assert seen_cache == {}
+
+
+def test_n_plus_one_warning_fires_once_per_query(caplog):
+    start_query_logging()
+    db = DatabaseManager(config={"driver": "sqlite", "database": ":memory:"})
+    db.statement("CREATE TABLE things (id INTEGER PRIMARY KEY)")
+    for i in range(25):
+        db.statement("SELECT * FROM things WHERE id = ?", [i])
+    stop_query_logging()
+    assert caplog.text.count("Potential N+1 query detected") == 1
