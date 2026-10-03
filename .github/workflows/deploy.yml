@@ -17,6 +17,9 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          # The engine boundary gate reads its pinned base commit from history.
+          fetch-depth: 0
 
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
@@ -37,6 +40,12 @@ jobs:
       - name: Forward migration and seeder safety
         working-directory: data
         run: python tools/check_data_safety.py
+
+      # The engine never imports the application: business rules live in
+      # modules and plugins. Ratcheted against tools/engine-boundary-policy.json.
+      - name: Engine boundary
+        working-directory: data
+        run: python tools/check_engine_boundary.py
 
       # Two passes: views are `*.forge.py`, a template DSL carrying a `.py`
       # suffix, so one config cannot classify both without failing every view.

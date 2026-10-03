@@ -8,7 +8,7 @@ blocked_by: none
 max_attempts: 2
 attempts: 0
 created_at: 2026-10-03T22:32:01Z
-updated_at: 2026-10-03T22:50:00Z
+updated_at: 2026-10-03T23:13:11Z
 source: owner request 2026-10-03 (agents writing business rules into the kernel); SoftPax Rule 192
 touches: [deploy/, .claude/rules/CRAFT_ENGINEERING_GOVERNANCE.md, docs/adr/, data/engine/providers/service_providers.py, data/config/app.py, data/tests/test_engine_boundary.py, .github/workflows/, data/CHANGELOG.md]
 ---
@@ -27,13 +27,13 @@ Agents have been writing business rules into the kernel. No gate stops it: `lint
 
 ## Done when
 
-- [ ] Boundary gate in this repo with configurable path predicates (engine roots, app roots `app`/`routes`/`database`/`config`/`bootstrap`, services/controllers), pinned base commit in a policy file, ratchet semantics, exit 0/1/2.
-- [ ] Default base is the pinned policy commit, not `HEAD`.
-- [ ] Runs in CI on every push and in the release checklist (NR-03).
-- [ ] `service_providers.py:254` reads a dotted path from config (`app.console_routes`) and resolves it through the container; behaviour unchanged.
-- [ ] `tests/test_engine_boundary.py` fails the suite if the engine imports the application.
-- [ ] ADR 0003 (engine boundary + internal proxy) and an "Engine boundary" section in `.claude/rules/CRAFT_ENGINEERING_GOVERNANCE.md` with the generic R-MOD rules (01-08, 10-12) stripped of SoftPax domain wording; Definition of Done item added.
-- [ ] Proof the gate bites: a temporary `from app ...` in `data/engine/` fails both the gate and the test, then is reverted.
+- [x] Boundary gate in this repo with configurable path predicates (engine roots, app roots `app`/`routes`/`database`/`config`/`bootstrap`, services/controllers), pinned base commit in a policy file, ratchet semantics, exit 0/1/2.
+- [x] Default base is the pinned policy commit, not `HEAD`.
+- [x] Runs in CI on every push and in the release checklist (NR-03).
+- [x] `service_providers.py:254` reads a dotted path from config (`app.console_routes`) and resolves it through the container; behaviour unchanged.
+- [x] `tests/test_engine_boundary.py` fails the suite if the engine imports the application.
+- [x] ADR 0003 (engine boundary + internal proxy) and an "Engine boundary" section in `.claude/rules/CRAFT_ENGINEERING_GOVERNANCE.md` with the generic R-MOD rules (01-08, 10-12) stripped of SoftPax domain wording; Definition of Done item added.
+- [x] Proof the gate bites: a temporary `from app ...` in `data/engine/` fails both the gate and the test, then is reverted.
 
 ## Verify
 
@@ -53,3 +53,4 @@ The canonical governance file is synced into other projects (it overwrote SoftPa
 
 - 2026-10-03T22:32:01Z created by claude (source: owner request + SoftPax study)
 - 2026-10-03T22:50:00Z owner principle recorded: extensions never override the core; ADR 0003 must state it
+- 2026-10-03T23:13:11Z resolved by claude (resolutions/p2-20261003-223201-engine-boundary-gate.resolution.md)

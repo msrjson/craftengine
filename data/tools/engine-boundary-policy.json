@@ -1,0 +1,9 @@
+{
+  "description": "Engine boundary gate policy. base_commit is the ratchet reference: findings already present there are debt that may shrink; anything beyond it fails. Never advance base_commit to hide a new finding - advancing it needs an explicit owner ruling recorded in the commit message.",
+  "base_commit": "daa1c4d10d5171ee6d7cb7dad14ca8d583305e68",
+  "scan_roots": ["engine", "app"],
+  "engine_roots": ["engine"],
+  "application_packages": ["app", "routes", "database", "config", "bootstrap"],
+  "service_markers": ["/Services/", "/services/"],
+  "controller_packages": ["app.Http.Controllers"]
+}

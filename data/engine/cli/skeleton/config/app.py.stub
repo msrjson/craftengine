@@ -20,6 +20,10 @@ APP_KEY = env("APP_KEY", "")
 trusted_proxy_hops = env("TRUSTED_PROXY_HOPS", 0)
 APP_LOCALE = env("APP_LOCALE", "en")
 APP_FALLBACK_LOCALE = env("APP_FALLBACK_LOCALE", "en")
+#: The module the engine imports to register scheduled tasks; it must expose
+#: `register_console()`. The application names it here so the engine never
+#: imports application code by a hardcoded path. Empty disables the lookup.
+console_routes = "routes.console"
 #: The single clock `ScheduleManager` (`engine/schedule/manager.py`) reads
 #: `now` from -- an IANA zone name (e.g. `"America/Sao_Paulo"`), not an offset.
 #: Everything the framework WRITES stays UTC (`engine/orm/model.py`,

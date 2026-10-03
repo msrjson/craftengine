@@ -3,6 +3,8 @@
 # Copyright (c) 2026 Antonio Santos <snarthost@gmail.com>
 # Licensed under the MIT License. See LICENSE in the project root.
 
+import importlib
+
 from engine.providers.service_provider import ServiceProvider
 
 
@@ -242,17 +244,20 @@ class FrameworkSubsystemsServiceProvider(ServiceProvider):
         self._load_scheduled_tasks()
 
     def _load_scheduled_tasks(self):
-        """Import `routes/console.py` so declared tasks reach the scheduler.
+        """Import the application's console module so declared tasks reach the scheduler.
 
-        Nothing called `register_console()` before, so every task declared in
-        that file was dead on arrival - the scheduler could not have run them
-        even once it worked. A missing file is fine (not every app schedules
-        anything); a *broken* one is logged rather than silenced, because a
-        typo there would otherwise mean tasks vanish with no signal at all.
+        The application names the module in `app.console_routes`; the engine
+        never imports application code by a hardcoded path. A missing module
+        is fine (not every app schedules anything); a *broken* one is logged
+        rather than silenced, because a typo there would otherwise mean tasks
+        vanish with no signal at all.
         """
+        module_path = self.app.make("config").get("app.console_routes")
+        if not module_path:
+            return
         try:
-            from routes.console import register_console
-        except ImportError:
+            register_console = importlib.import_module(str(module_path)).register_console
+        except (ImportError, AttributeError):
             return
         except Exception:
             import logging

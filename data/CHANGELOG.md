@@ -41,6 +41,17 @@ full policy (categories to use, what counts as security-relevant, how
 
 ### Added
 
+- **Engine boundary gate** (`tools/check_engine_boundary.py`, ADR 0003): the
+  engine never imports the application. A static AST check fails on an
+  engine file importing `app`, `routes`, `database`, `config` or `bootstrap`
+  (literal dynamic imports included) and on a service importing a
+  controller. It is ratcheted against the base commit pinned in
+  `tools/engine-boundary-policy.json`, blocks instead of guessing when that
+  base cannot be read, and runs in CI. `tests/test_engine_boundary.py` holds
+  the same boundary inside the suite.
+- `app.console_routes` names the module whose `register_console()` the engine
+  calls for scheduled tasks; the engine no longer imports `routes.console`
+  by a hardcoded path. New projects get the key from the skeleton.
 - `Container.request_store()` returns the current request's scoped store (or
   `None`), for subsystems that cache per request.
 - `DatabaseManager.tenant_schema()` returns the tenant schema active in the
