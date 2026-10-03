@@ -8,7 +8,7 @@ blocked_by: owner-decision
 max_attempts: 2
 attempts: 0
 created_at: 2026-10-03T23:05:20Z
-updated_at: 2026-10-03T23:05:20Z
+updated_at: 2026-10-03T23:17:08Z
 source: Owner-requested market research on 2026-10-04 (Europe/Lisbon), official framework documentation and source audit
 touches:
   - data/engine/queue/
@@ -54,3 +54,5 @@ Suggestions are not approved implementation work: autonomous is false and blocke
 ## History
 
 - 2026-10-03T23:05:20Z created by codex (source: owner-requested market research; suggestion awaiting owner decision)
+- 2026-10-03T23:17:08Z owner ruling: owner rejected market-oriented study and requested comparison of GitHub source to improve Craft ergonomics for humans and coding agents
+- 2026-10-03T23:17:08Z resolved as obsolete by codex; superseded by p2-20261003-231656-source-framework-ergonomics-review.md
