@@ -27,6 +27,7 @@ from starlette.routing import Route as StarletteRoute
 from starlette.staticfiles import StaticFiles
 
 from engine.container.application import Container
+from engine.events.lifecycle import RequestTerminated
 from engine.http.static_files import CachedStaticFiles
 
 logger = logging.getLogger("craft.http")
@@ -703,13 +704,10 @@ class Kernel:
                 try:
                     return current_call(req)
                 finally:
-                    # End of the request on this thread: give the pooled
-                    # connection back. Inside the worker thread, because that is
-                    # the thread that borrowed it.
-                    try:
-                        self.app.make("db").release()
-                    except Exception:
-                        pass
+                    # End of the request on this thread. Subsystems that hold
+                    # per-request resources - the database's pooled connection
+                    # first - listen and release them on this same thread.
+                    self.app.make("events").notify(RequestTerminated(req))
 
             try:
                 return await run_in_threadpool(serve, request)

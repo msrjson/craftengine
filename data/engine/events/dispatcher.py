@@ -14,7 +14,10 @@ References:
 
 from __future__ import annotations
 
+import logging
 from typing import Any, Callable, Dict, List, Union
+
+_LOG = logging.getLogger("craft.events")
 
 Listener = Union[type, Callable[[Any], Any]]
 
@@ -123,6 +126,20 @@ class EventDispatcher:
             responses.append(response)
 
         return responses
+
+    def notify(self, event: Any) -> None:
+        """Deliver `event` to every listener; a failing listener never stops the rest.
+
+        For cleanup events such as `RequestTerminated`, where skipping a later
+        listener would leak a resource. Each failure is logged with its traceback.
+        """
+        for listener in self.listeners_for(event):
+            try:
+                instance = self._resolve(listener)
+                handler = getattr(instance, "handle", instance)
+                handler(event)
+            except Exception:
+                _LOG.exception("event_listener_failed event=%s listener=%r", type(event).__name__, listener)
 
     # Alias.
     def fire(self, event: Any) -> List[Any]:

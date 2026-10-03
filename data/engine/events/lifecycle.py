@@ -76,6 +76,24 @@ class UserLoginFailed(AuthEvent):
         self.email = email
 
 
+class RequestTerminated(Event):
+    """An HTTP request finished, emitted on the worker thread that served it.
+
+    The kernel names no subsystem: each one that holds per-request resources
+    (the database's pooled connection first) listens for this and releases
+    them itself. Delivered with `EventDispatcher.notify`, so one failing
+    listener never stops the others.
+
+    Args:
+        request: The request that finished.
+    """
+
+    name = "request.terminated"
+
+    def __init__(self, request: Any):
+        self.request = request
+
+
 def fire(event: Event) -> None:
     """Emit a framework lifecycle event without ever breaking the caller.
 

@@ -34,6 +34,9 @@ full policy (categories to use, what counts as security-relevant, how
   `engine.auth.access` and called `auth.reset()`. Per-request state lives in
   context variables that die with each thread-pool call, so the kernel no
   longer reaches into any subsystem.
+- **The kernel returned the database connection by name**: its request
+  `finally` called `make("db").release()`. It now emits `RequestTerminated` on
+  the serving thread and the database provider releases its own connection.
 - **The N+1 query check was quadratic**: it called `list.count()` on every
   statement; a counter keeps it constant per statement.
 - The 4.2.0 hardening tests deleted translation rows; they now use unique keys
@@ -52,6 +55,9 @@ full policy (categories to use, what counts as security-relevant, how
 - `app.console_routes` names the module whose `register_console()` the engine
   calls for scheduled tasks; the engine no longer imports `routes.console`
   by a hardcoded path. New projects get the key from the skeleton.
+- `RequestTerminated` lifecycle event and `EventDispatcher.notify()`, which
+  delivers an event to every listener and logs a failing one instead of
+  stopping the rest - the seam subsystems use to clean up after a request.
 - `Container.request_store()` returns the current request's scoped store (or
   `None`), for subsystems that cache per request.
 - `DatabaseManager.tenant_schema()` returns the tenant schema active in the

@@ -19,6 +19,17 @@ class DatabaseServiceProvider(ServiceProvider):
 
     def boot(self):
         self.app.make("db").boot()
+        self.listen_for_request_end()
+
+    def listen_for_request_end(self) -> None:
+        """Return the request's pooled connection when the kernel announces its end.
+
+        The listener runs on the worker thread that borrowed the connection.
+        """
+        from engine.events.lifecycle import RequestTerminated
+
+        db = self.app.make("db")
+        self.app.make("events").listen(RequestTerminated, lambda _event: db.release())
 
 
 class PostgresServiceProvider(ServiceProvider):
