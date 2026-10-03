@@ -1,6 +1,6 @@
 # Backlog - CraftEngine (history)
 
-**Updated:** 2026-10-03T22:31:30Z
+**Updated:** 2026-10-03T23:05:00Z
 
 **Open work no longer lives here.** It is a queue of task files under
 [`backlog/`](../backlog/README.md), one file per item, each named and stamped with
@@ -13,6 +13,9 @@ predates 4.0.0 and stays as history.
 
 ## Revision history
 
+- 2026-10-03T23:05:00Z - the queue became mandatory: rules in
+  `.claude/rules/BACKLOG_QUEUE_STANDARD.md`, gate `.claude/rules/lint_backlog.py`
+  wired as a Claude hook and a Git `pre-commit`.
 - 2026-10-03T22:31:30Z - open items migrated to `backlog/` (L3, L6 leftover, L8, the P2 CI
   confirmation, the owner questions, the site items); this file became history.
 

@@ -4,6 +4,13 @@ The work queue for autonomous agents. Every open item is one Markdown file; its
 directory is its state. An agent needs nothing but this file and the task file
 to pick up, execute and close a task.
 
+**Mandatory.** The rules are in `.claude/rules/BACKLOG_QUEUE_STANDARD.md`
+(BQ-01 to BQ-11); this file is the procedure that follows them. The gate
+`python3 .claude/rules/lint_backlog.py` must exit 0 after every change to the
+queue. It runs automatically as a Claude Code hook (`.claude/settings.json`) and
+as the Git `pre-commit` (`.githooks/pre-commit`; enable once per clone with
+`git config core.hooksPath .githooks`). Never bypass it.
+
 ```text
 backlog/
 ├── bugfix/        Priority 1 - production incidents, webhooks, broken behavior
@@ -58,7 +65,8 @@ Body sections, in order: **Problem**, **Evidence** (with `file:line`),
 **Done when** (checkable criteria), **Verify** (exact commands), **Notes**,
 **History**.
 
-**History** is append-only, one line per change, newest last:
+**History** is append-only, one line per change, newest last. Each line starts
+with `- <ISO 8601 UTC> `; `<event> by <who>` is the recommended form:
 
 ```text
 - 2026-10-03T14:12:00Z created by claude (source: docs/backlog.md L8)

@@ -1,0 +1,7 @@
+#!/bin/sh
+# Backlog queue gate (BQ-10): refuses a commit that breaks .claude/rules/BACKLOG_QUEUE_STANDARD.md.
+# Enable once per clone: git config core.hooksPath .githooks
+root="$(git rev-parse --show-toplevel)"
+if git diff --cached --name-only | grep -q '^backlog/'; then
+    exec python3 "$root/.claude/rules/lint_backlog.py" --staged
+fi

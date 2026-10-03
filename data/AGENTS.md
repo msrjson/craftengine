@@ -69,3 +69,16 @@ Framework internals live in `engine/` and are imported as `craft.*`. Start with
   converses in Portuguese. Add a `CHANGELOG.md` entry for code changes.
 - Run relevant tests, `ruff check engine`, and both language gates when the
   local environment supports them. Report any gate that could not run.
+
+## Backlog queue - mandatory
+
+All open work is a task file under `backlog/`. Before creating, picking,
+claiming, editing or closing a task, read `.claude/rules/BACKLOG_QUEUE_STANDARD.md`
+(the rules, BQ-01 to BQ-11) and `backlog/README.md` (the procedure). In short:
+the directory is the state; every file is named and stamped with its UTC
+creation time; History is append-only; tasks are never deleted or renamed;
+claim only by `mv` into `processing/`; execute only `autonomous: true` with
+`blocked_by: none`; close only with evidence. The gate
+`python3 .claude/rules/lint_backlog.py` must exit 0; it runs as a Claude hook
+and as the Git `pre-commit` (`git config core.hooksPath .githooks` once per
+clone). Never bypass it.
