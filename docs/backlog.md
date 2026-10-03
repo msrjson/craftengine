@@ -1,21 +1,24 @@
-# Backlog - CraftEngine
+# Backlog - CraftEngine (history)
 
-Open work after **v4.0.0-r00017** (the bare engine, 2026-09-24). Ordered by
-priority. Each item states the evidence and what "done" means, so whoever picks
-it up - person or agent - can verify it without this conversation.
+**Updated:** 2026-10-03T22:31:30Z
 
-The earlier backlog lives in `.agents/docs/backlog.md` (651 lines, Portuguese,
-describing the framework as "the skeleton you copy"). It predates 4.0.0 and is
-not migrated here; treat it as history until someone triages it into this file.
+**Open work no longer lives here.** It is a queue of task files under
+[`backlog/`](../backlog/README.md), one file per item, each named and stamped with
+its UTC creation time and carrying its own History. Agents pick from
+`backlog/bugfix/` first, then `backlog/pending/`.
 
-Overall assessment of 4.0.0: a sound foundation that solves the problem it was
-cut for - an agent starting a project receives nothing to reuse, so it has no
-demo layout to graft work onto - but not a finished product. Item 1 matters most
-for the goal of agents working without error.
+This file keeps the record of items closed before the queue existed and the
+`Done automatically` log. The earlier backlog in `.agents/docs/backlog.md`
+predates 4.0.0 and stays as history.
+
+## Revision history
+
+- 2026-10-03T22:31:30Z - open items migrated to `backlog/` (L3, L6 leftover, L8, the P2 CI
+  confirmation, the owner questions, the site items); this file became history.
 
 ---
 
-## Priority
+## Priority (closed)
 
 ### P1. Generated code breaks the project's own language rules - done 2026-09-25
 
@@ -63,7 +66,7 @@ The suite no longer deletes, truncates or drops (3a7c62f); `tests/test_fixture_s
 enforces it and `conftest.py` runs PostgreSQL in a fresh `craft_test_*` database
 per session. Verified in the container against PostgreSQL 18, twice in a row:
 `1758 passed, 4 skipped` (the skips are refusal paths for other drivers); SQLite
-`1696 passed, 66 skipped`. **Still to confirm:** the GitHub `test-postgres` job and
+`1696 passed, 66 skipped`. **Moved to the queue:** `backlog/pending/p1-20261003-223120-confirm-postgres-ci-and-auto-release.md`. **Still to confirm:** the GitHub `test-postgres` job and
 the automatic `release` job on the next push - not pushed from this session.
 Residue by design: one `craft_test_*` database per session and one
 `craft_rls_probe_*` role (random password, LOGIN removed at test end) on a
@@ -109,7 +112,7 @@ finished job) are engine behaviour, not test cleanup - see the owner question be
 ### P3. Decide the engine's scope: "bare" or "Slim" - decided 2026-09-25: slim
 
 Recorded in `docs/adr/0002-slim-engine-optional-extras.md`, with every
-candidate subsystem sized. Next: step 0 of its plan (dependency hygiene and
+candidate subsystem sized. Next (queued as `backlog/pending/p2-20261003-223122-slim-engine-step-0-dependency-hygiene.md`): step 0 of its plan (dependency hygiene and
 lazy imports, no API break), then one subsystem per commit with a deprecation
 release before each removal.
 
@@ -128,7 +131,7 @@ release before each removal.
 
 ---
 
-## Lower-risk items
+## Lower-risk items (closed)
 
 ### L1. `make:admin` is the most fragile generator - done 2026-09-25
 
@@ -159,24 +162,6 @@ Coverage is 76%, with one journey test per generator. Error cases and edges -
 validation failures, duplicate registration, CSRF rejection on generated forms,
 generator re-runs with `--force` - are not covered end to end.
 
-### L3. Two language gates disagree about `engine/`
-
-**Measured 2026-09-25:** `engine/cli/app.py` alone holds 84 violations under
-the global gate (78 LANG-C console sentences, 6 LANG-A). New engine code this
-session follows the pattern that passes both gates: developer messages live in
-`engine/support/diagnostics.py` (code -> template) and exceptions carry a code
-and params. Migrating the console output to the same catalog is the concrete
-plan if the owner chooses "migrate".
-
-
-The global hook reproves any `engine/` file it touches for pre-existing
-violations, while `data/language-standard.toml` deliberately scopes `engine/`
-out with a measured backlog of 252 violations. Every edit to `engine/` in the
-4.0.0 work was flagged by the hook for violations it did not introduce.
-**Owner decision required:** exempt engineer-facing CLI output (precedent: the
-toml already exempts `tools/lint_language.py`), migrate the 252, or make the
-hook read the project's toml.
-
 ### L4. `data/` is not identical to a generated project - done 2026-09-25
 
 Documented in `data/README.md` ("This repository is not a generated project"):
@@ -188,73 +173,24 @@ which extra tables this tree creates and where a generated project gets them.
 `scheduler_runs` (2aec34b); `claim_window` reports a missing table; `craft
 doctor` lists missing engine tables in projects generated earlier.
 
-### L6. Agent-resilience audit: what is left
-
-The 2026-09-25 audit of `engine/` ranked 20 places where a plausible agent
-mistake failed silently or late. Fixed this session: attribute assignment not
-saved, mass-assignment drops silent, password stored in plaintext on update,
-middleware parameters untyped (`throttle:10`, `auth:api`), role checks denying
-everyone without the mixin, FormRequest not injected, `make:crud`/`make:admin`
-printing wrong URLs and a nonexistent command, actions returning None, unknown
-Forge directives and undefined variables, facade/container/config/identity
-errors without the cause, table-name inference, missing translation keys
-untraced, template helpers hiding misconfiguration, and `craft doctor`.
-Still open:
-- ~~Validator messages are English f-strings~~ - done: `validation.<code>` keys
-  seeded in three locales (`engine/validation/messages.py`).
-- **Validation rules without their argument pass silently:** `regex`, `min`,
-  `max`, `max_file_size` with no value (`engine/validation/validator.py`
-  244, 420, 465, 469); an unknown rule raises but suggests nothing.
-- **`FormRequest.data()` swallows every exception** and validates `{}`, which
-  produces misleading "required" errors (`engine/validation/form_request.py`).
-- **Translation lookups query per key.** One `SELECT` per string per locale
-  tried; the standard asks for a cached bundle per locale.
-- **Relations read as properties:** `post.user.name` reaches a bound method
-  and fails with a generic `AttributeError`; no hint that relations are
-  methods.
-
 ### L7. A 500 in production shows the exception message - done 2026-09-25
 
 Without `APP_DEBUG`, a 5xx answers with the generic title; the `code` of a
 coded exception is still exposed. The test that asserted the leak now asserts
 its absence.
 
-### L8. Flaky concurrency test
-
-`tests/test_connection_concurrency.py::TestInMemorySqliteSharesOneSession::
-test_threads_share_the_session_and_therefore_the_data` failed once with
-`IndexError: tuple index out of range` in about 20 runs on 2026-09-25, on a
-loaded machine, before and independent of that day's changes.
-
----
-
-## Also open
-
-- **Owner question (NR-02 scope):** the engine itself physically deletes
-  operational rows - a finished job (`engine/queue/manager.py:365`,
-  `store().complete`), a detached pivot row (`engine/orm/relationships.py:370`),
-  cleared sign-in cooldowns (`engine/security/honeypot.py`). NR-02 bans physical
-  deletes on business entities; whether these framework-operational rows are in
-  scope is a decision, not a fix.
-
-- **Third-party comparison document:** `data/documentation/market_evaluation.md`
-  is a comparison with other frameworks in its entirety, against the project
-  rule not to cite them. Owner to decide whether it stays.
-- **Site DNS:** on 2026-09-24 `craftengine.org` did not resolve from the
-  development machine, while other domains did. Confirm the domain's
-  nameservers at the registrar.
-- **Site blocked by corporate proxies:** the current registration dates from
-  2026-09-18 (GoDaddy, Cloudflare DNS), so web filters classify
-  `craftengine.org` as a Newly Registered Domain and block it, usually for the
-  first 30 days (until about 2026-10-18). The earlier owners (2017-2025) only
-  parked it, and the archive shows no abusive content. To shorten the wait,
-  submit the domain as Software/Technology to the main categorizers (Palo Alto,
-  Fortinet, Zscaler, Cisco Talos, Broadcom, Trellix).
-  **Done when:** the site opens from a corporate network.
-
----
-
 ## 🤖 Done automatically
+
+**2026-10-03:**
+
+- Found while migrating to the queue: two L6 leftovers were already fixed in
+  the code - rules without their argument now raise
+  (`engine/validation/validator.py:86`, `REQUIRED_ARGUMENTS`), and
+  `FormRequest.data()` catches only `ValueError`/`TypeError` and logs
+  (`engine/validation/form_request.py:80`). They were not queued.
+- Found while migrating: the working tree holds uncommitted changes that undo
+  v4.2.0-r00020, including the translation bundle cache; queued as an owner
+  decision instead of a task.
 
 **2026-09-25:**
 
