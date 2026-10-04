@@ -29,6 +29,10 @@ class EventDispatcher:
         self.app = app
         self._listeners: Dict[Any, List[Listener]] = {}
         self._wildcard: List[Listener] = []
+        #: Resource-release listeners: run after every other listener, wildcard
+        #: included, and kept by `forget`/`flush`, so nothing can reopen what
+        #: they release or remove them by accident.
+        self._last: Dict[Any, List[Listener]] = {}
 
     # -- registration ----------------------------------------------------------
 
@@ -47,6 +51,15 @@ class EventDispatcher:
             return
 
         self._listeners.setdefault(event, []).extend(listeners)
+
+    def listen_last(self, event: Any, listener: Listener) -> None:
+        """Register a listener that runs after every other listener of `event`.
+
+        For releasing per-request resources such as a pooled connection: a
+        listener running after the release could otherwise check out a new one.
+        `forget` and `flush` keep these listeners.
+        """
+        self._last.setdefault(event, []).append(listener)
 
     def subscribe(self, subscriber: Any) -> None:
         """Let a class register its own listeners via `subscribe(dispatcher)`."""
@@ -87,6 +100,9 @@ class EventDispatcher:
             if self._matches(registered, event):
                 found.extend(listeners)
         found.extend(self._wildcard)
+        for registered, listeners in self._last.items():
+            if self._matches(registered, event):
+                found.extend(listeners)
         return found
 
     def _resolve(self, listener: Listener) -> Any:

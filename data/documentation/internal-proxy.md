@@ -14,9 +14,9 @@ microseconds per proxy call against about 2.6 milliseconds for the same call
 made as a loopback HTTP request.
 
 The proxy is routing infrastructure only. It holds no tenant, authorization or
-business rule. The caller's context - tenant, database connection, user,
-locale, request id - lives in context variables and travels with the call
-unchanged. Tenant isolation stays with its two barriers: the module's own code
+business rule. Every target runs on the caller's own thread, so it shares the
+caller's context - tenant, user, locale, request id - its pooled database
+connection and any transaction the caller has open. Tenant isolation stays with its two barriers: the module's own code
 and the database's row-level security. The decision is recorded in ADR 0003
 (`docs/adr/0003-engine-boundary-and-internal-proxy.md` in the repository).
 
@@ -41,8 +41,10 @@ class BillingServiceProvider(ServiceProvider):
 
 `expose` refuses, at boot:
 
+- an alias another module already exposed - no module can take over another's;
 - a private (`_name`) or empty method name;
-- a method the class does not define, so a typo fails before the first call.
+- a method the class does not define, so a typo fails before the first call
+  (checked when `expose` receives the class itself).
 
 Calling an alias or a method that was not exposed raises `InternalProxyError`
 with a machine `code`:
@@ -51,8 +53,9 @@ with a machine `code`:
 |---|---|
 | `INTERNAL_TARGET_NOT_EXPOSED` | no module exposed this alias |
 | `INTERNAL_METHOD_NOT_EXPOSED` | the alias exists, the method was not exposed |
-| `INTERNAL_ASYNC_HANDLER_FROM_SYNC_CALL` | `call` on a coroutine; use `dispatch` |
+| `INTERNAL_ASYNC_HANDLER_FROM_SYNC_CALL` | `call` on a target that is or returns an awaitable; use `dispatch` |
 | `INTERNAL_DURABLE_EVENT` | `emit` of an event marked `durable = True` |
+| `INTERNAL_ALIAS_ALREADY_EXPOSED` | `expose` of an alias that is already taken |
 | `INTERNAL_EXPOSE_PRIVATE_OR_EMPTY_METHOD` | `expose` of a private or empty name |
 | `INTERNAL_EXPOSE_UNKNOWN_METHOD` | `expose` of a method the class lacks |
 
@@ -69,16 +72,17 @@ class CheckoutController:
         return {"invoice_id": invoice.id}
 ```
 
-From async code, `dispatch` awaits a coroutine target and runs a synchronous
-one on a worker thread, carrying a copy of the caller's context:
+From async code, `dispatch` calls the target and awaits whatever it returns:
 
 ```python
 invoice = await Proxy.dispatch("billing", "generate_invoice", order_id)
 ```
 
-If the awaiting caller is cancelled, `dispatch` waits for that worker thread
-to finish before re-raising, so the request never ends - and returns its
-pooled connection - while the thread still runs a transaction on it.
+A synchronous target runs inline on the caller's thread, never on a worker
+thread: on another thread it would borrow a second pooled connection, outside
+the caller's transaction, that nothing returns. The engine runs async actions
+on the request's own worker thread, so this does not block the server's event
+loop.
 
 The proxy resolves the target through the container, so it is also available
 by injection (`InternalProxy` in a constructor) or as `app.make("proxy")`.

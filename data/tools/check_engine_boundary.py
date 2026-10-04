@@ -71,23 +71,39 @@ def imported_modules(tree: ast.AST) -> Iterator[tuple[int, str]]:
 
     Relative imports stay inside their own package and are skipped.
     """
+    importers = _DYNAMIC_IMPORTERS | _importer_aliases(tree)
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
             yield from ((node.lineno, alias.name) for alias in node.names)
         elif isinstance(node, ast.ImportFrom) and node.level == 0 and node.module:
             yield node.lineno, node.module
-        elif isinstance(node, ast.Call) and _literal_dynamic_import(node):
-            yield node.lineno, node.args[0].value
+        elif isinstance(node, ast.Call):
+            target = _literal_dynamic_import(node, importers)
+            if target is not None:
+                yield node.lineno, target
 
 
-def _literal_dynamic_import(node: ast.Call) -> bool:
-    """True for `importlib.import_module("x")` or `__import__("x")` with a literal name."""
+def _importer_aliases(tree: ast.AST) -> set[str]:
+    """Names `import_module` was imported under (`from importlib import import_module as load`)."""
+    return {
+        alias.asname or alias.name
+        for node in ast.walk(tree)
+        if isinstance(node, ast.ImportFrom) and node.module == "importlib"
+        for alias in node.names
+        if alias.name == "import_module"
+    }
+
+
+def _literal_dynamic_import(node: ast.Call, importers: set[str]) -> Optional[str]:
+    """Return the literal module name of a dynamic import call, positional or `name=`."""
     func = node.func
-    name = func.attr if isinstance(func, ast.Attribute) else getattr(func, "id", None)
-    if name not in _DYNAMIC_IMPORTERS or not node.args:
-        return False
-    first = node.args[0]
-    return isinstance(first, ast.Constant) and isinstance(first.value, str)
+    called = func.attr if isinstance(func, ast.Attribute) else getattr(func, "id", None)
+    if called not in importers:
+        return None
+    first = node.args[0] if node.args else next((k.value for k in node.keywords if k.arg == "name"), None)
+    if isinstance(first, ast.Constant) and isinstance(first.value, str):
+        return first.value
+    return None
 
 
 def _matches(module: str, prefixes: Iterable[str]) -> bool:
@@ -122,13 +138,28 @@ def scan_source(path: str, source: str, policy: dict) -> list[Finding]:
 
 
 def scan_tree(root: Path, policy: dict) -> list[Finding]:
-    """Scan every Python file under the policy's scan roots."""
+    """Scan every Python file under the policy's scan roots.
+
+    Raises:
+        GateBlocked: A scan root does not exist - an empty scan proves nothing.
+    """
     findings: list[Finding] = []
     for scan_root in policy["scan_roots"]:
+        if not (root / scan_root).is_dir():
+            raise GateBlocked("BOUNDARY_SCAN_ROOT_MISSING")
         for file in sorted((root / scan_root).rglob("*.py")):
-            relative = file.relative_to(root).as_posix()
-            findings.extend(scan_source(relative, file.read_text(encoding="utf-8"), policy))
+            findings.extend(_scan_file(root, file, policy))
     return findings
+
+
+def _scan_file(root: Path, file: Path, policy: dict) -> list[Finding]:
+    """Scan one file; a file that is not UTF-8 is a finding, never a crash."""
+    relative = file.relative_to(root).as_posix()
+    try:
+        source = file.read_text(encoding="utf-8")
+    except UnicodeDecodeError:
+        return [Finding(relative, 1, "BOUNDARY_SYNTAX", "undecodable")] if _rules_for(relative, policy) else []
+    return scan_source(relative, source, policy)
 
 
 def new_findings(

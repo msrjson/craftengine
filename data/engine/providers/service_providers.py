@@ -29,7 +29,7 @@ class DatabaseServiceProvider(ServiceProvider):
         from engine.events.lifecycle import RequestTerminated
 
         db = self.app.make("db")
-        self.app.make("events").listen(RequestTerminated, lambda _event: db.release())
+        self.app.make("events").listen_last(RequestTerminated, lambda _event: db.release())
 
 
 class PostgresServiceProvider(ServiceProvider):
@@ -265,29 +265,41 @@ class FrameworkSubsystemsServiceProvider(ServiceProvider):
         plugins.load_enabled(self.app.base_path, self.app)
         self._load_scheduled_tasks()
 
+    @staticmethod
+    def _import_console_module(module_path: str) -> object:
+        """Import the console module; None when it is absent or broken (logged)."""
+        import logging
+
+        try:
+            return importlib.import_module(module_path)
+        except ModuleNotFoundError as missing:
+            if missing.name and (module_path + ".").startswith(missing.name + "."):
+                return None
+            logging.getLogger("craft").warning(
+                "console_routes_import_failed module=%s", module_path, exc_info=True
+            )
+        except Exception:
+            logging.getLogger("craft").warning(
+                "console_routes_import_failed module=%s", module_path, exc_info=True
+            )
+        return None
+
     def _load_scheduled_tasks(self):
         """Import the application's console module so declared tasks reach the scheduler.
 
-        The application names the module in `app.console_routes`; the engine
-        never imports application code by a hardcoded path. A missing module
-        is fine (not every app schedules anything); a *broken* one is logged
-        rather than silenced, because a typo there would otherwise mean tasks
-        vanish with no signal at all.
+        The application names the module in `app.console_routes`; a project
+        without the key keeps the conventional `routes.console`, and an empty
+        value disables the lookup. A missing module is fine (not every app
+        schedules anything); a *broken* one - including an import that fails
+        inside it - is logged rather than silenced, because tasks would
+        otherwise vanish with no signal at all.
         """
-        module_path = self.app.make("config").get("app.console_routes")
+        module_path = str(self.app.make("config").get("app.console_routes", "routes.console") or "")
         if not module_path:
             return
-        try:
-            register_console = importlib.import_module(str(module_path)).register_console
-        except (ImportError, AttributeError):
-            return
-        except Exception:
-            import logging
-
-            logging.getLogger("craft").warning(
-                "routes/console.py failed to import; no scheduled tasks registered",
-                exc_info=True,
-            )
+        module = self._import_console_module(module_path)
+        register_console = getattr(module, "register_console", None)
+        if register_console is None:
             return
 
         try:

@@ -46,7 +46,6 @@ def test_request_terminated_fires_once_on_the_serving_thread():
         served_on = TestClient(asgi_app).get("/t/lifecycle").json()["thread"]
     finally:
         app.make("events").forget(RequestTerminated)
-        _restore_database_listener()
     assert seen == [served_on]
 
 
@@ -54,10 +53,9 @@ def test_a_failing_listener_does_not_skip_the_connection_release():
     def broken(_event):
         raise RuntimeError("PROBE_LISTENER_FAILURE")
 
-    # Registered ahead of the database's own listener: a failure must not skip it.
+    # A failing listener must not skip the database release, which runs last.
     app.make("events").forget(RequestTerminated)
     app.make("events").listen(RequestTerminated, broken)
-    _restore_database_listener()
     connection = app.make("db").write_connection
     try:
         client = TestClient(asgi_app)
@@ -65,7 +63,6 @@ def test_a_failing_listener_does_not_skip_the_connection_release():
             assert client.get("/t/lifecycle").status_code == 200
     finally:
         app.make("events").forget(RequestTerminated)
-        _restore_database_listener()
     assert connection.open_sessions <= 1
 
 
@@ -81,10 +78,3 @@ def test_notify_delivers_to_every_listener_despite_failures(caplog):
     dispatcher.notify(event)
     assert delivered == [event]
     assert "PROBE_FIRST_LISTENER_FAILURE" in caplog.text
-
-
-def _restore_database_listener() -> None:
-    """Re-register the database's listener that `forget` removed with the probes."""
-    from engine.providers.service_providers import DatabaseServiceProvider
-
-    DatabaseServiceProvider(app).listen_for_request_end()

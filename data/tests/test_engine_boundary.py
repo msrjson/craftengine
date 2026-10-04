@@ -68,6 +68,8 @@ class TestDetection:
         ("from database.seeders import run\n", "database.seeders"),
         ("import importlib\nimportlib.import_module('app.Services.billing')\n", "app.Services.billing"),
         ("__import__('bootstrap.app')\n", "bootstrap.app"),
+        ("from importlib import import_module as load\nload('app.Models.User')\n", "app.Models.User"),
+        ("import importlib\nimportlib.import_module(name='routes.web')\n", "routes.web"),
     ])
     def test_engine_importing_the_application_is_found(self, source, target):
         assert _codes("engine/http/x.py", source) == [("ENGINE_APP_IMPORT", target)]
@@ -89,6 +91,18 @@ class TestDetection:
         source = "from app.Http.Controllers.InvoiceController import InvoiceController\n"
         found = _codes("app/Services/billing_service.py", source)
         assert found == [("SERVICE_CONTROLLER_IMPORT", "app.Http.Controllers.InvoiceController")]
+
+    def test_an_undecodable_engine_file_is_a_finding(self, tmp_path):
+        policy = {**POLICY, "scan_roots": ["engine"]}
+        (tmp_path / "engine").mkdir()
+        (tmp_path / "engine" / "latin.py").write_bytes(b"# caf\xe9\n")
+        found = [(f.code, f.target) for f in gate.scan_tree(tmp_path, policy)]
+        assert found == [("BOUNDARY_SYNTAX", "undecodable")]
+
+    def test_a_missing_scan_root_blocks_the_gate(self, tmp_path):
+        with pytest.raises(gate.GateBlocked) as blocked:
+            gate.scan_tree(tmp_path, {**POLICY, "scan_roots": ["engine"]})
+        assert blocked.value.code == "BOUNDARY_SCAN_ROOT_MISSING"
 
     def test_unparseable_engine_file_is_a_finding(self):
         assert _codes("engine/broken.py", "def (:\n") == [("BOUNDARY_SYNTAX", "unparseable")]
@@ -134,6 +148,33 @@ class TestConsoleRoutesSeam:
         app = MagicMock()
         app.make.return_value.get.return_value = module_path
         return FrameworkSubsystemsServiceProvider(app)
+
+    def _provider_without_the_key(self):
+        from engine.providers.service_providers import FrameworkSubsystemsServiceProvider
+
+        app = MagicMock()
+        app.make.return_value.get.side_effect = lambda _key, default=None: default
+        return FrameworkSubsystemsServiceProvider(app)
+
+    def test_a_project_without_the_key_keeps_the_conventional_module(self, monkeypatch):
+        registered = []
+        module = types.ModuleType("routes.console")
+        module.register_console = lambda: registered.append(True)
+        monkeypatch.setitem(sys.modules, "routes.console", module)
+        self._provider_without_the_key()._load_scheduled_tasks()
+        assert registered == [True]
+
+    def test_a_missing_console_module_is_skipped_quietly(self, monkeypatch, caplog):
+        missing = ModuleNotFoundError("PROBE", name="console_seam_absent")
+        monkeypatch.setattr(importlib, "import_module", MagicMock(side_effect=missing))
+        self._provider("console_seam_absent")._load_scheduled_tasks()
+        assert "console" not in caplog.text
+
+    def test_a_broken_import_inside_the_console_module_is_logged(self, monkeypatch, caplog):
+        broken = ModuleNotFoundError("PROBE", name="a_dependency_it_needs")
+        monkeypatch.setattr(importlib, "import_module", MagicMock(side_effect=broken))
+        self._provider("console_seam_probe")._load_scheduled_tasks()
+        assert "console_routes_import_failed" in caplog.text
 
     def test_the_module_named_in_config_is_registered(self, monkeypatch):
         registered = []

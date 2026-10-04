@@ -6,11 +6,11 @@ this proxy instead: the target is resolved from the container and its method
 runs in-process, with no request building, serialization, socket or middleware.
 
 The proxy is routing infrastructure and nothing more. It holds no tenant,
-authorization or business rule: the caller's context (tenant, connection,
-user, locale, request id) lives in context variables and travels with the
-call unchanged, including onto the worker thread a synchronous target runs on.
-Tenant isolation stays with its two barriers - the modules and controllers,
-and the database.
+authorization or business rule. Every target runs on the caller's own thread,
+so it shares the caller's context (tenant, user, locale, request id), its
+pooled database connection and any transaction the caller has open. Tenant
+isolation stays with its two barriers - the modules and controllers, and the
+database.
 
 Only what a module exposes can be called. A provider declares it at boot:
 
@@ -26,7 +26,6 @@ and any module calls it:
 
 from __future__ import annotations
 
-import asyncio
 import inspect
 from collections.abc import Iterable, Mapping
 from types import MappingProxyType
@@ -70,8 +69,12 @@ class InternalProxy:
         a typo fails at boot instead of on the first call.
 
         Raises:
-            InternalProxyError: A method name is private, empty or undefined.
+            InternalProxyError: The alias is already exposed (one module cannot
+                take over another's), or a method name is private, empty or
+                undefined.
         """
+        if alias in self._exposed:
+            raise InternalProxyError("INTERNAL_ALIAS_ALREADY_EXPOSED", alias)
         allowed = frozenset(methods)
         for method in allowed:
             if not method or method.startswith("_"):
@@ -89,28 +92,33 @@ class InternalProxy:
         """Call a synchronous exposed method on the caller's thread.
 
         Raises:
-            InternalProxyError: The target is not exposed, or it is a coroutine
-                (use `dispatch`; running it here would block an event loop).
+            InternalProxyError: The target is not exposed, or it is asynchronous
+                - a coroutine function or a method returning an awaitable (use
+                `dispatch`).
         """
         handler = self._handler(alias, method)
         if inspect.iscoroutinefunction(handler):
             raise InternalProxyError("INTERNAL_ASYNC_HANDLER_FROM_SYNC_CALL", alias, method)
-        return handler(*args, **kwargs)
+        result = handler(*args, **kwargs)
+        if inspect.isawaitable(result):
+            _discard(result)
+            raise InternalProxyError("INTERNAL_ASYNC_HANDLER_FROM_SYNC_CALL", alias, method)
+        return result
 
     async def dispatch(self, alias: str, method: str, /, *args: Any, **kwargs: Any) -> Any:
-        """Call an exposed method from async code without blocking the event loop.
+        """Call an exposed method from async code, awaiting whatever it returns.
 
-        A coroutine is awaited. A synchronous method runs on a worker thread
-        with a copy of the caller's context, so the tenant, the connection and
-        the request id travel with it.
+        A synchronous target runs inline on the caller's thread - never on a
+        worker thread, where it would borrow a second pooled connection outside
+        the caller's transaction and never return it. The engine runs async
+        actions on the request's own worker thread, so this does not block the
+        server's event loop.
 
         Raises:
             InternalProxyError: The target is not exposed.
         """
-        handler = self._handler(alias, method)
-        if inspect.iscoroutinefunction(handler):
-            return await handler(*args, **kwargs)
-        return await _until_the_thread_ends(asyncio.to_thread(handler, *args, **kwargs))
+        result = self._handler(alias, method)(*args, **kwargs)
+        return await result if inspect.isawaitable(result) else result
 
     def emit(self, event: Any) -> list[Any]:
         """Deliver an in-memory event to its listeners and return their results.
@@ -136,19 +144,11 @@ class InternalProxy:
         return getattr(self._container.make(abstract), method)
 
 
-async def _until_the_thread_ends(work: Any) -> Any:
-    """Await `work`; if the caller is cancelled, wait for the thread before re-raising.
-
-    A cancelled await does not stop the worker thread. Returning early would
-    let the request end - and its pooled connection be released - while that
-    thread still runs a transaction on it.
-    """
-    task = asyncio.ensure_future(work)
-    try:
-        return await asyncio.shield(task)
-    except asyncio.CancelledError:
-        await asyncio.wait({task})
-        raise
+def _discard(awaitable: Any) -> None:
+    """Close a coroutine that will never be awaited, so it leaves no warning."""
+    close = getattr(awaitable, "close", None)
+    if callable(close):
+        close()
 
 
 __all__ = ["InternalProxy", "InternalProxyError"]

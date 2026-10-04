@@ -21,9 +21,12 @@ full policy (categories to use, what counts as security-relevant, how
 ### Fixed
 
 - **Idle timeout logged out users who only read**: since 4.2.0 an unmodified
-  database session skipped its write, so `last_activity_at` stopped moving.
-  An unmodified session now refreshes only `last_activity_at`, at most once
-  per `DatabaseSessionStore.ACTIVITY_TOUCH_SECONDS` (60).
+  database session skipped its write, so `last_activity_at` stopped moving -
+  and an aged flash message or an in-place change to a stored list was never
+  persisted, so a flash reappeared on every read. A session whose payload
+  equals what was loaded (compared after aging the flash data) now refreshes
+  only `last_activity_at`, at most every `ACTIVITY_TOUCH_SECONDS` (60) or half
+  the `idle_timeout`, whichever is shorter; any other session is written.
 - **Translation bundles were shared by the whole process**: 4.2.0 cached every
   locale bundle and every missing key for the life of the process, keyed by
   locale alone. An edited or newly added translation never showed, and a
@@ -51,11 +54,11 @@ full policy (categories to use, what counts as security-relevant, how
   `documentation/internal-proxy.md`): modules call each other in memory
   through the container instead of through the HTTP kernel. Deny by default:
   a module exposes `alias -> service, {methods}` at boot, and private, empty or
-  undefined methods are refused there. `call` runs a synchronous target;
-  `dispatch` awaits a coroutine or runs a synchronous target on a worker
-  thread with a copy of the caller's context, waiting for that thread if the
-  caller is cancelled; `emit` refuses events marked `durable`. It holds no
-  tenant or authorization rule and carries the caller's context unchanged.
+  undefined methods - and an alias another module already took - are refused
+  there. Every target runs on the caller's thread, sharing its context,
+  pooled connection and open transaction: `call` refuses a target that is or
+  returns an awaitable; `dispatch` awaits whatever the target returns; `emit`
+  refuses events marked `durable`. It holds no tenant or authorization rule.
   Bound as the `proxy` singleton, by its class, and as the `Proxy` facade.
   Measured: about 5 microseconds per call against 2.6 ms for loopback HTTP.
 - **Engine boundary gate** (`tools/check_engine_boundary.py`, ADR 0003): the
@@ -68,10 +71,15 @@ full policy (categories to use, what counts as security-relevant, how
   the same boundary inside the suite.
 - `app.console_routes` names the module whose `register_console()` the engine
   calls for scheduled tasks; the engine no longer imports `routes.console`
-  by a hardcoded path. New projects get the key from the skeleton.
+  by a hardcoded path. A project without the key keeps `routes.console`, an
+  empty value disables it, and an import failing inside the module is now
+  logged (`console_routes_import_failed`) instead of read as "no module".
 - `RequestTerminated` lifecycle event and `EventDispatcher.notify()`, which
   delivers an event to every listener and logs a failing one instead of
   stopping the rest - the seam subsystems use to clean up after a request.
+  `EventDispatcher.listen_last()` registers a resource-release listener that
+  runs after every other one, wildcards included, and survives
+  `forget`/`flush`; the database releases its pooled connection there.
 - `Container.request_store()` returns the current request's scoped store (or
   `None`), for subsystems that cache per request.
 - `DatabaseManager.tenant_schema()` returns the tenant schema active in the

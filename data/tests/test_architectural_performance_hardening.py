@@ -13,6 +13,7 @@ Validates the mitigations for:
 # Licensed under the MIT License. See LICENSE in the project root.
 
 import asyncio
+import json
 import time
 import uuid
 from unittest.mock import MagicMock
@@ -127,6 +128,7 @@ def _persisted_session(seconds_since_activity: float) -> Session:
     session._modified = False
     session._persisted = True
     session._last_activity = time.time() - seconds_since_activity
+    session._loaded_payload = {"user_id": 101}  # the payload as the store wrote it
     return session
 
 
@@ -315,3 +317,42 @@ def test_n_plus_one_warning_fires_once_per_query(caplog):
         db.statement("SELECT * FROM things WHERE id = ?", [i])
     stop_query_logging()
     assert caplog.text.count("Potential N+1 query detected") == 1
+
+
+class TestDatabaseSessionRoundTrip:
+    """Read-only requests still persist what the request itself changed."""
+
+    @pytest.fixture
+    def store(self, migrated_database):
+        store = DatabaseSessionStore("test-secret-key-32-chars-long-123", migrated_database, idle_timeout=900)
+        store.created = []
+        yield store
+        for session_id in store.created:
+            store.destroy(session_id)
+
+    def _first_request(self, store) -> Session:
+        session = store.load(None)
+        store.created.append(session.id)
+        return session
+
+    def test_a_flash_is_shown_once_then_gone(self, store):
+        first = self._first_request(store)
+        first.flash("notice", "saved")
+        second = store.load(store.save(first))
+        assert second.get("notice") == "saved"
+        third = store.load(store.save(second))
+        assert third.get("notice") is None
+
+    def test_an_in_place_change_is_persisted(self, store):
+        first = self._first_request(store)
+        first.put("cart", [])
+        second = store.load(store.save(first))
+        second.get("cart").append("sku-1")
+        assert store.load(store.save(second)).get("cart") == ["sku-1"]
+
+    def test_a_short_idle_timeout_is_touched_before_it_expires(self):
+        store = DatabaseSessionStore(key="test-secret-key-32-chars-long-123", idle_timeout=30)
+        mock_db = MagicMock()
+        store._db = lambda: mock_db
+        store.save(_persisted_session(20))
+        mock_db.table.return_value.where.return_value.update.assert_called_once()

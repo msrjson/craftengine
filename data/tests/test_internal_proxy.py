@@ -12,12 +12,13 @@ tenant, authorization or business rule.
 import asyncio
 import threading
 import time
+import uuid
 
 import pytest
 from starlette.testclient import TestClient
 
 from bootstrap.app import app, asgi_app
-from craft.facades import Proxy, Route
+from craft.facades import DB, Proxy, Route
 from engine.container.application import Container
 from engine.container.internal_proxy import InternalProxy, InternalProxyError
 from engine.events.lifecycle import RequestTerminated
@@ -38,13 +39,16 @@ class Ledger:
             "thread": threading.current_thread().name,
         }
 
-    def slow_mark(self, marks: list) -> None:
-        time.sleep(0.2)
-        marks.append("finished")
-
     async def fetch(self, value: int) -> int:
         await asyncio.sleep(0)
         return value * 2
+
+    def deferred(self, value: int):
+        """Synchronous, but returns an awaitable - not a coroutine function."""
+        return self.fetch(value)
+
+    def count_key(self, key: str) -> int:
+        return DB.table("translations").where("key", key).count()
 
     def _secret(self) -> str:
         return "hidden"
@@ -59,7 +63,7 @@ def proxy() -> InternalProxy:
     container = Container()
     container.bind(Ledger)
     exposed = InternalProxy(container)
-    exposed.expose("ledger", Ledger, {"echo", "snapshot", "slow_mark", "fetch"})
+    exposed.expose("ledger", Ledger, {"echo", "snapshot", "fetch", "deferred", "count_key"})
     return exposed
 
 
@@ -96,6 +100,11 @@ class TestAllowlist:
             proxy.call("ledger", "_secret")
         assert _refusal(refused) == "INTERNAL_METHOD_NOT_EXPOSED"
 
+    def test_an_alias_cannot_be_taken_over(self, proxy):
+        with pytest.raises(InternalProxyError) as refused:
+            proxy.expose("ledger", Ledger, {"echo"})
+        assert _refusal(refused) == "INTERNAL_ALIAS_ALREADY_EXPOSED"
+
     def test_the_manifest_is_read_only(self, proxy):
         with pytest.raises(TypeError):
             proxy.exposed()["ledger"] = None
@@ -114,26 +123,34 @@ class TestCalls:
     def test_dispatch_awaits_a_coroutine(self, proxy):
         assert asyncio.run(proxy.dispatch("ledger", "fetch", 21)) == 42
 
-    def test_dispatch_runs_a_sync_target_off_the_event_loop_thread(self, proxy):
+    def test_call_refuses_a_sync_target_that_returns_an_awaitable(self, proxy):
+        with pytest.raises(InternalProxyError) as refused:
+            proxy.call("ledger", "deferred", 2)
+        assert _refusal(refused) == "INTERNAL_ASYNC_HANDLER_FROM_SYNC_CALL"
+
+    def test_dispatch_awaits_what_a_sync_target_returns(self, proxy):
+        assert asyncio.run(proxy.dispatch("ledger", "deferred", 4)) == 8
+
+    def test_dispatch_runs_a_sync_target_on_the_callers_thread(self, proxy):
         async def run() -> tuple:
             seen = await proxy.dispatch("ledger", "snapshot")
             return seen["thread"], threading.current_thread().name
 
-        target_thread, loop_thread = asyncio.run(run())
-        assert target_thread != loop_thread
+        target_thread, caller_thread = asyncio.run(run())
+        assert target_thread == caller_thread
 
-    def test_a_cancelled_caller_waits_for_the_thread_to_finish(self, proxy):
-        marks: list = []
-
-        async def run() -> None:
-            task = asyncio.create_task(proxy.dispatch("ledger", "slow_mark", marks))
-            await asyncio.sleep(0.05)
-            task.cancel()
-            with pytest.raises(asyncio.CancelledError):
-                await task
-
-        asyncio.run(run())
-        assert marks == ["finished"]
+    def test_dispatch_sees_the_callers_open_transaction(self, proxy, migrated_database):
+        db = migrated_database.make("db")
+        key = f"proxy_tx_{uuid.uuid4().hex[:8]}"
+        sessions_before = db.write_connection.open_sessions
+        db.begin_transaction()
+        try:
+            DB.table("translations").insert({"key": key, "locale": "en", "value": "uncommitted"})
+            seen = asyncio.run(proxy.dispatch("ledger", "count_key", key))
+            assert db.write_connection.open_sessions == sessions_before
+        finally:
+            db.rollback()
+        assert seen == 1
 
 
 class TestContextTravelsUnchanged:
@@ -187,7 +204,8 @@ class TestKernelBypass:
     def route_calling_a_module(self, migrated_database):
         proxy = app.make("proxy")
         app.bind(Ledger)
-        proxy.expose("tests.ledger", Ledger, {"echo"})
+        if "tests.ledger" not in proxy.exposed():
+            proxy.expose("tests.ledger", Ledger, {"echo"})
 
         def checkout(request):
             return proxy.call("tests.ledger", "echo", {"status": "invoiced"})
@@ -202,8 +220,7 @@ class TestKernelBypass:
             response = TestClient(asgi_app).get("/t/proxy-checkout")
         finally:
             app.make("events").forget(RequestTerminated)
-            _restore_database_listener()
-        assert response.json() == {"status": "invoiced"}
+            assert response.json() == {"status": "invoiced"}
         assert len(passes) == 1
 
     def test_a_proxy_call_is_far_cheaper_than_loopback_http(self):
@@ -220,10 +237,3 @@ def _seconds_per_call(work, repeat: int) -> float:
     for _ in range(repeat):
         work()
     return (time.perf_counter() - started) / repeat
-
-
-def _restore_database_listener() -> None:
-    """Re-register the database's listener that `forget` removed with the probe."""
-    from engine.providers.service_providers import DatabaseServiceProvider
-
-    DatabaseServiceProvider(app).listen_for_request_end()

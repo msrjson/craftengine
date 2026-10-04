@@ -383,6 +383,9 @@ class DatabaseSessionStore(SessionStore):
         session = Session(stored, session_id=session_id)
         session._modified = False
         session._persisted = True
+        # Parsed again, not shared: an in-place change to a mutable value must
+        # still differ from what was loaded.
+        session._loaded_payload = json.loads(row.get("payload") or "{}") if stored else {}
         session._last_activity = self._parse_stored_time(row.get("last_activity_at"))
         return session
 
@@ -396,6 +399,13 @@ class DatabaseSessionStore(SessionStore):
         last_activity = self._parse_stored_time(row.get("last_activity_at"))
         return last_activity is not None and (time.time() - last_activity) > self.idle_timeout
 
+    @staticmethod
+    def _unchanged(session: Session, payload: str) -> bool:
+        """True when a persisted session's payload equals what was loaded."""
+        if not getattr(session, "_persisted", False):
+            return False
+        return json.loads(payload) == getattr(session, "_loaded_payload", None)
+
     def _touch_activity(self, session: Session) -> None:
         """Record activity on an unmodified session, at most once per interval.
 
@@ -403,7 +413,7 @@ class DatabaseSessionStore(SessionStore):
             session: A persisted session whose payload did not change.
         """
         last = getattr(session, "_last_activity", None)
-        if last is not None and time.time() - last < self.ACTIVITY_TOUCH_SECONDS:
+        if last is not None and time.time() - last < self._touch_interval():
             return
         now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
         try:
@@ -414,12 +424,21 @@ class DatabaseSessionStore(SessionStore):
             return
         session._last_activity = time.time()
 
+    def _touch_interval(self) -> float:
+        """Seconds between activity refreshes: never long enough to let idle expire."""
+        if self.idle_timeout is None:
+            return float(self.ACTIVITY_TOUCH_SECONDS)
+        return min(float(self.ACTIVITY_TOUCH_SECONDS), self.idle_timeout / 2)
+
     @staticmethod
     def _parse_stored_time(value: Any) -> Optional[float]:
         if value is None:
             return None
         if isinstance(value, (int, float)):
             return float(value)
+        if isinstance(value, datetime):
+            aware = value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+            return aware.timestamp()
         for fmt in ("%Y-%m-%d %H:%M:%S.%f", "%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S"):
             try:
                 import datetime as _dt
@@ -434,13 +453,16 @@ class DatabaseSessionStore(SessionStore):
         original_id = getattr(session, "_original_id", None)
         id_changed = bool(original_id and original_id != session.id)
 
-        # A read-only request does not rewrite the payload, but it is still
-        # activity: idle tracking would log out a user who only reads.
-        if not session._modified and not id_changed and getattr(session, "_persisted", False):
+        payload = json.dumps(session.to_dict(), default=str)
+
+        # A request that left the payload as it was loaded - after aging the
+        # flash data - does not rewrite it, but it is still activity: idle
+        # tracking would log out a user who only reads. Comparing the content,
+        # not the `_modified` flag, also catches aged flash keys and in-place
+        # changes to a mutable value.
+        if not id_changed and self._unchanged(session, payload):
             self._touch_activity(session)
             return self._encode({"id": session.id})
-
-        payload = json.dumps(session.to_dict(), default=str)
         now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
         db = self._db()
 
@@ -468,6 +490,7 @@ class DatabaseSessionStore(SessionStore):
         except Exception:
             pass
         session._modified = False
+        session._loaded_payload = json.loads(payload)
         session._last_activity = time.time()
         return self._encode({"id": session.id})
 
