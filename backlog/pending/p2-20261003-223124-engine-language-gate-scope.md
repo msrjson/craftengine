@@ -8,7 +8,7 @@ blocked_by: owner-decision
 max_attempts: 2
 attempts: 0
 created_at: 2026-10-03T22:31:24Z
-updated_at: 2026-10-03T22:31:24Z
+updated_at: 2026-10-04T16:13:45Z
 source: docs/backlog.md L3
 touches: []
 ---
@@ -40,3 +40,4 @@ The pattern that passes both gates already exists: developer messages in `engine
 ## History
 
 - 2026-10-03T22:31:24Z created by claude (source: docs/backlog.md L3; migrated from the single-file backlog)
+- 2026-10-04T16:13:45Z note by claude: NR-03 requires the language gate clean before any release, and engine/ still reports dozens of legacy findings (non-ASCII dashes in docstrings, literal exception messages, the token `data`), so the gate currently blocks v4.3.0; options are clearing them or a ratchet like tools/check_engine_boundary.py (see p1 cut-release-4-3-0)

@@ -8,7 +8,7 @@ blocked_by: owner-decision
 max_attempts: 2
 attempts: 0
 created_at: 2026-10-03T22:32:02Z
-updated_at: 2026-10-03T22:32:02Z
+updated_at: 2026-10-04T16:13:45Z
 source: SoftPax commit bd378ca6; study 2026-10-03
 touches: []
 ---
@@ -39,3 +39,4 @@ Canonical `data/engine/http/kernel.py` has zero `app` imports today, so this is 
 ## History
 
 - 2026-10-03T22:32:02Z created by claude (source: SoftPax study)
+- 2026-10-04T16:13:45Z note by claude: the internal proxy and RequestTerminated seam now exist (1dfb16f, 913c956); the disabled-plugin-hook check from SoftPax audit CA-10 is still unverified in the canonical managers
