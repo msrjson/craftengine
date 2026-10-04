@@ -23,7 +23,7 @@ backlog/
 
 `docs/backlog.md` keeps the history of items closed before this queue existed
 and the `Done automatically` log. Agent-to-agent passing of a task in progress
-still goes through `.claude/handoffs/`; the queue says *what* to do, a handoff
+still goes through `.claude/handoffs/` (see [`handoff.md`](../handoff.md)); the queue says *what* to do, a handoff
 says *where someone stopped*.
 
 ---

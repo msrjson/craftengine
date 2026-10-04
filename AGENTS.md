@@ -7,6 +7,14 @@ application container. Preserve the existing Git worktree changes.
 Do not run destructive database commands or physical deletes in any
 environment. Read `.agents/rules/database_safety.md` before database work.
 
+## Agents talk through files
+
+Claude, Gemini, Qwen and the local worker share no memory. Work passes between
+them only through files in this repository: the backlog queue says what to do,
+a handoff in `.claude/handoffs/` says where someone stopped, and the `team` bus
+carries live notes. Read [`handoff.md`](handoff.md) before handing work to
+another agent or picking up someone else's.
+
 ## Backlog queue - mandatory
 
 All open work is a task file under `backlog/`. Before creating, picking,
