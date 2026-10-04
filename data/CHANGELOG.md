@@ -18,8 +18,21 @@ full policy (categories to use, what counts as security-relevant, how
 
 ## [Unreleased]
 
+## [4.3.0] r00021 — 2026-10-04
+
 ### Fixed
 
+- **Kernel module checks and exception rendering ran on the ASGI event loop thread**:
+  module status checks and `_render_exception` ran before or after the threadpool
+  dispatch, borrowing pooled database connections that were never returned by
+  the `RequestTerminated` release and running outside the worker's tenant context.
+  Both paths now run on the request's worker thread inside the `serve` lifecycle,
+  releasing all borrowed resources.
+- **In-memory SQLite shared session had a thread-safety race**: concurrent statement
+  execution across threads sharing the single in-memory connection caused cursor
+  and statement mutations that invalidated row column lookups (`IndexError`).
+  Connection statements and transaction boundaries are now synchronized per session
+  via an internal lock.
 - **The documentation site dropped tables, anchors and images**: the renderer
   ran plain CommonMark, so every pipe table in the guides was published as raw
   `| ... |` text, headings had no ids for `guide.md#section` links, and

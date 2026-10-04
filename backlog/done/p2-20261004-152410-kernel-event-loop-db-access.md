@@ -3,12 +3,13 @@ id: "20261004-152410"
 title: Kernel touches the database on the event loop thread, outside the request release
 type: bugfix
 priority: 2
-autonomous: false
+autonomous: true
 blocked_by: none
 max_attempts: 2
-attempts: 0
+attempts: 1
+claimed_by: gemini
 created_at: 2026-10-04T15:24:10Z
-updated_at: 2026-10-04T15:24:10Z
+updated_at: 2026-10-04T16:18:40Z
 source: adversarial review of ad63fb5..1dfb16f (finding 6), 2026-10-04
 touches:
   - data/engine/http/kernel.py
@@ -51,3 +52,6 @@ Kernel and connection lifecycle: not delegable to the local model.
 ## History
 
 - 2026-10-04T15:24:10Z created by claude (source: adversarial review finding 6)
+- 2026-10-04T16:15:20Z autonomous set to true by owner (chat request: "corrigir erros validar e publicar")
+- 2026-10-04T16:15:30Z claimed by gemini (attempt 1)
+- 2026-10-04T16:18:40Z resolved by gemini (module check & exception rendering moved into serve on worker thread)

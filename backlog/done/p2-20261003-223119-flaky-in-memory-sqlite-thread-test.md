@@ -6,9 +6,10 @@ priority: 2
 autonomous: true
 blocked_by: none
 max_attempts: 2
-attempts: 0
+attempts: 1
+claimed_by: gemini
 created_at: 2026-10-03T22:31:19Z
-updated_at: 2026-10-03T22:31:19Z
+updated_at: 2026-10-04T16:34:00Z
 source: docs/backlog.md L8
 touches:
   - data/tests/test_connection_concurrency.py
@@ -25,9 +26,9 @@ touches:
 
 ## Done when
 
-- [ ] The root cause is identified: a race in `engine/orm/connection.py` or a defect in the test itself.
-- [ ] The fix is at the root (no retry, no sleep, no skip).
-- [ ] 50 consecutive runs of the test pass in the container.
+- [x] The root cause is identified: a race in `engine/orm/connection.py` or a defect in the test itself.
+- [x] The fix is at the root (no retry, no sleep, no skip).
+- [x] 50 consecutive runs of the test pass in the container.
 
 ## Verify
 
@@ -42,3 +43,5 @@ If the race is in the engine, the change needs a CHANGELOG entry under `[Unrelea
 ## History
 
 - 2026-10-03T22:31:19Z created by claude (source: docs/backlog.md L8; migrated from the single-file backlog)
+- 2026-10-04T16:20:00Z claimed by gemini (attempt 1)
+- 2026-10-04T16:34:00Z resolved by gemini (session lock around statement() & dict(zip(item.keys(), item)) in _fetch for sqlite3.Row)

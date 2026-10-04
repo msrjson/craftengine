@@ -205,6 +205,7 @@ class _Session:
         "_box", "in_transaction", "rolled_back",
         "requested_schema", "applied_schema",
         "requested_tenant", "applied_tenant",
+        "lock",
         "__weakref__",
     )
 
@@ -213,6 +214,7 @@ class _Session:
         #: the session, so a finalizer can still reach it after the session
         #: itself has been collected (see `Connection._session`).
         self._box: List[Any] = [None]
+        self.lock: threading.RLock = threading.RLock()
         self.in_transaction: int = 0
         #: Set when an inner transaction level rolled back, so the outermost
         #: `commit()` refuses instead of pretending the work was persisted.
@@ -833,42 +835,43 @@ class Connection:
     def statement(self, sql: str, bindings: Bindings = None) -> StatementResult:
         sql = sql.strip()
         query, params = normalize_placeholders(sql, bindings, self.paramstyle)
-        cursor = self._cursor()
-        guarded = self.driver == "postgresql" and bool(self._in_transaction)
-        try:
-            self._execute(cursor, query, params, guarded)
-            rows = self._fetch(cursor)
-            result = StatementResult(rows, cursor.rowcount, self._last_id(cursor))
-            if guarded:
-                # After the result is read: RELEASE replaces the cursor's result.
-                cursor.execute(f"RELEASE SAVEPOINT {self.STATEMENT_SAVEPOINT}")
-            if not self._in_transaction:
-                self.pdo.commit()
-            return result
-        except Exception as exc:
-            session = self._session()
-            if self._is_connection_failure(exc) and session.pdo is not None:
-                # The socket is gone: rolling back would fail too, and handing
-                # the connection back to the pool would make every later
-                # borrower fail the same way. Drop it and start clean next time.
-                pdo, session.pdo = session.pdo, None
-                session.in_transaction = 0
-                session.applied_schema = session.applied_tenant = None
-                self._discard(pdo)
+        session = self._session()
+        with session.lock:
+            cursor = self._cursor()
+            guarded = self.driver == "postgresql" and bool(self._in_transaction)
+            try:
+                self._execute(cursor, query, params, guarded)
+                rows = self._fetch(cursor)
+                result = StatementResult(rows, cursor.rowcount, self._last_id(cursor))
+                if guarded:
+                    # After the result is read: RELEASE replaces the cursor's result.
+                    cursor.execute(f"RELEASE SAVEPOINT {self.STATEMENT_SAVEPOINT}")
+                if not self._in_transaction:
+                    self.pdo.commit()
+                return result
+            except Exception as exc:
+                if self._is_connection_failure(exc) and session.pdo is not None:
+                    # The socket is gone: rolling back would fail too, and handing
+                    # the connection back to the pool would make every later
+                    # borrower fail the same way. Drop it and start clean next time.
+                    pdo, session.pdo = session.pdo, None
+                    session.in_transaction = 0
+                    session.applied_schema = session.applied_tenant = None
+                    self._discard(pdo)
+                    raise
+                if guarded:
+                    self._rollback_statement(cursor)
+                if not session.in_transaction:
+                    try:
+                        self.pdo.rollback()
+                    except Exception:
+                        pass
                 raise
-            if guarded:
-                self._rollback_statement(cursor)
-            if not session.in_transaction:
+            finally:
                 try:
-                    self.pdo.rollback()
+                    cursor.close()
                 except Exception:
                     pass
-            raise
-        finally:
-            try:
-                cursor.close()
-            except Exception:
-                pass
 
     def _fetch(self, cursor: Any) -> List[Row]:
         if cursor.description is None:
@@ -885,7 +888,7 @@ class Connection:
             elif isinstance(item, dict):
                 rows.append(Row(item))
             elif isinstance(item, sqlite3.Row):
-                rows.append(Row({key: item[key] for key in item.keys()}))
+                rows.append(Row(dict(zip(item.keys(), item, strict=True))))
             else:
                 # strict: a row whose arity disagrees with cursor.description is
                 # a driver bug - pairing them off silently would drop columns.

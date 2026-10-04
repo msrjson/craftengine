@@ -31,6 +31,12 @@ def routes(migrated_database):
         return {"thread": threading.current_thread().name}
 
     Route.get("/t/lifecycle", touch_database).name("t.lifecycle")
+    Route.get("/t/module_lifecycle", touch_database).name("t.module_lifecycle").module("lifecycle_test_mod")
+
+    def raising_action(request):
+        raise RuntimeError("PROBE_RAISING_ACTION")
+
+    Route.get("/t/raising_lifecycle", raising_action).name("t.raising_lifecycle")
     yield
 
 
@@ -78,3 +84,29 @@ def test_notify_delivers_to_every_listener_despite_failures(caplog):
     dispatcher.notify(event)
     assert delivered == [event]
     assert "PROBE_FIRST_LISTENER_FAILURE" in caplog.text
+
+
+def test_event_loop_thread_holds_no_connection_after_module_request_with_expired_cache():
+    connection = app.make("db").write_connection
+    app.make("module").forget_cached_state()
+    connection.release()
+
+    client = TestClient(asgi_app)
+    response = client.get("/t/module_lifecycle")
+    assert response.status_code == 200
+
+    session = getattr(connection._thread_sessions, "session", None)
+    assert session is None or session.pdo is None
+
+
+def test_event_loop_thread_holds_no_connection_after_raising_action():
+    connection = app.make("db").write_connection
+    connection.release()
+
+    client = TestClient(asgi_app)
+    response = client.get("/t/raising_lifecycle")
+    assert response.status_code == 500
+
+    session = getattr(connection._thread_sessions, "session", None)
+    assert session is None or session.pdo is None
+
