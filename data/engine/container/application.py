@@ -1,5 +1,5 @@
 """
-Container / Application — IoC container, singleton resolution, autowiring,
+Container / Application - IoC container, singleton resolution, autowiring,
 and the `Application` bootstrap that boots providers and claims the global
 container instance.
 Category: Core Framework (Service Container).
@@ -44,7 +44,7 @@ class Container:
         self._aliases: Dict[str, str] = {}
         # Constructing a container deliberately does NOT claim the global
         # singleton. It used to, which meant building a second container
-        # anywhere — a test fixture, a worker, a tenant-scoped app — silently
+        # anywhere - a test fixture, a worker, a tenant-scoped app - silently
         # repointed every `Container.getInstance()` call in the process at it.
         # Claim it explicitly with `make_current()` or `scoped()`.
 
@@ -136,6 +136,10 @@ class Container:
 
             if callable(concrete) and not inspect.isclass(concrete):
                 obj = concrete(self)
+            elif isinstance(concrete, str) and self._normalize_key(concrete) == key:
+                # A dotted path bound to itself names its class; resolving the
+                # string again would land on this same binding forever.
+                obj = self._build_dotted(concrete, parameters)
             elif isinstance(concrete, str):
                 obj = self.make(concrete, parameters)
             elif inspect.isclass(concrete):
@@ -159,6 +163,17 @@ class Container:
                 return self._build(cls, parameters)
 
         raise KeyError(self._unbound_message(key))
+
+    def _build_dotted(self, path: str, parameters: Optional[Dict[str, Any]]) -> Any:
+        """Build the class a dotted path names.
+
+        Raises:
+            KeyError: The path names no importable class.
+        """
+        cls = self._import_dotted(path)
+        if cls is None:
+            raise KeyError(self._unbound_message(path))
+        return self._build(cls, parameters)
 
     @staticmethod
     def _import_dotted(path: str) -> Any:
@@ -303,13 +318,13 @@ class Application(Container):
         `bind_as_global` controls whether this application becomes the one
         `Container.getInstance()` returns:
 
-        * ``None`` (default) — claim it unless another *Application* already
+        * ``None`` (default) - claim it unless another *Application* already
           holds it. The real application wins; a scratch application built
           later (test fixture, worker, tenant scope) leaves the global alone.
-          A bare fallback `Container` — which `getInstance()` creates when
-          something resolves the container before boot — is always displaced,
+          A bare fallback `Container` - which `getInstance()` creates when
+          something resolves the container before boot - is always displaced,
           otherwise it would permanently shadow the real app's bindings.
-        * ``True`` / ``False`` — claim it, or never claim it.
+        * ``True`` / ``False`` - claim it, or never claim it.
 
         Use ``Container.scoped_instance(app)`` to swap the global one temporarily.
         """

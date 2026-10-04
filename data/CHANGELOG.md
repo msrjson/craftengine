@@ -37,6 +37,9 @@ full policy (categories to use, what counts as security-relevant, how
 - **The kernel returned the database connection by name**: its request
   `finally` called `make("db").release()`. It now emits `RequestTerminated` on
   the serving thread and the database provider releases its own connection.
+- **A dotted path bound to itself recursed forever**: `bind("pkg.Class")`
+  stored the string as its own concrete and `make` resolved it again. The
+  container now imports and builds the class the path names.
 - **The N+1 query check was quadratic**: it called `list.count()` on every
   statement; a counter keeps it constant per statement.
 - The 4.2.0 hardening tests deleted translation rows; they now use unique keys
@@ -44,6 +47,17 @@ full policy (categories to use, what counts as security-relevant, how
 
 ### Added
 
+- **Internal proxy** (`engine/container/internal_proxy.py`, guide
+  `documentation/internal-proxy.md`): modules call each other in memory
+  through the container instead of through the HTTP kernel. Deny by default:
+  a module exposes `alias -> service, {methods}` at boot, and private, empty or
+  undefined methods are refused there. `call` runs a synchronous target;
+  `dispatch` awaits a coroutine or runs a synchronous target on a worker
+  thread with a copy of the caller's context, waiting for that thread if the
+  caller is cancelled; `emit` refuses events marked `durable`. It holds no
+  tenant or authorization rule and carries the caller's context unchanged.
+  Bound as the `proxy` singleton, by its class, and as the `Proxy` facade.
+  Measured: about 5 microseconds per call against 2.6 ms for loopback HTTP.
 - **Engine boundary gate** (`tools/check_engine_boundary.py`, ADR 0003): the
   engine never imports the application. A static AST check fails on an
   engine file importing `app`, `routes`, `database`, `config` or `bootstrap`

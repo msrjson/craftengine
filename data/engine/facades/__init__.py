@@ -21,7 +21,7 @@ class DB(Facade):
 class Lock(Facade):
     """Distributed locks on database advisory locks.
 
-    `Lock.transaction(key)` is the safe default — the database releases it at
+    `Lock.transaction(key)` is the safe default - the database releases it at
     COMMIT or ROLLBACK, including when the process dies mid-block.
     `Lock.key(key)` is the session-scoped form for work that spans statements,
     and it must be released by the same connection that took it.
@@ -33,7 +33,7 @@ class Lock(Facade):
 
 
 class Tenant(Facade):
-    """The current tenant — and the session variable isolation policies read.
+    """The current tenant - and the session variable isolation policies read.
 
     `Tenant.scope(tenant_id)` runs a block as one tenant and restores the
     previous one after; `Tenant.id_or_fail()` is what `TenantScoped` models
@@ -74,6 +74,14 @@ class Event(Facade):
     @classmethod
     def get_facade_accessor(cls) -> str:
         return "events"
+
+
+class Proxy(Facade):
+    """In-memory calls between modules; see `engine/container/internal_proxy.py`."""
+
+    @classmethod
+    def get_facade_accessor(cls) -> str:
+        return "proxy"
 
 
 class Queue(Facade):
@@ -125,7 +133,7 @@ class Gate(Facade):
 
 
 class Nav(Facade):
-    """The navigation registry — declare a menu, resolve it per visitor.
+    """The navigation registry - declare a menu, resolve it per visitor.
 
     `Nav.for_user(user, path)` returns only the sections and items that user
     may actually reach, so the menu never offers a link that ends in a 403.
@@ -137,7 +145,7 @@ class Nav(Facade):
 
 
 class Access(Facade):
-    """Roles, groups and permissions — including a grant's attribute conditions.
+    """Roles, groups and permissions - including a grant's attribute conditions.
 
     `Gate` answers "may this user do X?" and consults `Access` on the way.
     Reach for `Access` directly to *inspect* authorization: which roles or

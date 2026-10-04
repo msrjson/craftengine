@@ -93,6 +93,17 @@ class EventServiceProvider(ServiceProvider):
         self.app.instance("events", EventDispatcher(self.app))
 
 
+class InternalProxyServiceProvider(ServiceProvider):
+    """Bind the internal proxy that routes module-to-module calls in memory."""
+
+    def register(self) -> None:
+        """Register the proxy as the `proxy` singleton, also resolvable by its class."""
+        from engine.container.internal_proxy import InternalProxy
+
+        self.app.singleton("proxy", lambda container: InternalProxy(container))
+        self.app.alias("proxy", f"{InternalProxy.__module__}.{InternalProxy.__qualname__}")
+
+
 class QueueServiceProvider(ServiceProvider):
     def register(self):
         from engine.queue.manager import QueueManager

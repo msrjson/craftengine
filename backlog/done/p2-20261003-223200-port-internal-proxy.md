@@ -8,7 +8,7 @@ blocked_by: none
 max_attempts: 2
 attempts: 0
 created_at: 2026-10-03T22:32:00Z
-updated_at: 2026-10-03T22:45:00Z
+updated_at: 2026-10-04T14:26:10Z
 source: owner request 2026-10-03 (plan approved in session); SoftPax commits 216ccf8b, 41b7c3a1
 touches: [data/engine/container/, data/engine/providers/, data/engine/facades/__init__.py, data/tests/test_internal_proxy.py, data/documentation/internal-proxy.md, data/CHANGELOG.md]
 ---
@@ -25,16 +25,16 @@ Module-to-module communication has no sanctioned path, so code either loops back
 
 ## Done when
 
-- [ ] `data/engine/container/internal_proxy.py` with `expose(alias, abstract, methods)`, `call`, async `dispatch`, `emit`, `scope`; deny by default, `_`-prefixed and missing methods refused at `expose` time (boot), not only in tests. The proxy is routing infrastructure only: no tenant, authorization or business rule inside it.
-- [ ] Tenant isolation stays with the two barriers that own it - barrier 1, the codebase (modules and controllers), and barrier 2, the database (RLS). The proxy never resolves, guesses or rewrites a tenant; it only carries the caller's context unchanged, including into the `to_thread` path, so barrier 2 still sees the connection and tenant stamp. Proven by a tenant A / tenant B / owner test on a real database.
-- [ ] Correlation id reuses the existing request context `request_id` (no second ContextVar), so log lines carry it at no extra cost.
-- [ ] Tenant type is `str`, matching `tenancy.py`.
-- [ ] Durable-event marker: `emit` refuses events with `durable = True` (they belong to the outbox/queue).
-- [ ] The `bind` string-key recursion is reproduced by a failing test first, then fixed.
-- [ ] `InternalProxyServiceProvider` in the default provider list, singleton key `proxy`, facade `Proxy` (additive, NR-05).
-- [ ] Error keys `internal_proxy.errors.*` seeded in `en`, `pt-BR`, `es`.
-- [ ] Tests without app imports: allowlist, private/missing methods, sync/async, cancellation waits for the thread, context in nested calls, tenant A/B concurrent context isolation with `asyncio.gather`, `emit`, and an end-to-end request whose action calls the proxy with a spy middleware counting exactly one kernel pass.
-- [ ] Guide with the `BillingService.generate_invoice` example (docs and test fixtures only, never in `data/app/`).
+- [x] `data/engine/container/internal_proxy.py` with `expose(alias, abstract, methods)`, `call`, async `dispatch`, `emit`, `scope`; deny by default, `_`-prefixed and missing methods refused at `expose` time (boot), not only in tests. The proxy is routing infrastructure only: no tenant, authorization or business rule inside it.
+- [x] Tenant isolation stays with the two barriers that own it - barrier 1, the codebase (modules and controllers), and barrier 2, the database (RLS). The proxy never resolves, guesses or rewrites a tenant; it only carries the caller's context unchanged, including into the `to_thread` path, so barrier 2 still sees the connection and tenant stamp. Proven by a tenant A / tenant B / owner test on a real database.
+- [x] Correlation id reuses the existing request context `request_id` (no second ContextVar), so log lines carry it at no extra cost.
+- [x] Tenant type is `str`, matching `tenancy.py`.
+- [x] Durable-event marker: `emit` refuses events with `durable = True` (they belong to the outbox/queue).
+- [x] The `bind` string-key recursion is reproduced by a failing test first, then fixed.
+- [x] `InternalProxyServiceProvider` in the default provider list, singleton key `proxy`, facade `Proxy` (additive, NR-05).
+- [x] Error keys `internal_proxy.errors.*` seeded in `en`, `pt-BR`, `es`.
+- [x] Tests without app imports: allowlist, private/missing methods, sync/async, cancellation waits for the thread, context in nested calls, tenant A/B concurrent context isolation with `asyncio.gather`, `emit`, and an end-to-end request whose action calls the proxy with a spy middleware counting exactly one kernel pass.
+- [x] Guide with the `BillingService.generate_invoice` example (docs and test fixtures only, never in `data/app/`).
 
 ## Verify
 
@@ -54,3 +54,4 @@ Owner ruling 2026-10-03: the proxy is routing infrastructure; tenant rules belon
 
 - 2026-10-03T22:32:00Z created by claude (source: owner request + SoftPax study)
 - 2026-10-03T22:45:00Z owner ruling: tenant enforcement removed from the proxy scope (two-barrier model); proxy only carries context
+- 2026-10-04T14:26:10Z resolved by claude (resolutions/p2-20261003-223200-port-internal-proxy.resolution.md)

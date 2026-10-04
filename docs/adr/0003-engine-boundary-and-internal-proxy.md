@@ -1,7 +1,7 @@
 # ADR 0003 — Extensions never override the engine
 
-- **Status:** accepted (owner, 2026-10-03); the boundary gate is implemented,
-  the internal proxy is queued (`backlog/pending/p2-20261003-223200-port-internal-proxy.md`)
+- **Status:** accepted (owner, 2026-10-03); implemented - the boundary gate,
+  the kernel's `RequestTerminated` seam and the internal proxy
 - **Date:** 2026-10-04
 - **Follows:** ADR 0002
 - **Scope:** where business rules may live, how the engine is extended, how
