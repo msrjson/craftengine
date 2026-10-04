@@ -9,6 +9,7 @@
 - **Forward-Only Database Evolution**: Schema safety enforced by `python dev.py migrate`. Banned destructive operations protect data persistence.
 - **Nothing To Reuse**: `craft new` writes a project with one route and no models, controllers, theme or seeded data. `craft make:auth`, `craft make:admin` and `craft make:crud` add authentication, the RBAC panel and resources on request.
 - **No Undeclared Routes**: every route that answers appears in `craft route:list`. Health probes, metrics and the MSR manifest stay off until a flag in `config/` enables them.
+- **Internal Proxy**: modules call each other in memory with `Proxy.call` / `await Proxy.dispatch` on the services they `expose`; only external traffic goes through the HTTP kernel. The engine never imports the application (`tools/check_engine_boundary.py`).
 
 ## Key CLI Commands (`craft <cmd>`, or `python dev.py <cmd>` without installing)
 - `craft new <name>` — Generate a bare project: one route, nothing to reuse.
@@ -25,6 +26,7 @@
 
 ## Documentation Links
 - [Complete Architecture Guide](llms-full.txt)
+- [Internal Proxy](documentation/internal-proxy.md)
 - [Form Validation & AntiSpam](documentation/validation.md)
 - [CLI Reference](documentation/cli.md)
 - [AI Agents Standard](documentation/ai_agents.md)

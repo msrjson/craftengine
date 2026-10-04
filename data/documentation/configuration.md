@@ -77,7 +77,7 @@ Config.set("cache.default", "array")
 
 | File | Purpose |
 |---|---|
-| `app.py` | Name, environment, debug (off by default), key, locale, timezone |
+| `app.py` | Name, environment, debug (off by default), key, locale, timezone, `console_routes` (the module whose `register_console()` registers scheduled tasks; default `routes.console`, empty disables it) |
 | `framework.py` | Framework name/version/release, feature flags (`MULTI_TENANCY_ENABLED`, `PQC_SECURITY_ENABLED`, `CAPTCHA_ENABLED`), health probes, metrics, thread pool, migration lock, default locale and supported locales |
 | `database.py` | Connections for sqlite, pgsql, mysql |
 | `session.py` | Driver, lifetime, cookie name, SameSite, CSRF switch |

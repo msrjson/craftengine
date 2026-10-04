@@ -91,6 +91,7 @@ Not to be confused with `scoped()`, which registers a request-scoped binding.
 | `gate` | `GateManager` |
 | `hash` | `Hash` |
 | `events` | `EventDispatcher` |
+| `proxy` | `InternalProxy` - in-memory module-to-module calls ([guide](internal-proxy.md)) |
 | `queue` | `QueueManager` |
 | `cache` | `CacheManager` |
 | `log` | `logging.Logger` |

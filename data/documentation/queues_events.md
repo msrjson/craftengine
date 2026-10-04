@@ -52,6 +52,26 @@ Event.listen("user.created", lambda event: Log.info("user created"))
 Event.dispatch("user.created")
 ```
 
+### 4. The end of a request
+
+The HTTP kernel names no subsystem. When a request finishes it emits
+`RequestTerminated` on the worker thread that served it, through
+`EventDispatcher.notify`: every listener runs, and one that raises is logged
+without stopping the others. A listener that releases a per-request resource
+registers with `listen_last`, so it runs after every other listener -
+wildcards included - and survives `forget` and `flush`. The database returns
+its pooled connection this way.
+
+```python
+from craft.facades import Event
+from craft.events.lifecycle import RequestTerminated
+
+Event.listen(RequestTerminated, lambda event: metrics.observe_request(event.request))
+```
+
+For calls between modules - not reactions - use the
+[internal proxy](internal-proxy.md).
+
 ---
 
 ## Asynchronous Queues

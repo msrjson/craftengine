@@ -105,6 +105,7 @@ def llms_txt_content() -> str:
 - **Forward-Only Database Evolution**: Schema safety enforced by `python dev.py migrate`. Banned destructive operations protect data persistence.
 - **Nothing To Reuse**: `craft new` writes a project with one route and no models, controllers, theme or seeded data. `craft make:auth`, `craft make:admin` and `craft make:crud` add authentication, the RBAC panel and resources on request.
 - **No Undeclared Routes**: every route that answers appears in `craft route:list`. Health probes, metrics and the MSR manifest stay off until a flag in `config/` enables them.
+- **Internal Proxy**: modules call each other in memory with `Proxy.call` / `await Proxy.dispatch` on the services they `expose`; only external traffic goes through the HTTP kernel. The engine never imports the application (`tools/check_engine_boundary.py`).
 
 ## Key CLI Commands (`craft <cmd>`, or `python dev.py <cmd>` without installing)
 - `craft new <name>` — Generate a bare project: one route, nothing to reuse.
@@ -121,6 +122,7 @@ def llms_txt_content() -> str:
 
 ## Documentation Links
 - [Complete Architecture Guide](llms-full.txt)
+- [Internal Proxy](documentation/internal-proxy.md)
 - [Form Validation & AntiSpam](documentation/validation.md)
 - [CLI Reference](documentation/cli.md)
 - [AI Agents Standard](documentation/ai_agents.md)
@@ -243,7 +245,15 @@ Craft Engine includes a built-in zero-dependency AntiSpam system:
 
 ---
 
-## 5. Non-Regression & Release Laws (NR-01 to NR-07)
+## 5. Engine Boundary & Internal Proxy
+- **Business rules never live in the engine.** They live in the application's modules and plugins; the engine is extended through seams (config keys, events, plugin hooks, the internal proxy). `python tools/check_engine_boundary.py` fails when a file under `engine/` imports `app`, `routes`, `database`, `config` or `bootstrap`.
+- **External traffic only through the HTTP kernel.** The kernel names no subsystem; at the end of each request it emits `RequestTerminated`, and subsystems release their own resources (`EventDispatcher.listen_last`).
+- **Module-to-module calls through the internal proxy.** A provider exposes `proxy.expose("billing", BillingService, {"generate_invoice"})` at boot; callers use `Proxy.call("billing", "generate_invoice", order_id)` or `await Proxy.dispatch(...)`. Deny by default; private, undefined or already-taken names are refused. Targets run on the caller's thread, inside its connection and transaction. Never call another module over loopback HTTP.
+- **The proxy holds no tenant rule.** Tenant isolation is the module's code plus database row-level security; the proxy carries the caller's context unchanged.
+
+---
+
+## 6. Non-Regression & Release Laws (NR-01 to NR-07)
 - **NR-01**: `pyproject.toml` version must strictly match `engine.__version__`. Release counter matches monotonic `rNNNNN`.
 - **NR-02**: Banned CLI commands (`migrate:reset`, `migrate:refresh`, `migrate:fresh`, `db:wipe`, `db:drop`) must never be exposed or executed.
 - **NR-03**: Forward-only migrations (`python dev.py migrate`). No destructive SQL operations.
