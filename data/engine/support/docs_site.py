@@ -144,6 +144,7 @@ class DocsSiteBuilder:
                 wrong is worse than none.
         """
         self.library = DocsLibrary(docs_dir, link_style="static")
+        self.docs_dir = docs_dir
         self.output_dir = output_dir
         self.project = project
         self.base_url = base_url.rstrip("/") + "/" if base_url else ""
@@ -194,6 +195,7 @@ class DocsSiteBuilder:
                   encoding="utf-8") as handle:
             handle.write(STYLESHEET.strip())
         written.append("assets/style.css")
+        written.extend(self._copy_guide_assets())
 
         for slug in self.library.slugs():
             written.append(self._write_page(slug, f"{slug}.html"))
@@ -210,6 +212,26 @@ class DocsSiteBuilder:
             written.append(self._write_sitemap(list(written)))
 
         return written
+
+    def _copy_guide_assets(self) -> List[str]:
+        """Publish the images and files the guides reference from `assets/`.
+
+        The generated `style.css` is never replaced by a file of the same name.
+
+        Returns:
+            The published paths, relative to the output directory.
+        """
+        source = os.path.join(self.docs_dir, "assets")
+        if not os.path.isdir(source):
+            return []
+        published = []
+        for name in sorted(os.listdir(source)):
+            path = os.path.join(source, name)
+            if name == "style.css" or not os.path.isfile(path):
+                continue
+            shutil.copyfile(path, os.path.join(self.output_dir, "assets", name))
+            published.append(f"assets/{name}")
+        return published
 
     def _write_index(self) -> str:
         """The landing page: `README.md` if there is one, else the introduction."""

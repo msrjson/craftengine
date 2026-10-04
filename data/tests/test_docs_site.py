@@ -286,3 +286,56 @@ def test_the_app_route_renders_cross_links_it_can_serve(docs_dir):
     `postgres.md.md` and answered with a 404."""
     html = DocsLibrary(docs_dir, link_style="app").render("orm")
     assert 'href="/docs/postgres"' in html
+
+
+# -- guide assets ----------------------------------------------------------------
+
+
+def test_images_a_guide_references_are_published_with_the_site(docs_dir, tmp_path):
+    """`![...](assets/x.svg)` in a guide must resolve on the static site."""
+    output = tmp_path / "site"
+    written = DocsSiteBuilder(docs_dir, str(output)).build()
+    referenced = set()
+    for name in os.listdir(docs_dir):
+        if name.endswith(".md"):
+            with open(os.path.join(docs_dir, name), encoding="utf-8") as handle:
+                referenced.update(re.findall(r"!\[[^\]]*\]\((assets/[^)\s]+)\)", handle.read()))
+    assert referenced, "at least one guide shows an image"
+    for path in referenced:
+        assert (output / path).is_file(), path
+        assert path in written
+
+
+def test_the_generated_stylesheet_is_never_overwritten_by_a_guide_asset(docs_dir, tmp_path):
+    output = tmp_path / "site"
+    DocsSiteBuilder(docs_dir, str(output)).build()
+    assert ":root" in (output / "assets" / "style.css").read_text(encoding="utf-8")
+
+
+# -- GitHub-style Markdown -------------------------------------------------------
+
+
+def test_tables_render_as_html_tables(library):
+    """The guides are written for GitHub, where pipe tables are tables."""
+    page = library.render("container")
+    assert "<table>" in page and "<td><code>proxy</code></td>" in page
+    assert "| Key |" not in page
+
+
+def test_aligned_table_columns_render(library):
+    assert '<th style="text-align:right">Calls/s</th>' in library.render("internal-proxy")
+
+
+def test_headings_carry_github_style_ids(library):
+    """`guide.md#section` links must land on the section, on GitHub and on the site."""
+    page = library.render("internal-proxy")
+    assert '<h2 id="benchmark-before-and-after">' in page
+    assert '<h3 id="cost-of-one-call">' in page
+
+
+def test_every_in_page_link_has_a_target(library):
+    for slug in library.slugs():
+        page = library.render(slug)
+        ids = set(re.findall(r'\bid="([^"]+)"', page))
+        for anchor in re.findall(r'href="#([^"]+)"', page):
+            assert anchor in ids, (slug, anchor)

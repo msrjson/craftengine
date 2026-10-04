@@ -20,6 +20,12 @@ full policy (categories to use, what counts as security-relevant, how
 
 ### Fixed
 
+- **The documentation site dropped tables, anchors and images**: the renderer
+  ran plain CommonMark, so every pipe table in the guides was published as raw
+  `| ... |` text, headings had no ids for `guide.md#section` links, and
+  `docs:build` never copied `documentation/assets/`, so the one image a guide
+  showed was a broken link. Tables are now enabled, headings get GitHub-style
+  ids, and guide assets are published next to the generated stylesheet.
 - **Idle timeout logged out users who only read**: since 4.2.0 an unmodified
   database session skipped its write, so `last_activity_at` stopped moving -
   and an aged flash message or an in-place change to a stored list was never
@@ -61,6 +67,12 @@ full policy (categories to use, what counts as security-relevant, how
   refuses events marked `durable`. It holds no tenant or authorization rule.
   Bound as the `proxy` singleton, by its class, and as the `Proxy` facade.
   Measured: about 5 microseconds per call against 2.6 ms for loopback HTTP.
+- **Benchmark charts in the documentation**: `tools/render_benchmark_charts.py`
+  draws the internal proxy benchmark report as three SVG charts (cost per
+  call, requests per second, p95 latency) that follow the reader's light or
+  dark theme. The internal proxy guide now carries a "Benchmark: before and
+  after" section with the charts, the tables, the test suite before and after,
+  and how to reproduce it.
 - **Internal proxy benchmark** (`tests/benchmark_internal_proxy.py`): boots the
   real kernel under uvicorn and compares a module-to-module call through the
   proxy, the kernel in process and HTTP over TCP, then loads an endpoint that

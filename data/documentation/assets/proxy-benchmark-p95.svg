@@ -1,0 +1,14 @@
+<?xml version='1.0' encoding='utf-8'?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 780 340" role="img"><title>p95 latency, module A calling module B (log scale)</title><style>
+svg { --ink: #0e1726; --ink-2: #48546a; --grid: #e3e8ef; --rule: #c9d1dc;
+      --after: #2a78d6; --before: #eb6834; --neutral: #8a94a6; }
+@media (prefers-color-scheme: dark) {
+  svg { --ink: #f3f5f9; --ink-2: #b8c1d1; --grid: #2a3442; --rule: #3a4556;
+        --after: #3987e5; --before: #d95926; --neutral: #7d879a; }
+}
+text { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; fill: var(--ink-2); }
+.title { font-size: 14px; font-weight: 700; fill: var(--ink); }
+.value { fill: var(--ink); font-weight: 600; }
+.grid { stroke: var(--grid); stroke-width: 1; }
+.base { stroke: var(--rule); stroke-width: 1; }
+</style><text x="16" y="24" class="title">p95 latency, module A calling module B (log scale)</text><line x1="70" x2="580" y1="283.5161733983756" y2="283.5161733983756" class="grid" /><text x="62" y="287.5161733983756" text-anchor="end">1 ms</text><line x1="70" x2="580" y1="228.7580866991878" y2="228.7580866991878" class="grid" /><text x="62" y="232.7580866991878" text-anchor="end">10 ms</text><line x1="70" x2="580" y1="174.0" y2="174.0" class="grid" /><text x="62" y="178.0" text-anchor="end">100 ms</text><line x1="70" x2="580" y1="119.2419133008122" y2="119.2419133008122" class="grid" /><text x="62" y="123.2419133008122" text-anchor="end">1 s</text><line x1="70" x2="580" y1="64.48382660162443" y2="64.48382660162443" class="grid" /><text x="62" y="68.48382660162443" text-anchor="end">10 s</text><text x="70.0" y="320" text-anchor="middle">1</text><text x="240.0" y="320" text-anchor="middle">8</text><text x="410.0" y="320" text-anchor="middle">32</text><text x="580.0" y="320" text-anchor="middle">64</text><text x="325.0" y="336" text-anchor="middle">concurrent clients</text><polyline points="70.0,268.5 240.0,218.6 410.0,187.7 580.0,64.5" fill="none" stroke="var(--before)" stroke-width="2" stroke-linejoin="round" /><circle cx="70.0" cy="268.5" r="5" fill="var(--before)" /><circle cx="240.0" cy="218.6" r="5" fill="var(--before)" /><circle cx="410.0" cy="187.7" r="5" fill="var(--before)" /><circle cx="580.0" cy="64.5" r="5" fill="var(--before)" /><text x="592.0" y="68.52336795958786" class="value">Before: HTTP 10.0 s</text><polyline points="70.0,285.3 240.0,231.5 410.0,203.3 580.0,186.8" fill="none" stroke="var(--after)" stroke-width="2" stroke-linejoin="round" /><circle cx="70.0" cy="285.3" r="5" fill="var(--after)" /><circle cx="240.0" cy="231.5" r="5" fill="var(--after)" /><circle cx="410.0" cy="203.3" r="5" fill="var(--after)" /><circle cx="580.0" cy="186.8" r="5" fill="var(--after)" /><text x="592.0" y="190.8063461277176" class="value">After: proxy 58 ms</text></svg>

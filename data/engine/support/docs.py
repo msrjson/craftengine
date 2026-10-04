@@ -50,6 +50,19 @@ class BrokenLink(Exception):
     """A documentation page links to something that is not there."""
 
 
+def github_heading_id(text: str) -> str:
+    """The id GitHub gives a heading: lowercase, punctuation dropped, spaces as hyphens.
+
+    Args:
+        text: The heading's inline Markdown source.
+
+    Returns:
+        The anchor a `guide.md#section` link uses for it.
+    """
+    kept = "".join(ch for ch in text.strip().lower() if ch.isalnum() or ch in " -_")
+    return kept.replace(" ", "-")
+
+
 class DocsLibrary:
     """Every documentation page, and how to turn one into HTML.
 
@@ -192,7 +205,9 @@ class DocsLibrary:
         """
         from markdown_it import MarkdownIt
 
-        parser = MarkdownIt()
+        # The guides are written for GitHub: pipe tables are tables, and
+        # `guide.md#section` links need ids on the headings.
+        parser = MarkdownIt("commonmark").enable("table")
         library = self
 
         # `add_render_rule` binds the function to the renderer, so the first
@@ -204,7 +219,16 @@ class DocsLibrary:
                 token.attrSet("href", library.rewrite(href))
             return renderer.renderToken(tokens, index, options, env)
 
+        def heading_open(renderer, tokens, index, options, env):
+            seen = env.setdefault("heading_ids", {})
+            base = github_heading_id(tokens[index + 1].content)
+            count = seen.get(base, 0)
+            seen[base] = count + 1
+            tokens[index].attrSet("id", f"{base}-{count}" if count else base)
+            return renderer.renderToken(tokens, index, options, env)
+
         parser.add_render_rule("link_open", link_open)
+        parser.add_render_rule("heading_open", heading_open)
         return parser
 
     def render(self, slug: str) -> str:

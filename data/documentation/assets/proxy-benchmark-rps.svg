@@ -1,0 +1,14 @@
+<?xml version='1.0' encoding='utf-8'?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 780 340" role="img"><title>Requests per second, module A calling module B</title><style>
+svg { --ink: #0e1726; --ink-2: #48546a; --grid: #e3e8ef; --rule: #c9d1dc;
+      --after: #2a78d6; --before: #eb6834; --neutral: #8a94a6; }
+@media (prefers-color-scheme: dark) {
+  svg { --ink: #f3f5f9; --ink-2: #b8c1d1; --grid: #2a3442; --rule: #3a4556;
+        --after: #3987e5; --before: #d95926; --neutral: #7d879a; }
+}
+text { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; fill: var(--ink-2); }
+.title { font-size: 14px; font-weight: 700; fill: var(--ink); }
+.value { fill: var(--ink); font-weight: 600; }
+.grid { stroke: var(--grid); stroke-width: 1; }
+.base { stroke: var(--rule); stroke-width: 1; }
+</style><text x="16" y="24" class="title">Requests per second, module A calling module B</text><line x1="70" x2="580" y1="300.0" y2="300.0" class="grid" /><text x="62" y="304.0" text-anchor="end">0</text><line x1="70" x2="580" y1="237.0" y2="237.0" class="grid" /><text x="62" y="241.0" text-anchor="end">400</text><line x1="70" x2="580" y1="174.0" y2="174.0" class="grid" /><text x="62" y="178.0" text-anchor="end">800</text><line x1="70" x2="580" y1="111.0" y2="111.0" class="grid" /><text x="62" y="115.0" text-anchor="end">1,200</text><line x1="70" x2="580" y1="48.0" y2="48.0" class="grid" /><text x="62" y="52.0" text-anchor="end">1,600</text><text x="70.0" y="320" text-anchor="middle">1</text><text x="240.0" y="320" text-anchor="middle">8</text><text x="410.0" y="320" text-anchor="middle">32</text><text x="580.0" y="320" text-anchor="middle">64</text><text x="325.0" y="336" text-anchor="middle">concurrent clients</text><polyline points="70.0,195.6 240.0,182.5 410.0,183.5 580.0,298.8" fill="none" stroke="var(--before)" stroke-width="2" stroke-linejoin="round" /><circle cx="70.0" cy="195.6" r="5" fill="var(--before)" /><circle cx="240.0" cy="182.5" r="5" fill="var(--before)" /><circle cx="410.0" cy="183.5" r="5" fill="var(--before)" /><circle cx="580.0" cy="298.8" r="5" fill="var(--before)" /><text x="592.0" y="302.7715" class="value">Before: HTTP 8 req/s</text><polyline points="70.0,94.0 240.0,80.2 410.0,61.7 580.0,75.5" fill="none" stroke="var(--after)" stroke-width="2" stroke-linejoin="round" /><circle cx="70.0" cy="94.0" r="5" fill="var(--after)" /><circle cx="240.0" cy="80.2" r="5" fill="var(--after)" /><circle cx="410.0" cy="61.7" r="5" fill="var(--after)" /><circle cx="580.0" cy="75.5" r="5" fill="var(--after)" /><text x="592.0" y="79.48374999999999" class="value">After: proxy 1,426 req/s</text></svg>
