@@ -61,6 +61,13 @@ full policy (categories to use, what counts as security-relevant, how
   refuses events marked `durable`. It holds no tenant or authorization rule.
   Bound as the `proxy` singleton, by its class, and as the `Proxy` facade.
   Measured: about 5 microseconds per call against 2.6 ms for loopback HTTP.
+- **Internal proxy benchmark** (`tests/benchmark_internal_proxy.py`): boots the
+  real kernel under uvicorn and compares a module-to-module call through the
+  proxy, the kernel in process and HTTP over TCP, then loads an endpoint that
+  reaches another module by proxy versus by loopback HTTP at 1-64 clients.
+  Measured: 12-16 us per proxy call against 817 us over TCP; about 2x the
+  requests per second end to end; loopback deadlocks the 40-worker pool at
+  64 clients while the proxy keeps serving.
 - **Engine boundary gate** (`tools/check_engine_boundary.py`, ADR 0003): the
   engine never imports the application. A static AST check fails on an
   engine file importing `app`, `routes`, `database`, `config` or `bootstrap`

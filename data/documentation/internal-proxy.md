@@ -9,9 +9,25 @@ its full middleware stack; a call from one module to another never does.
 | External | HTTP kernel: ASGI, firewall, session, CSRF, middleware, routing | a full request |
 | Internal | `proxy.call` / `proxy.dispatch`: container lookup, method call | one function call |
 
-Measured in the test suite (`tests/test_internal_proxy.py`): about 5
-microseconds per proxy call against about 2.6 milliseconds for the same call
-made as a loopback HTTP request.
+Measured with `tests/benchmark_internal_proxy.py` (real kernel under uvicorn,
+one process, one database read per call):
+
+| Same service method reached through | Mean per call |
+|---|---:|
+| direct method call | 9 us |
+| `Proxy.call` / `Proxy.dispatch` | 12-16 us |
+| HTTP over TCP, keep-alive | 817 us |
+| the kernel in process (ASGI, no socket) | 1,990 us |
+
+End to end, an external request whose module calls another module serves about
+twice the requests per second through the proxy as through a loopback HTTP
+call, at half the latency. A loopback request also holds two thread-pool
+workers; with the default 40, 64 concurrent clients deadlock the pool (8 req/s,
+10-second timeouts) while the proxy keeps serving about 1,400 req/s. Run it:
+
+```bash
+python tests/benchmark_internal_proxy.py --seconds 5 --clients 1 --clients 64
+```
 
 The proxy is routing infrastructure only. It holds no tenant, authorization or
 business rule. Every target runs on the caller's own thread, so it shares the
