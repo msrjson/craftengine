@@ -7,6 +7,10 @@
           {
             "type": "command",
             "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/rules/lint_backlog.py\" --hook"
+          },
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/rules/lint_board.py\" --hook"
           }
         ]
       }

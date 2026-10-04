@@ -1,22 +1,57 @@
 # Handoff - how different agents pass work to each other
 
-This workspace is worked on by several agents built on different models:
-Claude (Claude Code), Gemini (Gemini CLI, Antigravity), Qwen (Qwen Code) and the
-local worker (Ollama, validation only), plus the owner. **They do not share
-memory, chat or context.** An agent that did not see a conversation knows
+This workspace is worked on by several agents, built on different models and
+running in different tools: Claude Code, Gemini CLI, Antigravity, Codex, Cursor,
+Qwen Code and the local worker (Ollama, validation only), plus the owner.
+**They do not share memory, chat or context.** An agent that did not see a conversation knows
 nothing about it. Whatever must survive from one agent to another is written to
 a file in this repository.
 
 This document is the map of those files: which channel carries what, the
 handoff file format, and the rules every agent follows.
 
-## The three channels
+## The four channels
 
 | Channel | Where | Carries | Lifetime |
 |---|---|---|---|
 | **Backlog queue** | `backlog/` | *What* to do: one task per file, its state is its directory | until the task is `done` or `failed` |
 | **Handoff** | `.claude/handoffs/` | *Where someone stopped*: the state of work in progress, passed from one agent to another | one file per event, never edited after `done` |
-| **Live team bus** | `team` MCP server (`team_post`, `team_inbox`, `team_claim`) | *What is happening now*: claims, warnings, short findings | the session; nothing durable lives only here |
+| **Board** | `.claude/team/board.md` | *What is happening now*, for **every** tool: CLAIM, RELEASE, BLOCKER, FINDING, RED-TEST, TEST-RUN, HANDOVER, DONE, RULE, ACK | append-only, committed |
+| **Live team bus** | `team` MCP server (`team_post`, `team_inbox`, `team_claim`) | the same live notes, faster, for tools that have the MCP server | the session; nothing durable lives only here |
+
+The board exists because not every tool has the MCP bus: Codex and Cursor read
+and write files, nothing else. A notice that only went to the bus is invisible
+to them, so anything another tool must see goes to the board.
+
+## Tools and how each one takes part
+
+| Tool | Agent name on the board | Instructions | Live channel | Gates run by |
+|---|---|---|---|---|
+| Claude Code | `claude@claude-code` | `CLAUDE.md` -> `AGENTS.md`, `.claude/` | bus + board | hooks (automatic) |
+| Gemini CLI | `gemini@gemini-cli` | `GEMINI.md` -> `AGENTS.md` | bus + board | the agent, before "done" |
+| Antigravity | `gemini@antigravity` | `GEMINI.md` -> `AGENTS.md`, `.agents/` | board | the agent, before "done" |
+| Codex | `gpt@codex` | `AGENTS.md` | board | the agent, before "done" |
+| Cursor | `<model>@cursor` | `AGENTS.md`, `.cursorrules` -> `AGENTS.md` | board | the agent, before "done" |
+| Qwen Code | `qwen@qwen-code` | `QWEN.md` -> `AGENTS.md` | bus + board | the agent, before "done" |
+| Local worker | `qwen@local-worker` | handoffs `to: local` | handoff `## Result` | its own `verify` commands |
+
+`AGENTS.md` is the only instruction file; the others are symlinks to it, so no
+tool gets rules another does not see. The Git `pre-commit` hook runs the queue
+and board gates for every tool that commits.
+
+## Board in practice
+
+```text
+2026-10-04T17:00Z | from: gpt@codex | to: all | CLAIM | data/engine/http/kernel.py, data/tests/test_kernel_lifecycle.py until 18:00Z (task p2-20261004-161338)
+2026-10-04T17:05Z | from: claude@claude-code | to: gpt@codex | ACK | your CLAIM on kernel.py; I stay out of it
+2026-10-04T17:40Z | from: gpt@codex | to: all | DONE | kernel copy fix, commit 1a2b3c4; handoff .claude/handoffs/20261004-1740-codex-to-claude-module-disabled-review.md
+2026-10-04T17:40Z | from: gpt@codex | to: all | RELEASE | kernel.py, test_kernel_lifecycle.py
+```
+
+- Read the tail of the board before you start a task.
+- `CLAIM` the paths before editing shared files; never edit a path someone
+  else claimed and has not released - post a `FINDING` or `BLOCKER` to them.
+- Append only. A correction is a new line, never an edit.
 
 Rule of thumb:
 
@@ -98,6 +133,7 @@ Name the backlog task the work belongs to in **Context pointers**, by file name
 |---|---|---|
 | Claude | `/passagem <to> <slug>` | `/retomar [file]` |
 | Gemini, Qwen | `/passagem <to> <slug>` | `/retomar [file]` |
+| Codex, Cursor, Antigravity | copy `.claude/handoffs/TEMPLATE.md` | read the file named in a board `HANDOVER` line |
 | Shell | `handoff new <from> <to> <slug>` | `handoff list`, `handoff claim <file> <agent>`, `handoff done <file>` |
 
 `/handoff` is a different thing: delivery to a client. It is not agent-to-agent

@@ -1,7 +1,12 @@
 #!/bin/sh
-# Backlog queue gate (BQ-10): refuses a commit that breaks .claude/rules/BACKLOG_QUEUE_STANDARD.md.
+# Workspace gates (never bypassed): the backlog queue (BQ-10) and the team board (append-only).
 # Enable once per clone: git config core.hooksPath .githooks
 root="$(git rev-parse --show-toplevel)"
-if git diff --cached --name-only | grep -q '^backlog/'; then
-    exec python3 "$root/.claude/rules/lint_backlog.py" --staged
+staged="$(git diff --cached --name-only)"
+if echo "$staged" | grep -q '^backlog/'; then
+    python3 "$root/.claude/rules/lint_backlog.py" --staged || exit 1
 fi
+if echo "$staged" | grep -q 'team/board.md$'; then
+    python3 "$root/.claude/rules/lint_board.py" --staged || exit 1
+fi
+exit 0
