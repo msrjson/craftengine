@@ -105,11 +105,18 @@ class Validator:
         builtin = [attr[len("_rule_"):] for attr in dir(self) if attr.startswith("_rule_")]
         return sorted(builtin + list(self._custom_rules) + ["nullable", "sometimes"])
 
-    @staticmethod
-    def _split(rule: str):
+    #: Rules whose single argument is a pattern: commas inside it (`[.,]`,
+    #: `{1,2}`) are part of the pattern, never argument separators.
+    PATTERN_RULES = frozenset({"regex", "not_regex"})
+
+    @classmethod
+    def _split(cls, rule: str):
         name, _, argument = str(rule).partition(":")
+        name = name.strip().lower()
+        if name in cls.PATTERN_RULES:
+            return name, [argument] if argument else []
         args = [a.strip() for a in argument.split(",")] if argument else []
-        return name.strip().lower(), args
+        return name, args
 
     # -- driving ---------------------------------------------------------------
 

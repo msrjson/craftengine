@@ -59,6 +59,9 @@ class ExtensionLoader:
             self._register_views(manifest, context)
             self._call_entry(manifest, "provider", context)
             self._register_routes(manifest)
+        except ExtensionError:
+            context.unload()
+            raise
         except Exception as error:  # noqa: BLE001 - any failure of third-party code
             context.unload()
             raise ExtensionError("EXTENSION_BOOT_FAILED", manifest.slug, type(error).__name__) from error
@@ -103,7 +106,15 @@ class ExtensionLoader:
         router = self.app.make("router")
         first_new = len(router.routes)
         register(router)
-        for route in router.routes[first_new:]:
+        added = router.routes[first_new:]
+        clashes = router.collisions(added)
+        if clashes:
+            # A route another one already answers would be dead or would steal
+            # it, depending on load order. Refuse the extension and say where.
+            router.remove(added)
+            method, uri = clashes[0]
+            raise ExtensionError("EXTENSION_ROUTE_CONFLICT", manifest.slug, f"{method} {uri}")
+        for route in added:
             route.module(manifest.slug)
         self._routes_loaded.add(manifest.slug)
 

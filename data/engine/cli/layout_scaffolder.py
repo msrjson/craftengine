@@ -42,6 +42,27 @@ def layout_exists(base_path: str) -> bool:
     return os.path.exists(os.path.join(base_path, LAYOUT_RELATIVE_PATH))
 
 
+def layout_template() -> str:
+    """Return the absolute path of the layout template the generators copy."""
+    return os.path.join(SHARED_TEMPLATE_ROOT, "layouts", "app.forge.py.stub")
+
+
+def require_templates(*paths: str) -> None:
+    """Refuse to start a generator whose template files are not all present.
+
+    A generator that discovers a missing template halfway leaves half a
+    scaffold behind, and the next run refuses to overwrite it. Checking first
+    keeps every generator all-or-nothing.
+
+    Raises:
+        FileNotFoundError: Naming the first missing template - an incomplete
+            installation of the framework, not a project problem.
+    """
+    for path in paths:
+        if not os.path.isfile(path):
+            raise FileNotFoundError(path)
+
+
 def ensure_layout(base_path: str, *, force: bool = False) -> Optional[str]:
     """Write the document shell unless the project already has one.
 
@@ -59,8 +80,5 @@ def ensure_layout(base_path: str, *, force: bool = False) -> Optional[str]:
         return None
 
     os.makedirs(os.path.dirname(destination), exist_ok=True)
-    shutil.copyfile(
-        os.path.join(SHARED_TEMPLATE_ROOT, "layouts", "app.forge.py.stub"),
-        destination,
-    )
+    shutil.copyfile(layout_template(), destination)
     return destination

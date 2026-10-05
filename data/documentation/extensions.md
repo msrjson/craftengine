@@ -104,6 +104,12 @@ def register(router):
 The engine tags every route with the extension's slug. While the extension
 cannot serve, its routes answer with a typed error instead of running.
 
+A route another one already answers (same method and path) is refused at
+activation with `EXTENSION_ROUTE_CONFLICT`, naming the method and path, and the
+extension is marked failed. When an application route and an extension route
+clash anyway - the extension was loaded first, at boot - the application's
+route wins and the clash is logged as `route_conflict`; load order never decides.
+
 ## Extensions talk only through seams
 
 An extension never imports another extension's code. The boundary gate

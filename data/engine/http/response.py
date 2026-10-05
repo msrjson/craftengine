@@ -120,11 +120,28 @@ class RedirectHelper:
         return RedirectResponse(url=target_url or "/", status_code=status)
 
     def back(self, request: Any = None, fallback: str = "/", status: int = 302) -> RedirectResponse:
-        """Redirect back to the previous referer URL or fallback."""
+        """Redirect back to the previous page of this site, or to `fallback`.
+
+        The `Referer` header is client-controlled. Following it blindly made
+        every form an open redirect to any site, so only a relative path or an
+        absolute URL on the request's own host is followed.
+        """
         referer = ""
         if request is not None and hasattr(request, "headers"):
-            referer = request.headers.get("referer", "")
+            referer = request.headers.get("referer", "") or ""
+            host = request.headers.get("host", "") or ""
+            referer = referer if _same_site(referer, host) else ""
         return RedirectResponse(url=referer or fallback, status_code=status)
+
+
+def _same_site(url: str, host: str) -> bool:
+    """Return whether `url` is a relative path or an http(s) URL on `host`."""
+    from urllib.parse import urlsplit
+
+    if url.startswith("/") and not url.startswith("//") and "\\" not in url:
+        return True
+    parts = urlsplit(url)
+    return parts.scheme in ("http", "https") and bool(host) and parts.netloc.lower() == host.lower()
 
 
 redirect = RedirectHelper()

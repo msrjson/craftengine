@@ -730,6 +730,9 @@ def make_auth(
     except FileExistsError as exc:
         echo(f"Authentication file already exists: {exc}. Use --force to overwrite.", "red")
         raise typer.Exit(code=1) from None
+    except FileNotFoundError as exc:
+        echo(f"GENERATOR_TEMPLATE_MISSING {exc}: the framework installation is incomplete; nothing was written.", "red")
+        raise typer.Exit(code=1) from None
 
     if result.get("already_configured"):
         echo("Authentication is already configured; existing routes and files were preserved.", "green")
@@ -758,6 +761,9 @@ def make_admin(
         result = admin_scaffolder.build_admin(base_path(), force=force)
     except FileExistsError as exc:
         echo(f"An admin panel file already exists: {exc}. Use --force to overwrite.", "red")
+        raise typer.Exit(code=1) from None
+    except FileNotFoundError as exc:
+        echo(f"GENERATOR_TEMPLATE_MISSING {exc}: the framework installation is incomplete; nothing was written.", "red")
         raise typer.Exit(code=1) from None
 
     if result.get("already_configured"):

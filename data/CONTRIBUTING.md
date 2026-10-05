@@ -100,7 +100,14 @@ To cut a release:
    `## [X.Y.Z] rNNNNN — YYYY-MM-DD`, then add a fresh empty `## [Unreleased]`
    above it for whatever comes next.
 2. Bump `pyproject.toml` and `engine/__init__.py` to match.
-3. Commit, then tag: `git tag -a vX.Y.Z-rNNNNN -m "..."`.
+3. Run the whole suite on SQLite and PostgreSQL in the `framework` container.
+4. Rehearse the CRM demo against the candidate:
+   `sh .claude/scripts/rehearse-demo.sh` (workspace root). It installs the
+   candidate like any project would and runs the demo's suite on SQLite and
+   PostgreSQL; packaging and generator defects are invisible to the
+   framework's own suite and surface only here. Do not publish while it fails.
+5. Commit and push `master`, then `master:main`. CI runs both databases and
+   creates the `vX.Y.Z-rNNNNN` tag and release itself - never tag by hand.
 
 ### Every change gets a CHANGELOG entry — no exceptions
 

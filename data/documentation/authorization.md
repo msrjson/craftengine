@@ -223,9 +223,15 @@ python dev.py user access someone@example.com
 be parsed is refused at the CLI, because at check time it would deny and look
 like a grant that simply does not work.
 
-The tables come with `craft make:admin`, which writes their migration. After
-that, no migration is needed to add a role, a group or a permission: each is a
-row.
+The tables come with `craft make:admin`, which writes their migration and a
+second one creating the `admin` role the panel's routes check (`role:admin`),
+so the step it prints - `user assign-role <email> admin` - works on a new
+project. After that, no migration is needed to add a role, a group or a
+permission: each is a row.
+
+`make:auth` and `make:admin` are all-or-nothing: they check every template and
+every destination before writing the first file, so a failure never leaves half
+a scaffold behind for the next run to trip over.
 
 ## Admin UI
 

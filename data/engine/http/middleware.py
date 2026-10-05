@@ -420,23 +420,37 @@ class VerifyCsrfToken(Middleware):
             )
 
         if not self.origin_is_trusted(request):
-            from engine.exceptions.handler import CraftException
-
-            error = CraftException("Cross-origin request rejected.")
-            error.status_code = 403
-            raise error
+            raise CsrfOriginRejectedError()
 
         expected = request.session().token()
         provided = self.token_from(request) or ""
 
         if not secrets.compare_digest(str(expected), str(provided)):
-            from engine.exceptions.handler import CraftException
-
-            error = CraftException("CSRF token mismatch.")
-            error.status_code = 419  # the framework's "page expired"
-            raise error
+            raise CsrfTokenMismatchError()
 
         return next_callable(request)
+
+
+class CsrfOriginRejectedError(Exception):
+    """A state-changing request whose Origin/Referer names another site (403)."""
+
+    status_code = 403
+    code = "CSRF_ORIGIN_REJECTED"
+    message_key = "security.csrf.origin_rejected"
+
+    def __init__(self) -> None:
+        super().__init__(self.code)
+
+
+class CsrfTokenMismatchError(Exception):
+    """A state-changing request without the session's CSRF token (419, page expired)."""
+
+    status_code = 419
+    code = "CSRF_TOKEN_MISMATCH"
+    message_key = "security.csrf.token_mismatch"
+
+    def __init__(self) -> None:
+        super().__init__(self.code)
 
 
 class Authenticate(Middleware):

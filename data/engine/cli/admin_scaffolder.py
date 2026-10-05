@@ -141,14 +141,19 @@ def _copy_templates(base_path: str, *, force: bool) -> Dict[str, str]:
     Raises:
         FileExistsError: If a destination exists and `force` is False.
     """
+    plan = [
+        (os.path.join(ADMIN_TEMPLATE_ROOT, relative), relative[: -len(STUB_SUFFIX)])
+        for relative in _template_files()
+    ]
+    # All-or-nothing: every conflict is found before the first file is written.
+    conflicts = [output for _source, output in plan if os.path.exists(os.path.join(base_path, output))]
+    if conflicts and not force:
+        raise FileExistsError(os.path.join(base_path, conflicts[0]))
     written: Dict[str, str] = {}
-    for relative_template in _template_files():
-        relative_output = relative_template[: -len(STUB_SUFFIX)]
+    for source, relative_output in plan:
         destination = os.path.join(base_path, relative_output)
-        if os.path.exists(destination) and not force:
-            raise FileExistsError(destination)
         os.makedirs(os.path.dirname(destination), exist_ok=True)
-        shutil.copyfile(os.path.join(ADMIN_TEMPLATE_ROOT, relative_template), destination)
+        shutil.copyfile(source, destination)
         written[relative_output] = destination
     return written
 
@@ -298,6 +303,12 @@ def build_admin(base_path: str, *, force: bool = False) -> Dict[str, Any]:
     if is_registered(base_path) and not force:
         return {"files": {"routes": os.path.join(base_path, "routes", "web.py")}, "already_configured": True}
 
+    # Every template is checked before anything is written: a generator that
+    # stops halfway leaves a scaffold the next run refuses to overwrite.
+    layout_scaffolder.require_templates(
+        layout_scaffolder.layout_template(),
+        *(os.path.join(ADMIN_TEMPLATE_ROOT, relative) for relative in _template_files()),
+    )
     # Generated views extend `layouts.app`; without the shell every one of
     # them raises at render time. Written only when the project has none.
     written = _copy_templates(base_path, force=force)

@@ -100,6 +100,30 @@ class Router:
         #: called when due; the kernel asks before every dispatch.
         self._refreshers: List[Any] = []
 
+    def remove(self, entries: List[RouteEntry]) -> None:
+        """Withdraw routes that were registered, e.g. an extension refused at load.
+
+        Args:
+            entries: The `RouteEntry` objects to drop; their names are released.
+        """
+        doomed = {id(entry) for entry in entries}
+        self.routes = [route for route in self.routes if id(route) not in doomed]
+        self._named_routes = {name: route for name, route in self._named_routes.items() if id(route) not in doomed}
+        self._version += 1
+
+    def collisions(self, entries: List[RouteEntry]) -> List[tuple]:
+        """Return the (method, uri) pairs of `entries` another route already answers.
+
+        `HEAD` is ignored: it rides along with every `GET`.
+        """
+        mine = {id(entry) for entry in entries}
+        taken = {
+            (method, route.uri)
+            for route in self.application_routes() if id(route) not in mine
+            for method in route.methods if method != "HEAD"
+        }
+        return sorted({(method, entry.uri) for entry in entries for method in entry.methods if (method, entry.uri) in taken})
+
     def add_refresher(self, refresher: Any) -> None:
         """Register a callable with a `due()` method that may add routes later.
 

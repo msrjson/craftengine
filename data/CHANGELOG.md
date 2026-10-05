@@ -35,6 +35,36 @@ full policy (categories to use, what counts as security-relevant, how
   manifests discovered at boot, so a module generated and activated while the
   application ran stayed a plain 404 in the running workers until a restart. It
   now refreshes discovery on every pass. Found by the CRM demo.
+- **`make auth` / `make admin` left half a scaffold behind on failure**, which every
+  later run refused to overwrite. Both now check every template and every
+  destination before writing the first file (`GENERATOR_TEMPLATE_MISSING` names a
+  missing template; nothing is written).
+- **`make admin` told you to assign a role it never created**: `user assign-role
+  <email> admin` failed with "No such role" on every new project. A generated
+  forward-only migration now creates the `admin` role when it is absent.
+- **`regex:` split its pattern on commas**, so `[.,]` or `{1,2}` raised a 500. The
+  pattern of `regex` / `not_regex` is taken whole.
+- **An extension route colliding with another route was decided by load order.**
+  Activation now refuses it with `EXTENSION_ROUTE_CONFLICT` (method and path), and
+  when an application route and an extension route clash anyway, the application
+  route wins and the clash is logged.
+- **CSRF refusals rendered hardcoded English** ("CSRF token mismatch.",
+  "Cross-origin request rejected."). They are typed now: 419 `CSRF_TOKEN_MISMATCH`
+  and 403 `CSRF_ORIGIN_REJECTED`, with keys in `en`, `pt-BR` and `es`.
+
+### Security
+
+- **`redirect.back()` was an open redirect**: it followed any `Referer`, so a form
+  could send a user to any site. It now follows only a relative path or a URL on the
+  request's own host, and uses `fallback` otherwise.
+
+### Added
+
+- `Router.remove()` and `Router.collisions()`; migrations seeding the new extension
+  and CSRF messages (also shipped to new projects).
+- `.claude/scripts/rehearse-demo.sh`: the pre-release gate that installs the release
+  candidate into a throwaway copy of the CRM demo and runs its whole suite on SQLite
+  and PostgreSQL. Every defect above was found by it or by the demo itself.
 
 ### Removed
 

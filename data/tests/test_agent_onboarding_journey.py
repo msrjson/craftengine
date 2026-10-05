@@ -204,7 +204,9 @@ from craft.facades import DB
 
 admin = User.create({"name": "Ada", "email": "ada@journey.test", "password": "correct-horse"})
 User.create({"name": "Bob", "email": "bob@journey.test", "password": "correct-horse"})
-role = Role.create({"name": "Admin", "slug": "admin"})
+# make:admin seeds the role its own next steps assign; it must exist after migrate.
+role = Role.query().where("slug", "admin").first()
+assert role is not None, "make:admin did not seed the admin role"
 DB.table("role_user").insert({"user_id": admin.get_attribute("id"), "role_id": role.get_attribute("id")})
 
 def visit(email, password, paths):
@@ -407,7 +409,9 @@ from craft.facades import DB
 
 ada = User.create({"name": "Ada", "email": "ada@write.test", "password": "correct-horse"})
 bob = User.create({"name": "Bob", "email": "bob@write.test", "password": "correct-horse"})
-admin = Role.create({"name": "Admin", "slug": "admin"})
+# make:admin seeds the role its own next steps assign; it must exist after migrate.
+admin = Role.query().where("slug", "admin").first()
+assert admin is not None, "make:admin did not seed the admin role"
 DB.table("role_user").insert({"user_id": ada.get_attribute("id"), "role_id": admin.get_attribute("id")})
 publish = Permission.create({"name": "Publish", "slug": "publish-post"})
 

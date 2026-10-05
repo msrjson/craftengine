@@ -576,9 +576,18 @@ class Kernel:
         router = self.app.make("router")
         routes = []
 
-        for r in router.application_routes():
+        # The application's own routes come first and win an exact clash with a
+        # module route, whatever order things loaded in; the clash is logged,
+        # never resolved silently by registration order.
+        ordered = sorted(router.application_routes(), key=lambda entry: entry._module is not None)
+        claimed: set = set()
+        for r in ordered:
             endpoint = self._create_endpoint(r.action, r._module, r.middleware_list, route_uri=r.uri)
             for m in r.methods:
+                if r._module is not None and (m, r.uri) in claimed and m != "HEAD":
+                    logger.error("route_conflict module=%s method=%s uri=%s owner=application", r._module, m, r.uri)
+                    continue
+                claimed.add((m, r.uri))
                 routes.append(StarletteRoute(r.uri, endpoint=endpoint, methods=[m]))
 
         # Appended after the application's own routes, so a project that

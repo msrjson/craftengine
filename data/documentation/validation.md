@@ -67,7 +67,9 @@ else is skipped, so an optional field left blank does not report a type error.
 - `text`: Plain text only (strictly rejects raw HTML tags and script injection).
 - `alpha_spaces`: Letters and whitespace only (supports all Unicode accents: á, é, ç, etc.).
 - `no_html`: Rejects any HTML tags (`<...>`).
-- `uuid`, `alpha`, `alpha_num`, `alpha_dash`, `regex:<pattern>`.
+- `uuid`, `alpha`, `alpha_num`, `alpha_dash`, `regex:<pattern>`. The pattern is taken whole, commas included
+  (`regex:^[0-9]+([.,][0-9]{1,2})?$`); in the pipe-delimited string form it cannot contain `|`, so write
+  alternations in the list form.
 - `ip` (IPv4 or IPv6), `ipv4`, `ipv6`, `digits:n`, `digits_between:min,max`.
 - `decimal:places`, `starts_with:a,b`, `ends_with:x,y`, `timezone`, `spam_free`.
 

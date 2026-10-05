@@ -271,6 +271,33 @@ class TestContributions:
         assert client.get("/extensions/catalog/css/catalog.css").status_code == 404
 
 
+class TestRouteConflicts:
+    """A route another one already answers is refused, never decided by load order."""
+
+    def test_an_extension_whose_route_collides_is_refused_and_leaves_nothing(self, extensions, tmp_path):
+        _activate(extensions, "catalog")
+        _write_extension(tmp_path, "squatter", 'slug = "squatter"\nkind = "module"\nversion = "1.0"\n', {
+            "routes.py": "def register(router):\n    router.get('/ext-test/catalog/{sku}', lambda sku: 'mine')\n",
+        })
+        extensions.roots = [*ROOTS, str(tmp_path)]
+        extensions.manifests(refresh=True)
+        extensions.install("squatter")
+        router = app.make("router")
+        before = len(router.routes)
+        with pytest.raises(ExtensionError) as refused:
+            extensions.activate("squatter")
+        assert (refused.value.code, refused.value.detail) == ("EXTENSION_ROUTE_CONFLICT", "GET /ext-test/catalog/{sku}")
+        assert len(router.routes) == before
+        assert extensions.state("squatter") is ExtensionState.FAILED
+
+    def test_the_application_route_wins_an_exact_clash(self, migrated_database, client):
+        slug = "clash_" + uuid.uuid4().hex[:8]
+        router = app.make("router")
+        router.get(f"/ext-test/{slug}", lambda: "module").module(slug)
+        router.get(f"/ext-test/{slug}", lambda: "application")
+        assert client.get(f"/ext-test/{slug}").text == "application"
+
+
 class TestScaffolding:
     def test_a_generated_module_with_a_screen_installs_activates_and_renders(self, extensions, client, tmp_path):
         from engine.cli.extension_scaffolder import build_extension, build_screen

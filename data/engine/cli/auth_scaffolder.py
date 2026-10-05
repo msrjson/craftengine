@@ -31,6 +31,15 @@ AUTH_TEMPLATE_ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "a
 USER_MODEL_PATH = "app.Models.User.User"
 
 
+#: The files `make auth` copies from `auth_templates/`, keyed by result name.
+AUTH_TEMPLATE_KEYS = (
+    ("model_user", os.path.join("app", "Models", "User.py")),
+    ("migration_users", os.path.join("database", "migrations", "2025_01_01_000001_create_users_table.py")),
+    ("migration_translations", os.path.join("database", "migrations", "2026_09_25_000010_seed_auth_translations.py")),
+)
+AUTH_TEMPLATES = tuple(relative for _key, relative in AUTH_TEMPLATE_KEYS)
+
+
 def _copy_auth_templates(base_path: str, force: bool = False) -> Dict[str, str]:
     """Write the user model and its migration into the project.
 
@@ -45,17 +54,7 @@ def _copy_auth_templates(base_path: str, force: bool = False) -> Dict[str, str]:
     import shutil
 
     written: Dict[str, str] = {}
-    for key, relative in (
-        ("model_user", os.path.join("app", "Models", "User.py")),
-        (
-            "migration_users",
-            os.path.join("database", "migrations", "2025_01_01_000001_create_users_table.py"),
-        ),
-        (
-            "migration_translations",
-            os.path.join("database", "migrations", "2026_09_25_000010_seed_auth_translations.py"),
-        ),
-    ):
+    for key, relative in AUTH_TEMPLATE_KEYS:
         destination = os.path.join(base_path, relative)
         if os.path.exists(destination) and not force:
             continue
@@ -393,6 +392,13 @@ def build_auth(
         if os.path.exists(controller_path):
             files["controller"] = controller_path
         return {"files": files, "already_configured": True}
+
+    # Every template is checked before anything is written: a generator that
+    # stops halfway leaves a scaffold the next run refuses to overwrite.
+    layout_scaffolder.require_templates(
+        layout_scaffolder.layout_template(),
+        *(os.path.join(AUTH_TEMPLATE_ROOT, relative + ".stub") for relative in AUTH_TEMPLATES),
+    )
 
     # The generated views open with `@extends("layouts.app")`, so the shell has
     # to exist or every one of them raises at render time. Written only when

@@ -127,7 +127,15 @@ tampered with, or signed with a different key, is rejected rather than trusted.
 CSRF is verified on POST/PUT/PATCH/DELETE, via the `_token` field in the
 request body or the `X-CSRF-TOKEN` header. A token in the query string is
 ignored — it could be planted by a crafted cross-site link. Routes matching
-`api/*` are exempt. A mismatch returns **419**.
+`api/*` are exempt. A mismatch returns **419** with `code` `CSRF_TOKEN_MISMATCH`
+and `message_key` `security.csrf.token_mismatch`; an `Origin` or `Referer`
+naming another site returns **403** `CSRF_ORIGIN_REJECTED`
+(`security.csrf.origin_rejected`). Both keys ship in `en`, `pt-BR` and `es`.
+
+`redirect.back(request)` follows the `Referer` only when it is a relative path
+or a URL on the request's own host; anything else - another site, `//host`,
+`javascript:` - goes to the `fallback` instead, so a form is never an open
+redirect.
 
 ```html
 <form method="POST" action="/posts">

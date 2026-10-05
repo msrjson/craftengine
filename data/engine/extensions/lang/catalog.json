@@ -41,7 +41,8 @@
     "extension.error.extension_already_exists": "An extension named {slug} already exists ({detail}).",
     "extension.error.extension_screen_invalid": "The screen name {detail} is invalid.",
     "extension.error.extension_screen_exists": "{slug} already has a screen named {detail}.",
-    "extension.error.extension_routes_marker_missing": "The routes file of {slug} has no place marked for new screens."
+    "extension.error.extension_routes_marker_missing": "The routes file of {slug} has no place marked for new screens.",
+    "extension.error.extension_route_conflict": "{slug} declares {detail}, which another route already answers."
   },
   "pt-BR": {
     "module.error.disabled": "Este módulo está desativado.",
@@ -85,7 +86,8 @@
     "extension.error.extension_already_exists": "Já existe uma extensão chamada {slug} ({detail}).",
     "extension.error.extension_screen_invalid": "O nome de tela {detail} é inválido.",
     "extension.error.extension_screen_exists": "{slug} já tem uma tela chamada {detail}.",
-    "extension.error.extension_routes_marker_missing": "O arquivo de rotas de {slug} não tem o ponto marcado para novas telas."
+    "extension.error.extension_routes_marker_missing": "O arquivo de rotas de {slug} não tem o ponto marcado para novas telas.",
+    "extension.error.extension_route_conflict": "{slug} declara {detail}, que outra rota já atende."
   },
   "es": {
     "module.error.disabled": "Este módulo está desactivado.",
@@ -129,6 +131,7 @@
     "extension.error.extension_already_exists": "Ya existe una extensión llamada {slug} ({detail}).",
     "extension.error.extension_screen_invalid": "El nombre de pantalla {detail} no es válido.",
     "extension.error.extension_screen_exists": "{slug} ya tiene una pantalla llamada {detail}.",
-    "extension.error.extension_routes_marker_missing": "El archivo de rutas de {slug} no tiene el punto marcado para nuevas pantallas."
+    "extension.error.extension_routes_marker_missing": "El archivo de rutas de {slug} no tiene el punto marcado para nuevas pantallas.",
+    "extension.error.extension_route_conflict": "{slug} declara {detail}, que otra ruta ya atiende."
   }
 }
