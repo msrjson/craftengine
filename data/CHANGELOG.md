@@ -18,6 +18,20 @@ full policy (categories to use, what counts as security-relevant, how
 
 ## [Unreleased]
 
+## [4.4.1] r00023 — 2026-10-05
+
+### Fixed
+
+- **The installed package was missing templates**: `engine/cli/auth_templates/` and
+  `engine/cli/shared_templates/` were not in `package-data`, so `make auth` and
+  `make admin` crashed with `FileNotFoundError` in every project that installs the
+  framework with pip (a source checkout hid it). The module template's
+  `migrations/.gitkeep.stub` was a hidden file, which package-data globs skip, so a
+  module generated outside the repository had no `migrations/`; it is stored as
+  `gitkeep.stub` and renamed on generation. `tests/test_package_data.py` now fails
+  when any data file under `engine/` is not shipped or is hidden. Found by the CRM
+  demo, which installs the released package.
+
 ## [4.4.0] r00022 — 2026-10-05
 
 ### Added

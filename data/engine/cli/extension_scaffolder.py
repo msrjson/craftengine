@@ -26,6 +26,11 @@ STUB_SUFFIX: Final[str] = ".stub"
 _SLUG = re.compile(r"^[a-z][a-z0-9_]{1,62}$")
 _ROUTE_MARKER: Final[str] = "    # make:screen adds routes above this line."
 
+#: Templates whose generated name starts with a dot, stored without it:
+#: setuptools' package-data globs skip hidden files, so a `.gitkeep.stub` is in
+#: a source checkout and missing from every installed package.
+DOTFILE_RENAMES: Final[dict[str, str]] = {"gitkeep": ".gitkeep"}
+
 #: Default root of each kind, matching `config/extensions.py`.
 DEFAULT_ROOTS: Final[dict[ExtensionKind, str]] = {
     ExtensionKind.MODULE: os.path.join("app", "modules"),
@@ -52,7 +57,7 @@ def build_extension(base_path: str, kind: ExtensionKind, slug: str, *, force: bo
     for directory, _subdirectories, files in os.walk(source_root):
         for name in sorted(files):
             relative = os.path.relpath(os.path.join(directory, name), source_root)
-            destination = os.path.join(target, _fill(relative[: -len(STUB_SUFFIX)], values))
+            destination = os.path.join(target, _dotfile(_fill(relative[: -len(STUB_SUFFIX)], values)))
             written.append(_write(destination, _render(os.path.join(directory, name), values)))
     return sorted(written)
 
@@ -91,6 +96,12 @@ def _values(slug: str) -> dict[str, str]:
         "__SLUG__": slug, "__CLASS__": _studly(slug), "__NAME__": slug.replace("_", " ").title(),
         "__URL__": slug.replace("_", "-"), "__ENGINE_MAJOR__": str(major), "__ENGINE_NEXT__": str(major + 1),
     }
+
+
+def _dotfile(path: str) -> str:
+    """Restore the leading dot of a template stored without it."""
+    directory, name = os.path.split(path)
+    return os.path.join(directory, DOTFILE_RENAMES.get(name, name))
 
 
 def _studly(value: str) -> str:
