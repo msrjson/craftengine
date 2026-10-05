@@ -18,6 +18,8 @@ full policy (categories to use, what counts as security-relevant, how
 
 ## [Unreleased]
 
+## [4.4.0] r00022 — 2026-10-05
+
 ### Added
 
 - **Extension model: modules, plugins and themes** (ADR 0004, `documentation/extensions.md`).
