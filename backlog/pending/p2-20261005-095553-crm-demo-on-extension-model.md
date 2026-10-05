@@ -4,11 +4,11 @@ title: Complete CRM demo application built only from extensions
 type: feature
 priority: 2
 autonomous: false
-blocked_by: owner-decision
+blocked_by: owner-action
 max_attempts: 2
 attempts: 0
 created_at: 2026-10-05T09:55:53Z
-updated_at: 2026-10-05T10:02:11Z
+updated_at: 2026-10-05T10:29:04Z
 source: owner request 2026-10-05 (session), after the extension model plan
 touches:
   - data-demo/
@@ -25,7 +25,9 @@ The slim engine needs a complete, database-backed application that proves the ex
 ## Done when
 
 - [x] Location: `data-demo/` at the workspace root (owner ruling 2026-10-05); `data/` holds only the slim framework, `data-website/` only the landing page; the three never share code.
-- [ ] Owner decides how `data-demo/` consumes the engine and when the repository is pushed (push is an owner action, BQ-11).
+- [x] Engine source: the canonical remote pinned to a tag, `git+https://github.com/msrjson/craftengine.git@<tag>` (owner ruling 2026-10-05).
+- [x] Publication: built and committed locally; the owner pushes after review (owner ruling 2026-10-05).
+- [ ] Owner cuts the release carrying the extension model (commits 569edd5, 9352e47) and pushes it, so the tag exists on the remote.
 - [ ] CRM modules (contacts, companies, deals, activities), one plugin, one theme and the extension manager panel, with migrations, seeders and three-locale keys.
 - [ ] The engine comes from the canonical Git remote, never copied from this workspace.
 - [ ] A failing CRM extension leaves the rest of the CRM serving (demonstrated by a test).
@@ -45,3 +47,4 @@ Owner request 2026-10-05: "framework slim + demo"; the demo is a complete applic
 - 2026-10-05T09:55:53Z created by claude@claude-code (source: owner request 2026-10-05)
 - 2026-10-05T10:01:15Z owner ruling: the demo lives in data-demo/, data/ is the slim framework only, data-website/ holds the landing page; no context is mixed (owner, relayed by claude@claude-code)
 - 2026-10-05T10:02:11Z owner ruling: the landing page directory is named data-website/ (was data-craftengine.org/) (owner, relayed by claude@claude-code)
+- 2026-10-05T10:29:04Z owner ruling: data-demo installs the engine from the canonical Git remote pinned to a tag; nothing is pushed before the owner reviews. Blocked on the owner cutting and pushing the release with the extension model (owner, relayed by claude@claude-code)
