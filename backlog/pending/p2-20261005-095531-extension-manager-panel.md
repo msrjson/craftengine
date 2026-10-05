@@ -3,12 +3,12 @@ id: "20261005-095531"
 title: Extension manager panel (low-friction administration)
 type: feature
 priority: 2
-autonomous: false
-blocked_by: owner-action
+autonomous: true
+blocked_by: none
 max_attempts: 2
 attempts: 0
 created_at: 2026-10-05T09:55:31Z
-updated_at: 2026-10-05T10:29:04Z
+updated_at: 2026-10-05T10:54:46Z
 source: owner request 2026-10-05: extension model (modules, plugins, themes) with fault isolation and a management panel; plan approved in session
 touches:
   - data-demo/app/modules/extension_manager/
@@ -47,3 +47,4 @@ Slice 10 of 10 of the extension model. Owner rulings 2026-10-05: one manifest wi
 - 2026-10-05T09:55:31Z created by claude@claude-code (source: owner request 2026-10-05)
 - 2026-10-05T10:01:15Z owner ruling: data/ stays the slim framework, so the panel is a module of data-demo/; blocked with the CRM demo task until the owner decides how data-demo consumes the engine (owner, relayed by claude@claude-code)
 - 2026-10-05T10:29:04Z owner ruling: data-demo installs the engine from the canonical Git remote pinned to a tag; nothing is pushed before the owner reviews. Blocked on the owner cutting and pushing the release with the extension model (owner, relayed by claude@claude-code)
+- 2026-10-05T10:54:46Z owner ruling: release v4.4.0-r00022 published and craftengine-demo created; build the demo now (autonomous true, blocked_by none) (owner, relayed by claude@claude-code)
