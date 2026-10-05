@@ -211,10 +211,15 @@ class ExtensionManager:
         return loaded
 
     def reconcile(self) -> None:
-        """Converge this worker on the persisted states other workers may have set."""
+        """Converge this worker on the persisted states other workers may have set.
+
+        Discovery is refreshed too: an extension whose directory was added
+        after this worker booted (a module generated and activated while the
+        application runs) must start serving without a restart.
+        """
         try:
             rows = self.store.all()
-            for slug, manifest in self.manifests().items():
+            for slug, manifest in self.manifests(refresh=True).items():
                 state = ExtensionState(rows.get(slug, {}).get("state", ExtensionState.DISCOVERED.value))
                 if state is ExtensionState.ACTIVE and not self.loader.is_loaded(slug):
                     self._try_load(manifest)

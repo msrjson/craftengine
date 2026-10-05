@@ -312,6 +312,14 @@ class TestWorkersConverge:
         extensions.reconcile()
         assert extensions.availability("catalog") is Availability.SERVING
 
+    def test_reconcile_discovers_an_extension_added_after_boot(self, extensions, tmp_path):
+        extensions.roots = [str(tmp_path)]
+        assert extensions.manifests() == {}
+        _write_extension(tmp_path, "late_arrival", 'slug = "late_arrival"\nkind = "plugin"\nversion = "1.0"\n')
+        extensions.store.save("late_arrival", "plugin", "1.0", ExtensionState.ACTIVE)
+        extensions.reconcile()
+        assert extensions.availability("late_arrival") is Availability.SERVING
+
     def test_the_router_asks_the_ticker_once_the_interval_elapsed(self, extensions):
         extensions.reconcile_interval = 0
         assert ReconcileTicker(extensions).due() is True

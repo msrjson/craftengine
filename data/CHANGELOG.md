@@ -31,6 +31,10 @@ full policy (categories to use, what counts as security-relevant, how
   `gitkeep.stub` and renamed on generation. `tests/test_package_data.py` now fails
   when any data file under `engine/` is not shipped or is hidden. Found by the CRM
   demo, which installs the released package.
+- **An extension added after boot never started serving**: `reconcile()` walked the
+  manifests discovered at boot, so a module generated and activated while the
+  application ran stayed a plain 404 in the running workers until a restart. It
+  now refreshes discovery on every pass. Found by the CRM demo.
 
 ## [4.4.0] r00022 — 2026-10-05
 
