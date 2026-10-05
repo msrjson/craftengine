@@ -1,0 +1,13 @@
+"""Business rules of the __SLUG__ module."""
+
+
+class __CLASS__Service:
+    """The module's domain logic; exposed on the internal proxy as `__SLUG__`."""
+
+    def summary(self) -> dict:
+        """Return the data the start screen shows.
+
+        Returns:
+            A mapping the view renders; never a rendered sentence.
+        """
+        return {"items": 0}

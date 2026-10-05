@@ -1,0 +1,2 @@
+/* __NAME__ theme, served at /extensions/__SLUG__/css/theme.css */
+:root { color-scheme: light dark; }

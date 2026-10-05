@@ -41,6 +41,7 @@ def register_engine_providers(app: Any) -> None:
         DatabaseServiceProvider,
         EventServiceProvider,
         ExceptionServiceProvider,
+        ExtensionServiceProvider,
         FirewallServiceProvider,
         FrameworkSubsystemsServiceProvider,
         HoneypotServiceProvider,
@@ -97,3 +98,5 @@ def register_engine_providers(app: Any) -> None:
     app.register_provider(SignerServiceProvider)
 
     app.register_provider(FrameworkSubsystemsServiceProvider)
+    # Last: an extension may resolve any engine service while it loads.
+    app.register_provider(ExtensionServiceProvider)

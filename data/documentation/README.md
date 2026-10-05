@@ -48,6 +48,8 @@ scaling from a blog to multi-tenant, and what is not implemented yet? That is
 | [Sessions](sessions.md) | Drivers, flash data, CSRF tokens |
 | [Cache](cache.md) | Stores, TTL, `remember` |
 | [Queues and events](queues_events.md) | Jobs, workers, listeners |
+| [Extensions](extensions.md) | Modules, plugins and themes: manifest, lifecycle, fault isolation, scaffolding |
+| [Plugins](plugins.md) | Plugin extensions, and moving a legacy `plugins/` plugin |
 | [Internal proxy](internal-proxy.md) | Module-to-module calls in memory, never through the HTTP kernel |
 | [API resources](resources.md) | Shaping JSON output |
 | [Localization](localization.md) | BCP 47 locales, fallback chain, translations |

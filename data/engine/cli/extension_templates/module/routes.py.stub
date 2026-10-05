@@ -1,0 +1,13 @@
+"""HTTP routes of the __SLUG__ module; the engine tags each with the module's slug."""
+
+from .controllers.__SLUG___controller import __CLASS__Controller
+
+
+def register(router: object) -> None:
+    """Register the module's routes.
+
+    Args:
+        router: The application router.
+    """
+    router.get("/__URL__", [__CLASS__Controller, "index"]).name("__SLUG__.index")
+    # make:screen adds routes above this line.

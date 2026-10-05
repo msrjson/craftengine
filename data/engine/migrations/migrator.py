@@ -101,7 +101,7 @@ class MigrationFile:
 
         Set `transactional = False` at module level for DDL PostgreSQL refuses
         inside a transaction block - `CREATE INDEX CONCURRENTLY`,
-        `ALTER TYPE … ADD VALUE`. Such a migration has to be written to be
+        `ALTER TYPE ... ADD VALUE`. Such a migration has to be written to be
         re-runnable, because a failure leaves it half applied with no rollback.
         """
         return bool(getattr(self.module, "transactional", True))
@@ -124,6 +124,9 @@ class Migrator:
         self.app = app
         base_path = getattr(app, "base_path", None) or os.getcwd()
         self.path = path or os.path.join(base_path, "database", "migrations")
+        #: An explicit `path` scopes the migrator to that directory (installing
+        #: one extension); the default also covers every installed extension.
+        self._include_extensions = path is None
         self.notes: List[str] = []
 
     # -- infrastructure --------------------------------------------------------
@@ -178,15 +181,35 @@ class Migrator:
 
     # -- discovery -------------------------------------------------------------
 
+    def directories(self) -> List[str]:
+        """Return the migration directories: the application's, then each installed extension's."""
+        directories = [self.path]
+        app = self.app
+        if self._include_extensions and app is not None and getattr(app, "bound", None) and app.bound("extensions"):
+            directories.extend(app.make("extensions").migration_paths())
+        return directories
+
     def files(self) -> List[MigrationFile]:
-        if not os.path.isdir(self.path):
-            return []
-        names = sorted(
-            name
-            for name in os.listdir(self.path)
-            if MIGRATION_FILE_RE.match(name)
-        )
-        return [MigrationFile(os.path.join(self.path, name)) for name in names]
+        """Return every migration file, ordered by name across all directories.
+
+        Raises:
+            ExtensionError: `EXTENSION_MIGRATION_NAME_COLLISION` - two
+                directories ship a migration with the same file name, which the
+                `migrations` table could not tell apart.
+        """
+        from engine.extensions.errors import ExtensionError
+
+        found: Dict[str, str] = {}
+        for directory in self.directories():
+            if not os.path.isdir(directory):
+                continue
+            for name in os.listdir(directory):
+                if not MIGRATION_FILE_RE.match(name):
+                    continue
+                if name in found:
+                    raise ExtensionError("EXTENSION_MIGRATION_NAME_COLLISION", detail=name)
+                found[name] = os.path.join(directory, name)
+        return [MigrationFile(found[name]) for name in sorted(found)]
 
     def pending(self) -> List[MigrationFile]:
         applied = set(self.applied())

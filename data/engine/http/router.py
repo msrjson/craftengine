@@ -1,5 +1,5 @@
 """
-Router — Route registration (`get`/`post`/...), groups, `resource()`/
+Router - Route registration (`get`/`post`/...), groups, `resource()`/
 `api_resource()`, named routes, and `url_for()`.
 Category: Core Framework (HTTP).
 Relations:
@@ -32,7 +32,7 @@ class RouteEntry:
     def __init__(self, methods: List[str], uri: str, action: Any, prefix: str = "", name_prefix: str = "", middleware: Optional[List[Any]] = None):
         self.methods = [m.upper() for m in methods]
         # Always produce an absolute path: a group prefix given without a
-        # leading slash ("api") must not yield "api/posts" — Starlette asserts
+        # leading slash ("api") must not yield "api/posts" - Starlette asserts
         # on routes that do not start with "/".
         combined = "/".join(p for p in (prefix.strip("/"), uri.strip("/")) if p)
         self.uri = f"/{combined}" if combined else "/"
@@ -95,6 +95,30 @@ class Router:
         #: Engine routes by URI, so registering twice is a no-op instead of a
         #: duplicate. The kernel re-registers on every rebuild.
         self._engine_index: Dict[str, RouteEntry] = {}
+        #: Callables that may change the route table between requests (an
+        #: extension activated by another worker). Each has `due()` and is
+        #: called when due; the kernel asks before every dispatch.
+        self._refreshers: List[Any] = []
+
+    def add_refresher(self, refresher: Any) -> None:
+        """Register a callable with a `due()` method that may add routes later.
+
+        The kernel calls `refresh()` off the event loop when `refresh_due()`
+        is true, then rebuilds if the route table changed. This is how a route
+        table follows state another process changed, without the kernel
+        knowing which subsystem owns that state.
+        """
+        self._refreshers.append(refresher)
+
+    def refresh_due(self) -> bool:
+        """Return whether any refresher wants to run now (cheap, no I/O)."""
+        return any(refresher.due() for refresher in self._refreshers)
+
+    def refresh(self) -> None:
+        """Run every refresher that is due."""
+        for refresher in list(self._refreshers):
+            if refresher.due():
+                refresher()
 
     def add_route(self, methods: Union[str, List[str]], uri: str, action: Any) -> RouteEntry:
         if isinstance(methods, str):
@@ -150,7 +174,7 @@ class Router:
     def resource(self, name: str, controller: Any, write_middleware: Optional[Union[str, List[str]]] = None) -> None:
         """Register the standard 7 CRUD routes.
 
-        `write_middleware` — e.g. "auth" — is applied only to the
+        `write_middleware` - e.g. "auth" - is applied only to the
         state-changing actions (store/update/destroy), not to the read-only
         ones (index/show/create/edit), so a resource can stay publicly
         readable while still requiring a logged-in user to mutate it.
@@ -246,22 +270,35 @@ class Router:
         """
         return {route.uri for route in self.application_routes()}
 
-    def clear_engine_routes(self) -> int:
-        """Drop every engine route, so they can be registered from scratch.
+    def clear_engine_routes(self, provider_prefix: str = "") -> int:
+        """Drop engine routes, so they can be registered from scratch.
 
         Configuration decides which of them exist, and a flag flipped after
         boot has to be able to take one away as well as add one.
 
+        Args:
+            provider_prefix: Drop only the routes whose `provider` starts with
+                it, so one layer refreshing its routes never drops another's
+                (the kernel's probes versus the extension asset mount). Empty
+                drops every engine route.
+
         Returns:
             How many entries were removed.
         """
-        removed = len(self._engine_index)
-        if not removed:
+        doomed = {
+            uri for uri, entry in self._engine_index.items()
+            if (entry.provider or "").startswith(provider_prefix)
+        }
+        if not doomed:
             return 0
-        self.routes = [route for route in self.routes if route.origin != ENGINE_ORIGIN]
-        self._engine_index.clear()
+        self.routes = [
+            route for route in self.routes
+            if not (route.origin == ENGINE_ORIGIN and route.uri in doomed and (route.provider or "").startswith(provider_prefix))
+        ]
+        for uri in doomed:
+            self._engine_index.pop(uri, None)
         self._version += 1
-        return removed
+        return len(doomed)
 
     def url_for(self, name: str, **params) -> str:
         from urllib.parse import quote, urlencode
@@ -295,7 +332,7 @@ class Router:
         """`url_for()` prefixed with `app.APP_URL`.
 
         This is the only reader of `APP_URL`, which was declared in
-        `config/app.py` and never used by anything — a setting the developer
+        `config/app.py` and never used by anything - a setting the developer
         could change with no effect anywhere.
         """
         path = self.url_for(name, **params)

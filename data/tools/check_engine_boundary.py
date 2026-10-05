@@ -5,6 +5,11 @@ extended only through the seams it offers - the internal proxy, events,
 plugins and themes - so an engine file importing application code is the
 structural sign of a business rule written into the framework.
 
+Extensions (ADR 0004) are held to the same rule among themselves: a file under
+one extension (`app/modules/<slug>/`, `app/plugins/<slug>/`, `app/themes/<slug>/`)
+never imports another extension's package. Modules talk through the internal
+proxy and events; an import would couple them past any deactivation.
+
 The check is static (AST only; nothing is imported) and ratcheted: a finding
 fails the gate only when it is new against the base commit pinned in
 `tools/engine-boundary-policy.json`. Existing debt can shrink, never grow.
@@ -110,9 +115,30 @@ def _matches(module: str, prefixes: Iterable[str]) -> bool:
     return any(module == prefix or module.startswith(prefix + ".") for prefix in prefixes)
 
 
+def _own_extension(path: str, policy: dict) -> Optional[str]:
+    """Return the dotted package of the extension `path` belongs to, if any."""
+    for root in policy.get("extension_roots", []):
+        prefix = root.rstrip("/") + "/"
+        if path.startswith(prefix):
+            slug = path[len(prefix):].split("/", 1)[0]
+            return (prefix + slug).replace("/", ".") if slug and not slug.endswith(".py") else None
+    return None
+
+
+def _foreign_extensions(path: str, policy: dict) -> list[str]:
+    """Return the extension package prefixes `path` may not import (all but its own)."""
+    own = _own_extension(path, policy)
+    if own is None:
+        return []
+    return [root.rstrip("/").replace("/", ".") for root in policy.get("extension_roots", [])]
+
+
 def _rules_for(path: str, policy: dict) -> list[tuple[str, list[str]]]:
     """Return the (code, forbidden module prefixes) rules that apply to `path`."""
     rules = []
+    foreign = _foreign_extensions(path, policy)
+    if foreign:
+        rules.append(("EXTENSION_CROSS_IMPORT", foreign))
     if any(path.startswith(root.rstrip("/") + "/") for root in policy["engine_roots"]):
         rules.append(("ENGINE_APP_IMPORT", policy["application_packages"]))
     if any(marker in path for marker in policy["service_markers"]):
@@ -129,11 +155,12 @@ def scan_source(path: str, source: str, policy: dict) -> list[Finding]:
         tree = ast.parse(source, filename=path)
     except SyntaxError as error:
         return [Finding(path, error.lineno or 1, "BOUNDARY_SYNTAX", "unparseable")]
+    own = _own_extension(path, policy)
     return [
         Finding(path, line, code, module)
         for line, module in imported_modules(tree)
         for code, forbidden in rules
-        if _matches(module, forbidden)
+        if _matches(module, forbidden) and not (code == "EXTENSION_CROSS_IMPORT" and own and _matches(module, [own]))
     ]
 
 

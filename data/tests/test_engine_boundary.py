@@ -187,3 +187,22 @@ class TestConsoleRoutesSeam:
     def test_an_empty_setting_loads_nothing(self, monkeypatch):
         monkeypatch.setattr(importlib, "import_module", MagicMock(side_effect=AssertionError))
         self._provider("")._load_scheduled_tasks()
+
+
+class TestExtensionsNeverImportEachOther:
+    """ADR 0004: an extension reaches another only through the proxy or events."""
+
+    def test_importing_another_module_is_a_finding(self):
+        source = "from app.modules.catalog.services import CatalogService\n"
+        assert _codes("app/modules/ordering/routes.py", source) == [("EXTENSION_CROSS_IMPORT", "app.modules.catalog.services")]
+
+    def test_a_plugin_importing_a_module_is_a_finding(self):
+        source = "import importlib\nimportlib.import_module('app.modules.catalog')\n"
+        assert _codes("app/plugins/pricing/provider.py", source) == [("EXTENSION_CROSS_IMPORT", "app.modules.catalog")]
+
+    def test_an_extension_may_import_its_own_package(self):
+        source = "from app.modules.ordering.services import QuoteService\nfrom craft.facades import Proxy\n"
+        assert _codes("app/modules/ordering/routes.py", source) == []
+
+    def test_application_code_outside_extensions_is_not_this_rule(self):
+        assert _codes("app/Providers/AppServiceProvider.py", "from app.modules.catalog import provider\n") == []

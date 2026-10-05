@@ -29,7 +29,24 @@ from __future__ import annotations
 import inspect
 from collections.abc import Iterable, Mapping
 from types import MappingProxyType
-from typing import Any
+from typing import Any, Protocol
+
+
+class OwnerGate(Protocol):
+    """Decides whether an extension owning exposed methods may be called.
+
+    The extension manager installs itself as the gate; without one, owned
+    exposures behave like unowned ones.
+    """
+
+    def allow(self, owner: str) -> bool:
+        """Return whether a call into `owner` may run now."""
+
+    def succeeded(self, owner: str) -> None:
+        """Record a successful call into `owner`."""
+
+    def failed(self, owner: str, error: BaseException) -> bool:
+        """Record a failure of `owner`; True when it is a domain error."""
 
 
 class InternalProxyError(RuntimeError):
@@ -60,13 +77,23 @@ class InternalProxy:
     def __init__(self, container: Any) -> None:
         self._container = container
         self._exposed: dict[str, tuple[Any, frozenset[str]]] = {}
+        self._owners: dict[str, str] = {}
+        self._gate: OwnerGate | None = None
 
-    def expose(self, alias: str, abstract: Any, methods: Iterable[str]) -> None:
+    def set_gate(self, gate: OwnerGate | None) -> None:
+        """Install the gate that decides whether an owned target may run."""
+        self._gate = gate
+
+    def expose(self, alias: str, abstract: Any, methods: Iterable[str], owner: str = "") -> None:
         """Allow `methods` of the service bound as `abstract` to be called as `alias`.
 
         Everything not exposed is refused. Private or empty method names are
         refused here, and so is a method the target class does not define, so
         a typo fails at boot instead of on the first call.
+
+        `owner` names the extension the target belongs to. While the owner
+        cannot serve (deactivated, failed, circuit open) calls are refused with
+        `INTERNAL_TARGET_UNAVAILABLE` and the target never runs.
 
         Raises:
             InternalProxyError: The alias is already exposed (one module cannot
@@ -83,6 +110,21 @@ class InternalProxy:
             if target_class is not None and not callable(getattr(target_class, method, None)):
                 raise InternalProxyError("INTERNAL_EXPOSE_UNKNOWN_METHOD", alias, method)
         self._exposed[alias] = (abstract, allowed)
+        if owner:
+            self._owners[alias] = owner
+
+    def unexpose(self, alias: str) -> bool:
+        """Withdraw an alias, e.g. when its extension is deactivated.
+
+        Returns:
+            Whether the alias was exposed.
+        """
+        self._owners.pop(alias, None)
+        return self._exposed.pop(alias, None) is not None
+
+    def owner(self, alias: str) -> str:
+        """Return the extension owning `alias`, or an empty string."""
+        return self._owners.get(alias, "")
 
     def exposed(self) -> Mapping[str, tuple[Any, frozenset[str]]]:
         """Return a read-only view of every exposed alias and its methods."""
@@ -99,10 +141,16 @@ class InternalProxy:
         handler = self._handler(alias, method)
         if inspect.iscoroutinefunction(handler):
             raise InternalProxyError("INTERNAL_ASYNC_HANDLER_FROM_SYNC_CALL", alias, method)
-        result = handler(*args, **kwargs)
+        owner = self._admit(alias, method)
+        try:
+            result = handler(*args, **kwargs)
+        except Exception as error:
+            self._report(owner, error)
+            raise
         if inspect.isawaitable(result):
             _discard(result)
             raise InternalProxyError("INTERNAL_ASYNC_HANDLER_FROM_SYNC_CALL", alias, method)
+        self._succeeded(owner)
         return result
 
     async def dispatch(self, alias: str, method: str, /, *args: Any, **kwargs: Any) -> Any:
@@ -117,8 +165,17 @@ class InternalProxy:
         Raises:
             InternalProxyError: The target is not exposed.
         """
-        result = self._handler(alias, method)(*args, **kwargs)
-        return await result if inspect.isawaitable(result) else result
+        handler = self._handler(alias, method)
+        owner = self._admit(alias, method)
+        try:
+            result = handler(*args, **kwargs)
+            if inspect.isawaitable(result):
+                result = await result
+        except Exception as error:
+            self._report(owner, error)
+            raise
+        self._succeeded(owner)
+        return result
 
     def emit(self, event: Any) -> list[Any]:
         """Deliver an in-memory event to its listeners and return their results.
@@ -132,6 +189,28 @@ class InternalProxy:
         if getattr(event, "durable", False):
             raise InternalProxyError("INTERNAL_DURABLE_EVENT", type(event).__name__)
         return self._container.make("events").dispatch(event)
+
+    def _admit(self, alias: str, method: str) -> str:
+        """Return the owner of `alias` when its call may run.
+
+        Raises:
+            InternalProxyError: `INTERNAL_TARGET_UNAVAILABLE` - the owner cannot
+                serve, so the target is not run at all.
+        """
+        owner = self._owners.get(alias, "")
+        if owner and self._gate is not None and not self._gate.allow(owner):
+            raise InternalProxyError("INTERNAL_TARGET_UNAVAILABLE", alias, method)
+        return owner
+
+    def _report(self, owner: str, error: BaseException) -> None:
+        """Count an exception of an owned target toward its owner's health."""
+        if owner and self._gate is not None:
+            self._gate.failed(owner, error)
+
+    def _succeeded(self, owner: str) -> None:
+        """Record a successful call of an owned target."""
+        if owner and self._gate is not None:
+            self._gate.succeeded(owner)
 
     def _handler(self, alias: str, method: str) -> Any:
         """Return the bound method `alias.method`, refusing anything not exposed."""
@@ -151,4 +230,4 @@ def _discard(awaitable: Any) -> None:
         close()
 
 
-__all__ = ["InternalProxy", "InternalProxyError"]
+__all__ = ["InternalProxy", "InternalProxyError", "OwnerGate"]

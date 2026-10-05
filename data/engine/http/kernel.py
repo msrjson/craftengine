@@ -93,7 +93,7 @@ def cast_route_value(value: str, annotation: Any) -> Any:
         The converted value, or `value` unchanged for undeclared types.
 
     Raises:
-        NotFoundHttpException: When the segment cannot be converted — `/posts/abc`
+        NotFoundHttpException: When the segment cannot be converted - `/posts/abc`
             for `id: int` is a missing page, not a server error.
     """
     import uuid
@@ -121,8 +121,8 @@ def _to_bool(value: str) -> bool:
 def _is_request_parameter(position: int, name: str, param: inspect.Parameter, path_params: dict) -> bool:
     """Whether a parameter receives the request object.
 
-    By name (`request`), by annotation, or — for handlers written as
-    `def show(req, id)` — by being the first parameter while not naming a
+    By name (`request`), by annotation, or - for handlers written as
+    `def show(req, id)` - by being the first parameter while not naming a
     path placeholder.
     """
     if name == "request" or getattr(param.annotation, "__name__", "") in ("Request", "StarletteRequest"):
@@ -211,6 +211,10 @@ class DynamicStarletteApp:
         # Rebuild only when the route table changed - rebuilding the whole
         # Starlette app per request was pure waste.
         router = self.kernel.app.make("router")
+        refresh_due = getattr(router, "refresh_due", None)
+        if refresh_due is not None and refresh_due():
+            # Off the event loop: a refresher may read the database.
+            await run_in_threadpool(router.refresh)
         version = getattr(router, "_version", None)
         if version is None:
             version = len(router.routes)
@@ -506,7 +510,8 @@ class Kernel:
 
         router = self.app.make("router")
         if refresh:
-            router.clear_engine_routes()
+            # Only what the kernel registers: other layers keep their routes.
+            router.clear_engine_routes(provider_prefix="engine.http")
 
         register_health_routes(self.app, router)
         register_msr_route(self.app, router)
@@ -635,28 +640,26 @@ class Kernel:
             # as there are posts.
             request.route_uri = route_uri
 
-            if module_name:
-                # Ask the ModuleManager rather than issuing a SELECT here: it is
-                # the single source of truth for module state and it caches the
-                # answer, so a module-scoped route no longer costs a query per
-                # request. A module the manager has never heard of (`None`)
-                # falls back to config, which defaults to enabled.
-                state = None
-                try:
-                    state = self.app.make("module").state(module_name)
-                except Exception:
-                    state = None
-
-                if state is None:
-                    config = self.app.make("config")
-                    enabled = bool(config.get(f"modules.{module_name}.enabled", True))
-                else:
-                    enabled = state
-
-                if not enabled:
-                    return JSONResponse({"error": "Module Disabled"}, status_code=404)
 
             def handle_action(req):
+                if not module_name:
+                    return run_action(req)
+                # On the worker thread, never the event loop: the module
+                # manager may read its state. It owns the answer; the kernel
+                # raises the typed refusal (404 disabled, 503 unavailable).
+                refusal = self.app.make("module").refusal(module_name)
+                if refusal is not None:
+                    raise refusal
+                try:
+                    return run_action(req)
+                except Exception as exc:
+                    # Counted toward the module's own health before any
+                    # middleware renders it: a module failing repeatedly is
+                    # taken out of service while the rest keeps serving.
+                    self.app.make("module").report_failure(module_name, exc)
+                    raise
+
+            def run_action(req):
                 if isinstance(action, list):
                     controller_cls, method_name = action[0], action[1]
                     controller_inst = (

@@ -71,6 +71,30 @@ with a machine `code`:
 | `INTERNAL_ALIAS_ALREADY_EXPOSED` | `expose` of an alias that is already taken |
 | `INTERNAL_EXPOSE_PRIVATE_OR_EMPTY_METHOD` | `expose` of a private or empty name |
 | `INTERNAL_EXPOSE_UNKNOWN_METHOD` | `expose` of a method the class lacks |
+| `INTERNAL_TARGET_UNAVAILABLE` | the owning extension cannot serve right now (circuit open) |
+
+### Exposures owned by an extension
+
+An extension exposes through its context, which makes it the owner
+(`documentation/extensions.md`):
+
+```python
+def register(context):
+    context.expose("billing", BillingService, {"generate_invoice"})
+```
+
+An owned alias follows its extension's health and lifecycle:
+
+| Situation | Effect |
+|---|---|
+| the extension is deactivated | the alias is withdrawn: `INTERNAL_TARGET_NOT_EXPOSED` |
+| its circuit breaker is open | the call is refused without running the target: `INTERNAL_TARGET_UNAVAILABLE` |
+| the target raises an unexpected exception | it reaches the caller unchanged and counts toward the owner's breaker |
+| the target raises a typed domain error (status below 500) | it reaches the caller unchanged and is not counted |
+
+`expose(alias, service, methods, owner="slug")` and `unexpose(alias)` are the
+underlying calls; `set_gate(gate)` installs what decides whether an owner may
+run (the extension manager does it at boot).
 
 ## Calling another module
 
@@ -108,8 +132,9 @@ crash - is refused: it belongs to a queued job or an outbox, not to memory.
 
 ## Rules
 
-- A module never imports another module's controller; it calls an exposed
-  service through the proxy, emits an event, or depends on a contract.
+- A module never imports another module's code; it calls an exposed service
+  through the proxy, emits an event, or depends on a contract. Between
+  extensions the boundary gate enforces it (`EXTENSION_CROSS_IMPORT`).
 - A module never calls another module over HTTP inside the same application.
 - The engine never imports the application. The boundary gate
   (`tools/check_engine_boundary.py`) enforces it in CI.

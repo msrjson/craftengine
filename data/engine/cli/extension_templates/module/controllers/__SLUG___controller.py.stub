@@ -1,0 +1,16 @@
+"""Thin HTTP controller of the __SLUG__ module."""
+
+from craft.http.controller import Controller
+
+from ..services.__SLUG___service import __CLASS__Service
+
+
+class __CLASS__Controller(Controller):
+    """Translate HTTP into calls on `__CLASS__Service` and back."""
+
+    def __init__(self, service: __CLASS__Service) -> None:
+        self.service = service
+
+    def index(self, request: object) -> object:
+        """Render the module's start screen."""
+        return self.view("__SLUG__::index", {"summary": self.service.summary()})

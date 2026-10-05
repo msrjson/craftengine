@@ -1,0 +1,17 @@
+{
+  "en": {
+    "__SLUG__.extension.name": "__NAME__",
+    "__SLUG__.index.title": "__NAME__",
+    "__SLUG__.index.empty": "Nothing here yet."
+  },
+  "pt-BR": {
+    "__SLUG__.extension.name": "__NAME__",
+    "__SLUG__.index.title": "__NAME__",
+    "__SLUG__.index.empty": "Nada por aqui ainda."
+  },
+  "es": {
+    "__SLUG__.extension.name": "__NAME__",
+    "__SLUG__.index.title": "__NAME__",
+    "__SLUG__.index.empty": "Todavía no hay nada aquí."
+  }
+}

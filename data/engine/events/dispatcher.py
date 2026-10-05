@@ -1,5 +1,5 @@
 """
-EventDispatcher — Registers listeners (by class or string name) and dispatches
+EventDispatcher - Registers listeners (by class or string name) and dispatches
 events to them synchronously.
 Category: Core Framework (Events).
 Relations:
@@ -15,11 +15,19 @@ References:
 from __future__ import annotations
 
 import logging
-from typing import Any, Callable, Dict, List, Union
+import itertools
+from typing import Any, Callable, Dict, List, Tuple, Union
 
 _LOG = logging.getLogger("craft.events")
 
 Listener = Union[type, Callable[[Any], Any]]
+
+#: Priority of a listener or filter registered without one. Lower runs first;
+#: equal priorities run in registration order.
+DEFAULT_PRIORITY = 10
+
+#: (priority, registration sequence, callable) - sorts into execution order.
+_Entry = Tuple[int, int, Any]
 
 
 class EventDispatcher:
@@ -27,7 +35,9 @@ class EventDispatcher:
 
     def __init__(self, app: Any = None):
         self.app = app
-        self._listeners: Dict[Any, List[Listener]] = {}
+        self._sequence = itertools.count()
+        self._listeners: Dict[Any, List[_Entry]] = {}
+        self._filters: Dict[str, List[_Entry]] = {}
         self._wildcard: List[Listener] = []
         #: Resource-release listeners: run after every other listener, wildcard
         #: included, and kept by `forget`/`flush`, so nothing can reopen what
@@ -36,12 +46,20 @@ class EventDispatcher:
 
     # -- registration ----------------------------------------------------------
 
-    def listen(self, event: Any, listeners: Union[Listener, List[Listener]]) -> None:
+    def listen(
+        self, event: Any, listeners: Union[Listener, List[Listener]], priority: int = DEFAULT_PRIORITY
+    ) -> None:
         """Register one listener, or several.
 
-        Both forms work — requiring a list meant the obvious
+        Both forms work - requiring a list meant the obvious
         `Event.listen(PostPublished, NotifySubscribers)` raised
         "'type' object is not iterable".
+
+        Args:
+            event: Event class, event name, or `"*"` for every event.
+            listeners: One listener or a list of them.
+            priority: Lower runs first; equal priorities keep registration
+                order. Ignored for `"*"`, which always runs after the rest.
         """
         if not isinstance(listeners, (list, tuple)):
             listeners = [listeners]
@@ -50,7 +68,60 @@ class EventDispatcher:
             self._wildcard.extend(listeners)
             return
 
-        self._listeners.setdefault(event, []).extend(listeners)
+        entries = self._listeners.setdefault(event, [])
+        entries.extend((priority, next(self._sequence), listener) for listener in listeners)
+
+    def remove_listener(self, event: Any, listener: Listener) -> bool:
+        """Unregister one listener of `event` (or of `"*"`).
+
+        Returns:
+            Whether the listener was registered.
+        """
+        if event == "*":
+            kept = [registered for registered in self._wildcard if registered is not listener]
+            removed = len(kept) != len(self._wildcard)
+            self._wildcard[:] = kept
+            return removed
+        entries = self._listeners.get(event, [])
+        kept = [entry for entry in entries if entry[2] is not listener]
+        if len(kept) == len(entries):
+            return False
+        self._listeners[event] = kept
+        return True
+
+    # -- filters ---------------------------------------------------------------
+
+    def add_filter(self, name: str, callback: Callable[..., Any], priority: int = DEFAULT_PRIORITY) -> None:
+        """Register a callback that receives a value and returns it transformed.
+
+        Args:
+            name: The filter point, e.g. `"crm.contact.display_name"`.
+            callback: Called as `callback(value, *args, **kwargs)`; returns the
+                new value.
+            priority: Lower runs first; equal priorities keep registration order.
+        """
+        self._filters.setdefault(name, []).append((priority, next(self._sequence), callback))
+
+    def remove_filter(self, name: str, callback: Callable[..., Any]) -> bool:
+        """Unregister one filter callback; return whether it was registered."""
+        entries = self._filters.get(name, [])
+        kept = [entry for entry in entries if entry[2] is not callback]
+        self._filters[name] = kept
+        return len(kept) != len(entries)
+
+    def apply_filters(self, name: str, value: Any, *args: Any, **kwargs: Any) -> Any:
+        """Pass `value` through every filter of `name`, in priority order.
+
+        Returns:
+            The value the last filter returned, or `value` with no filters.
+        """
+        for _priority, _sequence, callback in sorted(self._filters.get(name, [])[:], key=_order):
+            value = callback(value, *args, **kwargs)
+        return value
+
+    def has_filters(self, name: str) -> bool:
+        """Return whether anything filters `name`."""
+        return bool(self._filters.get(name))
 
     def listen_last(self, event: Any, listener: Listener) -> None:
         """Register a listener that runs after every other listener of `event`.
@@ -75,7 +146,7 @@ class EventDispatcher:
 
     def has_listeners(self, event: Any) -> bool:
         return bool(self._wildcard) or any(
-            self._matches(registered, event) for registered in self._listeners
+            entries and self._matches(registered, event) for registered, entries in self._listeners.items()
         )
 
     # -- dispatching -----------------------------------------------------------
@@ -95,10 +166,11 @@ class EventDispatcher:
         return registered == event_class
 
     def listeners_for(self, event: Any) -> List[Listener]:
-        found: List[Listener] = []
-        for registered, listeners in self._listeners.items():
+        matching: List[_Entry] = []
+        for registered, entries in list(self._listeners.items()):
             if self._matches(registered, event):
-                found.extend(listeners)
+                matching.extend(entries)
+        found: List[Listener] = [entry[2] for entry in sorted(matching, key=_order)]
         found.extend(self._wildcard)
         for registered, listeners in self._last.items():
             if self._matches(registered, event):
@@ -119,7 +191,7 @@ class EventDispatcher:
     def dispatch(self, event: Any, halt: bool = False) -> List[Any]:
         """Send an event to its listeners and return what they returned.
 
-        With `halt=True`, the first non-None response stops the chain — useful
+        With `halt=True`, the first non-None response stops the chain - useful
         for "does anything veto this?" checks.
         """
         responses: List[Any] = []
@@ -167,4 +239,9 @@ class EventDispatcher:
         return responses[0] if responses else None
 
 
-__all__ = ["EventDispatcher"]
+def _order(entry: _Entry) -> Tuple[int, int]:
+    """Sort key of a listener or filter entry: priority, then registration."""
+    return entry[0], entry[1]
+
+
+__all__ = ["DEFAULT_PRIORITY", "EventDispatcher"]

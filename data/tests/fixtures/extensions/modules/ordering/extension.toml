@@ -1,0 +1,8 @@
+slug = "ordering"
+kind = "module"
+version = "1.0.0"
+engine = ">=4.3,<5"
+name_key = "ordering.extension.name"
+
+[requires]
+catalog = ">=1.0,<2"

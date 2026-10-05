@@ -1,0 +1,12 @@
+"""Wire the __SLUG__ plugin: a capability other extensions use through events and filters."""
+
+
+def register(context: object) -> None:
+    """Register the plugin's listeners and filters.
+
+    Args:
+        context: The plugin's `ExtensionContext`. Use `context.listen(event,
+            listener)`, `context.filter(name, callback)` and
+            `context.expose(alias, service, methods)`; each is undone when the
+            plugin is deactivated, and a failure inside one never reaches the caller.
+    """

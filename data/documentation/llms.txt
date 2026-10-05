@@ -26,6 +26,8 @@
 
 ## Documentation Links
 - [Complete Architecture Guide](llms-full.txt)
+- [Extensions](documentation/extensions.md)
+- [Plugins](documentation/plugins.md)
 - [Internal Proxy](documentation/internal-proxy.md)
 - [Form Validation & AntiSpam](documentation/validation.md)
 - [CLI Reference](documentation/cli.md)

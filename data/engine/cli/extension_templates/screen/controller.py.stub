@@ -1,0 +1,11 @@
+"""Thin HTTP controller of the __SCREEN__ screen of the __SLUG__ module."""
+
+from craft.http.controller import Controller
+
+
+class __SCREEN_CLASS__Controller(Controller):
+    """Render the __SCREEN__ screen."""
+
+    def index(self, request: object) -> object:
+        """Render the screen with the data it needs."""
+        return self.view("__SLUG__::__SCREEN__.index", {})

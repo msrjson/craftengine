@@ -112,6 +112,20 @@ class Container:
         key = self._normalize_key(abstract)
         self._aliases[alias] = key
 
+    def bound(self, abstract: Union[str, Type]) -> bool:
+        """Return whether `abstract` has a binding or an instance, without building it.
+
+        Args:
+            abstract: The key, class or alias to look up.
+
+        Returns:
+            True when `make(abstract)` would resolve a registered binding.
+        """
+        key = self._normalize_key(abstract)
+        while key in self._aliases:
+            key = self._aliases[key]
+        return key in self._instances or key in self._bindings
+
     def make(self, abstract: Union[str, Type], parameters: Optional[Dict[str, Any]] = None) -> Any:
         key = self._normalize_key(abstract)
 

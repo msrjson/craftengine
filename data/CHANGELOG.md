@@ -18,6 +18,62 @@ full policy (categories to use, what counts as security-relevant, how
 
 ## [Unreleased]
 
+### Added
+
+- **Extension model: modules, plugins and themes** (ADR 0004, `documentation/extensions.md`).
+  An application grows by adding self-contained extensions under the roots listed in
+  `config/extensions.py` (`app/modules`, `app/plugins`, `app/themes`), never by
+  changing the engine:
+  - one manifest, `extension.toml` (`slug`, `kind`, `version`, `engine` range,
+    `name_key`, `[requires]`), validated at discovery with typed codes; a broken
+    manifest never stops the others;
+  - lifecycle `install` / `activate` / `deactivate` / `uninstall` with dependency and
+    engine-range checks, persisted in the new `extensions` table so the CLI, every
+    worker and a management panel agree; workers converge within
+    `extensions.reconcile_interval` seconds;
+  - every contribution goes through the extension's `ExtensionContext`
+    (`expose`, `listen`, `filter`, `on_unload`) and is undone on deactivation in the
+    running process - no restart;
+  - per-extension migrations (run on install, included by `migrate`; duplicate file
+    names refused), translations from `lang/catalog.json` (slug-prefixed keys in `en`,
+    `pt-BR`, `es`), assets served under `/extensions/<slug>/`, `slug::view` namespaces
+    and a theme layer that overrides any view by path (`VIEW_THEME` or
+    `View.set_theme_resolver`).
+- **Fault isolation per extension**: an extension failing at load is marked `failed`
+  and the application boots without it; a failing listener or filter is contained;
+  repeated unexpected failures open the extension's circuit breaker, after which its
+  routes answer 503 `EXTENSION_UNAVAILABLE`, its proxy targets raise
+  `INTERNAL_TARGET_UNAVAILABLE` without running and its listeners are skipped, until a
+  trial call succeeds after the cooldown. Typed domain errors never count.
+- `dev.py extension list|status|install|activate|deactivate|uninstall` and
+  `dev.py make module|plugin|theme|screen`; generated extensions install, activate and
+  render as they are.
+- `EventDispatcher`: listener `priority`, `remove_listener`, and value filters
+  (`add_filter`, `apply_filters`, `remove_filter`, `has_filters`).
+- `InternalProxy`: `expose(..., owner=)`, `unexpose`, `owner`, `set_gate`.
+- `Router.add_refresher` / `refresh_due` / `refresh`: a seam that lets a subsystem
+  change the route table between requests; the kernel runs due refreshers off the
+  event loop. `Container.bound` answers whether a key is registered without building it.
+- Boundary gate rule `EXTENSION_CROSS_IMPORT`: a file under one extension importing
+  another extension's package fails the build.
+- New projects (`craft new`) ship `config/extensions.py`, `config/view.py`, the
+  `extensions` migration and the three extension roots.
+
+### Changed
+
+- A route of a disabled module answers `{"code": "MODULE_DISABLED", "message_key":
+  "module.error.disabled"}` (404) instead of the hardcoded `"Module Disabled"`; the
+  key ships in `en`, `pt-BR` and `es`. The check runs on the request's worker thread.
+- Error payloads carry the exception's `message_key` for statuses below 500 and for 503.
+- `Router.clear_engine_routes(provider_prefix=)`: the kernel's refresh drops only the
+  routes it registered, so the extension asset mount survives it.
+
+### Deprecated
+
+- Legacy plugins (`plugins/<slug>/plugin.py` with a `PLUGIN` dict, `dev.py plugin ...`)
+  load for one more release; move them to `plugin` extensions
+  (`documentation/plugins.md`).
+
 ## [4.3.0] r00021 — 2026-10-04
 
 ### Fixed

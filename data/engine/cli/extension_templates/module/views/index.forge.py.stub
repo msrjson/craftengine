@@ -1,0 +1,4 @@
+<section class="__SLUG__">
+  <h1>{{ __('__SLUG__.index.title') }}</h1>
+  <p>{{ __('__SLUG__.index.empty') }}</p>
+</section>

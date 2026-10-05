@@ -45,6 +45,10 @@ RUNTIME_DIRECTORIES: Final[List[str]] = [
     os.path.join("storage", "app"),
     os.path.join("storage", "framework", "cache"),
     os.path.join("storage", "framework", "sessions"),
+    # Extension roots listed in `config/extensions.py` (ADR 0004).
+    os.path.join("app", "modules"),
+    os.path.join("app", "plugins"),
+    os.path.join("app", "themes"),
 ]
 
 #: Package directories that need an `__init__.py` to be importable.

@@ -1,0 +1,5 @@
+{
+  "en": {"catalog.extension.name": "Catalog", "catalog.error.product_unknown": "This product does not exist."},
+  "pt-BR": {"catalog.extension.name": "Catálogo", "catalog.error.product_unknown": "Este produto não existe."},
+  "es": {"catalog.extension.name": "Catálogo", "catalog.error.product_unknown": "Este producto no existe."}
+}

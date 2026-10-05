@@ -1891,5 +1891,12 @@ def main() -> None:
     cli()
 
 
+# Registered last: the command module imports `get_app` and `echo` from here.
+from engine.cli.extension_commands import extension_app, register_make_commands  # noqa: E402
+
+cli.add_typer(extension_app)
+register_make_commands(make_app)
+
+
 if __name__ == "__main__":
     main()

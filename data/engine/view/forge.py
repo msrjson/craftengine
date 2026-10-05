@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import os
 import re
-from typing import Any, Dict, Optional
+from typing import Any, Callable, Dict, Optional
 
 from jinja2 import (
     BaseLoader,
@@ -33,12 +33,14 @@ from jinja2 import (
 )
 from markupsafe import Markup
 
+from engine.view.layers import LayeredEnvironment, LayeredLoader, resolve_directory, themed_name
+
 def resolve_view_path(name: str) -> str:
     """Turn a dotted view name into a template path.
 
     `layouts.app` -> `layouts/app.forge.py`. Without this, `@extends` handed the
     dotted name straight to Jinja, which looked for a file literally called
-    "layouts.app" — so every view that extended a layout failed to render.
+    "layouts.app" - so every view that extended a layout failed to render.
     """
     if name.endswith((".forge.py", ".html")):
         return name
@@ -162,7 +164,7 @@ def _render_yield(args: str) -> Optional[str]:
         return "{% block " + name + " %}{% endblock %}"
 
     # Same literal handling as `@section`: emitted raw, the quotes around a
-    # default landed in the HTML — `@yield("title", "Craft")` rendered
+    # default landed in the HTML - `@yield("title", "Craft")` rendered
     # `"Craft"`, quotes included.
     value = value.strip()
     if len(value) >= 2 and value[0] == value[-1] and value[0] in ("'", '"'):
@@ -346,7 +348,7 @@ def can(ability: str, *args) -> bool:
 def route_url(name: str, **params) -> str:
     """Resolve a named route for a template.
 
-    Errors propagate. Returning `"/"` on failure — as this did — turned a
+    Errors propagate. Returning `"/"` on failure - as this did - turned a
     mistyped route name into a link to the homepage, so the page rendered fine
     and the navigation was quietly wrong.
     """
@@ -364,7 +366,15 @@ def asset(path: str, version: Any = None) -> str:
     The version defaults to the application version, so a release invalidates
     every cached asset at once. In debug the file's modification time is used
     instead, so an edit shows up on the next reload without a version bump.
+
+    `slug::path` names a file of an extension's `assets/`:
+
+        {{ asset('billing::css/invoice.css') }}
+        -> /extensions/billing/css/invoice.css?ver=0.1.0
     """
+    namespace, separator, inner = str(path).partition("::")
+    if separator:
+        return f"/extensions/{namespace}/{inner.lstrip('/')}?ver={version or config_value('app.APP_VERSION', '0')}"
     path = "/" + str(path).lstrip("/")
 
     if version is None:
@@ -398,7 +408,7 @@ def active_locale() -> str:
     """The locale in effect for this request.
 
     Templates used to read `config('app.locale')`, but the config repository
-    registers the key as `APP_LOCALE` / `app_locale` — there is no `locale`, so
+    registers the key as `APP_LOCALE` / `app_locale` - there is no `locale`, so
     that lookup always returned None and no language ever showed as active.
     """
     from engine.support.translation import get_current_locale
@@ -455,8 +465,10 @@ class Forge:
             views_dir = os.getcwd()
 
         self.views_dir = views_dir
-        self.env = Environment(
-            loader=DirectiveLoader(FileSystemLoader(views_dir)),
+        self.layers = LayeredLoader(views_dir)
+        self._theme_resolver: Optional[Callable[[], Optional[str]]] = None
+        self.env = LayeredEnvironment(
+            loader=DirectiveLoader(self.layers),
             autoescape=True,
             undefined=DebugUndefined if _debug_enabled(app) else Undefined,
         )
@@ -486,12 +498,54 @@ class Forge:
         """Make a value available to every template."""
         self.env.globals[key] = value
 
+    # -- layers: extension namespaces and themes -------------------------------
+
+    def add_namespace(self, namespace: str, directory: str) -> None:
+        """Serve `namespace::path` views from `directory` (an extension's `views/`)."""
+        self.layers.namespaces[namespace] = resolve_directory(directory)
+
+    def remove_namespace(self, namespace: str) -> None:
+        """Stop serving the views of `namespace`."""
+        self.layers.namespaces.pop(namespace, None)
+
+    def add_theme(self, theme: str, directory: str) -> None:
+        """Make `theme` selectable; its `directory` overrides any view by path."""
+        self.layers.themes[theme] = resolve_directory(directory)
+
+    def remove_theme(self, theme: str) -> None:
+        """Withdraw `theme`; views render without it from the next render on."""
+        self.layers.themes.pop(theme, None)
+
+    def set_theme_resolver(self, resolver: Optional[Callable[[], Optional[str]]]) -> None:
+        """Let the application choose the theme per render (e.g. per tenant).
+
+        The engine never resolves a tenant: the resolver is application code
+        that reads whatever request context it owns. Without one, the theme is
+        `view.theme` from configuration.
+        """
+        self._theme_resolver = resolver
+
+    def active_theme(self) -> Optional[str]:
+        """Return the theme for this render, only when that theme is registered."""
+        if not self.layers.themes:
+            return None
+        if self._theme_resolver is not None:
+            theme = self._theme_resolver()
+        else:
+            make = getattr(self.app, "make", None)
+            theme = make("config").get("view.theme") if make is not None else None
+        return theme if theme and theme in self.layers.themes else None
+
     def exists(self, template_name: str) -> bool:
         try:
-            self.env.get_template(self._resolve(template_name))
+            self.env.get_template(self._physical(template_name))
             return True
         except TemplateNotFound:
             return False
+
+    def _physical(self, template_name: str) -> str:
+        """Return the name Jinja loads: the resolved path, under the active theme."""
+        return themed_name(self._resolve(template_name), self.active_theme())
 
     @staticmethod
     def _resolve(template_name: str) -> str:
@@ -502,7 +556,7 @@ class Forge:
         ctx = dict(data or {})
         if "errors" not in ctx:
             ctx["errors"] = current_errors()
-        template = self.env.get_template(self._resolve(template_name))
+        template = self.env.get_template(self._physical(template_name))
         return template.render(**ctx)
 
 

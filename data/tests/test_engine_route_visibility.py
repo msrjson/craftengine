@@ -136,12 +136,16 @@ class TestEngineRoutesAreListable:
     """Whatever answers is on the router, attributed to whoever attached it."""
 
     def test_the_static_mount_is_recorded_even_though_it_never_opts_out(self, default_configuration):
-        mounts = [route for route in engine_table() if route["mount"]]
+        mounts = {route["uri"]: route for route in engine_table() if route["mount"]}
 
-        assert [route["uri"] for route in mounts] == ["/"]
-        assert mounts[0]["name"] == "static"
-        assert mounts[0]["provider"] == "engine.http.kernel"
-        assert mounts[0]["origin"] == ENGINE_ORIGIN
+        # `/` serves `public/`; `/extensions` serves each active extension's
+        # `assets/` (ADR 0004). Both are recorded, attributed and listable.
+        assert sorted(mounts) == ["/", "/extensions"]
+        assert mounts["/"]["name"] == "static"
+        assert mounts["/"]["provider"] == "engine.http.kernel"
+        assert mounts["/extensions"]["name"] == "extension_assets"
+        assert mounts["/extensions"]["provider"] == "engine.extensions"
+        assert {route["origin"] for route in mounts.values()} == {ENGINE_ORIGIN}
 
     def test_an_enabled_probe_names_the_module_that_attached_it(self, default_configuration):
         set_flags(framework__HEALTH_ROUTES_ENABLED=True)

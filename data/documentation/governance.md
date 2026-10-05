@@ -30,7 +30,7 @@ Any contribution violating these thresholds will be automatically rejected:
 - **No Monolithic Controllers:** "God Controllers" handling multiple domain entities or exceeding line caps must be immediately refactored into focused sub-controllers.
 - **No SQL Leakage:** Raw SQL, query joins, or direct database operations inside controllers or services are strictly prohibited.
 - **No Inline HTML/Layouts:** Writing raw HTML or concatenating view strings inside Python controllers is forbidden. All layouts must use `.html` templates rendered via the native Craft Template Engine.
-- **Mandatory Delegation to Plugins:** Transversal algorithms (e.g., document validation, mathematical check digits, QR code rendering, SEO slug sanitization) must live in `app/plugins/` and be consumed via Dependency Injection (`IoC`).
+- **Mandatory Delegation to Plugins:** Transversal algorithms (e.g., document validation, mathematical check digits, QR code rendering, SEO slug sanitization) must live in a plugin extension under `app/plugins/<slug>/` and be consumed through the internal proxy, events or filters - never imported by another extension ([extensions.md](extensions.md)).
 
 ---
 

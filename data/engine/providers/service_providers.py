@@ -248,7 +248,7 @@ class FrameworkSubsystemsServiceProvider(ServiceProvider):
         from engine.schedule.manager import ScheduleManager
         from engine.support.settings import SettingManager
 
-        self.app.singleton("module", lambda c: ModuleManager())
+        self.app.singleton("module", lambda c: ModuleManager(c))
         self.app.singleton("plugin", lambda c: PluginManager())
         self.app.singleton("setting", lambda c: SettingManager())
         self.app.singleton("schedule", lambda c: ScheduleManager(c))
@@ -357,3 +357,34 @@ class MailServiceProvider(ServiceProvider):
         from engine.mail.manager import MailManager
 
         self.app.singleton("mail", lambda c: MailManager(c))
+
+
+class ExtensionServiceProvider(ServiceProvider):
+    """Run the application's extensions: modules, plugins and themes (ADR 0004).
+
+    Registered after every other engine provider so an extension can resolve
+    any engine service while it loads. Boot wires the manager into the seams
+    it answers for - the proxy's owner gate, the `/extensions` asset mount and
+    the router's refresher - and then loads every active extension, each behind
+    its own error boundary.
+    """
+
+    def register(self) -> None:
+        """Bind the extension manager as the `extensions` singleton."""
+        from engine.extensions.manager import ExtensionManager
+
+        self.app.singleton("extensions", lambda c: ExtensionManager(c))
+
+    def boot(self) -> None:
+        """Install the manager on the proxy, the router and the asset mount, then load."""
+        from engine.extensions.assets import PREFIX, ExtensionAssets
+        from engine.extensions.manager import ReconcileTicker
+
+        manager = self.app.make("extensions")
+        self.app.make("proxy").set_gate(manager)
+        router = self.app.make("router")
+        router.add_engine_mount(
+            PREFIX, ExtensionAssets(lambda: self.app.make("extensions")), name="extension_assets", provider="engine.extensions"
+        )
+        router.add_refresher(ReconcileTicker(manager))
+        manager.boot()

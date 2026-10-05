@@ -1,0 +1,5 @@
+slug = "catalog"
+kind = "module"
+version = "1.2.0"
+engine = ">=4.3,<5"
+name_key = "catalog.extension.name"

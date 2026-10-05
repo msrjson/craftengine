@@ -1,0 +1,5 @@
+slug = "__SLUG__"
+kind = "theme"
+version = "0.1.0"
+engine = ">=__ENGINE_MAJOR__.0,<__ENGINE_NEXT__"
+name_key = "__SLUG__.extension.name"

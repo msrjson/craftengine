@@ -179,6 +179,13 @@ class ExceptionHandler:
         code = getattr(exception, "code", None)
         if isinstance(code, str):
             payload["code"] = code
+        # The key the client translates; `message` is engineer-facing and must
+        # never be shown to a user (LANGUAGE_AND_I18N_STANDARD section 6). A
+        # 503 is a deliberate answer (a part of the application taken out of
+        # service), so it carries its key; other 5xx keep the generic page.
+        message_key = getattr(exception, "message_key", None)
+        if isinstance(message_key, str) and (status < 500 or status == 503):
+            payload["message_key"] = message_key
         if isinstance(exception, ValidationException):
             payload["errors"] = exception.errors
         # A trace belongs to a *failure*. A 403 or a 404 is the framework
