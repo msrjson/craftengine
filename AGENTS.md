@@ -26,6 +26,29 @@ symlink to it (owner ruling 2026-10-04; see
 `backlog/pending/*-agents-directory-migration.md`). Until that lands, rules live
 in `.claude/rules/`; paths written as `.claude/...` keep working afterwards.
 
+## Three contexts - validate only the one you changed
+
+The workspace holds three products that never share code (owner ruling
+2026-10-05). Each has its own directory, repository and test container.
+Validating one never starts, tests or edits another: an agent checking the
+framework does not spend a minute on the CRM demo.
+
+| Context | Directory | Repository | Container | Port | Validate with |
+|---|---|---|---|---|---|
+| Framework (slim) | `data/` | `msrjson/craftengine` (this one) | `framework` (+ `framework-db` 5499) | 9000 | `docker exec framework sh -lc 'cd /app && python -m pytest tests -q'` |
+| Landing page | `data-website/` | `msrjson/craftengine.org` (private, ignored here) | `craftengine-website` | 8090 | the site's own build (`build.py`) |
+| Demo (CRM) | `data-demo/` | `msrjson/craftengine-demo` (public, ignored here) | `craftengine-demo` (+ its own database 5500) | 9002 | the demo's own suite, in its container |
+
+- A change under `data/` is verified in `framework` only. `craftengine-skeleton`
+  (9001) is the project `craft new` generates; it belongs to the framework
+  context and is checked only when a change touches `engine/cli/skeleton/` or
+  the project scaffolder.
+- The demo installs the engine from the canonical remote pinned to a release
+  tag, so a framework change reaches it only through a release - never through
+  a path, a copy or a symlink.
+- A failure seen in another context is reported on the board as a FINDING for
+  that context, never fixed from here.
+
 ## Agents talk through files
 
 No agent shares memory, chat or context with another. Work passes only through
