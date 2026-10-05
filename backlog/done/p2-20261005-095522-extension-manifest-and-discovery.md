@@ -9,7 +9,7 @@ max_attempts: 2
 claimed_by: claude@claude-code
 attempts: 1
 created_at: 2026-10-05T09:55:22Z
-updated_at: 2026-10-05T09:56:03Z
+updated_at: 2026-10-05T10:26:02Z
 source: owner request 2026-10-05: extension model (modules, plugins, themes) with fault isolation and a management panel; plan approved in session
 touches:
   - data/engine/extensions/
@@ -58,3 +58,4 @@ Slice 1 of 10 of the extension model. Owner rulings 2026-10-05: one manifest wit
 
 - 2026-10-05T09:55:22Z created by claude@claude-code (source: owner request 2026-10-05)
 - 2026-10-05T09:56:03Z claimed by claude@claude-code (attempt 1)
+- 2026-10-05T10:26:02Z resolved by claude@claude-code (resolutions/p2-20261005-095522-extension-manifest-and-discovery.resolution.md)

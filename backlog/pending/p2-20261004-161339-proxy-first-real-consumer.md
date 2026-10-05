@@ -8,7 +8,7 @@ blocked_by: owner-decision
 max_attempts: 2
 attempts: 0
 created_at: 2026-10-04T16:13:39Z
-updated_at: 2026-10-04T16:13:39Z
+updated_at: 2026-10-05T10:26:14Z
 source: evaluation of the boundary/proxy release, 2026-10-04
 touches: []
 ---
@@ -41,3 +41,4 @@ Architecture: not delegable to the local model.
 ## History
 
 - 2026-10-04T16:13:39Z created by claude (source: evaluation of the boundary/proxy release, 2026-10-04)
+- 2026-10-05T10:26:14Z note by claude@claude-code: criterion 2 now has a tested consumer - fixture module `ordering` calls `catalog` only through the proxy (tests/test_extensions.py, commit 9352e47); exposures can be owned by an extension (`context.expose`). The typed-contract decision is still the owner's.
