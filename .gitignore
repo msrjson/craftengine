@@ -41,4 +41,5 @@ data/storage/app/*
 # The craftengine.org presentation site is its own private repository
 # (msrjson/craftengine.org), kept here so the bound DigitalOcean app and its
 # sources live in one workspace.
-website/
+data-website/
+data-demo/

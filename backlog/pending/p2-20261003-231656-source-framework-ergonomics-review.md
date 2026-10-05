@@ -8,7 +8,7 @@ blocked_by: owner-decision
 max_attempts: 2
 attempts: 0
 created_at: 2026-10-03T23:16:56Z
-updated_at: 2026-10-03T23:18:24Z
+updated_at: 2026-10-05T10:30:44Z
 source: Owner-corrected GitHub source comparison for human and coding-agent ergonomics
 touches: []
 ---
@@ -391,7 +391,7 @@ Research verification already performed: downloaded source bytes matched all 25 
 - `python3 .claude/rules/lint_backlog.py`: passed after every queue change.
 - `git diff --check`: passed.
 - `python3 .claude/rules/lint_language.py <the new tasks, archived tasks and resolutions>`: passed (all changed existing paths listed in the scoped invocation).
-- `python3 .claude/rules/lint_language.py` over default workspace roots: failed on pre-existing artifacts outside this research, including `.agents/docs/`, `.claude/Project Reference/` and translated `website/public/`. The gate was not modified or disabled. The existing engine-language-gate-scope backlog item remains the place for scope policy decisions; this research does not claim the whole workspace is language-clean.
+- `python3 .claude/rules/lint_language.py` over default workspace roots: failed on pre-existing artifacts outside this research, including `.agents/docs/`, `.claude/Project Reference/` and translated `data-website/public/`. The gate was not modified or disabled. The existing engine-language-gate-scope backlog item remains the place for scope policy decisions; this research does not claim the whole workspace is language-clean.
 - Application and upstream runtime tests: NOT RUN; this change contains source analysis and queue administration only.
 
 ### Companion suggestions
@@ -418,3 +418,4 @@ Research does not authorize implementation. Keep autonomous false until the owne
 - 2026-10-03T23:17:08Z linked companion suggestions by codex after completing the pinned source review
 - 2026-10-03T23:17:41Z added reproducible pinned-source hash verification and recorded source-probe limits by codex
 - 2026-10-03T23:18:24Z recorded source replay, queue and scoped language validation and existing workspace-wide gate failures by codex
+- 2026-10-05T10:30:44Z paths updated: the site repository moved from website/ to data-website/ (owner ruling 2026-10-05) by claude@claude-code

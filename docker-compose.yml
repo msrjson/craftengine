@@ -1,11 +1,15 @@
-# Workspace-level composition: the two deliverables are built and served as
-# separate containers, because they are separate products.
+# Workspace-level composition: the deliverables are built and served as
+# separate containers, because they are separate products with separate
+# contexts that never share code (owner ruling 2026-10-05):
 #
-#   website    the craftengine.org presentation site (static HTML). Lives in
-#              its own repository under website/ and is NOT part of what a
-#              developer downloads with the framework.
-#   framework  the engine a developer downloads and builds on. Clean: no
-#              presentation site, no demo application, no bundled theme.
+#   framework  data/ - the engine a developer downloads and builds on. Clean:
+#              no presentation site, no demo application, no bundled theme.
+#   website    data-website/ - the craftengine.org presentation site (static
+#              HTML). Its own repository, ignored by this one, and NOT part of
+#              what a developer downloads with the framework.
+#   demo       data-demo/ - a complete application built only from extensions.
+#              Its own repository, ignored by this one; it installs the engine
+#              from the canonical remote pinned to a release tag.
 #
 # Keeping them apart in development is what stops the site leaking back into
 # the framework the way the landing page, the docs controller and the theme
@@ -38,7 +42,7 @@ services:
     # runtime. Locally there is no platform to do the serving, so the command
     # below supplies it. The site repository is deliberately not modified to
     # add a CMD it does not need in production.
-    build: ./website
+    build: ./data-website
     container_name: craftengine-website
     command: python -m http.server 8090 --directory /site
     ports:

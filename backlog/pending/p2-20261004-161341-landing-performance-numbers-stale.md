@@ -8,14 +8,14 @@ blocked_by: owner-decision
 max_attempts: 2
 attempts: 0
 created_at: 2026-10-04T16:13:41Z
-updated_at: 2026-10-04T16:13:41Z
+updated_at: 2026-10-05T10:30:44Z
 source: evaluation of the boundary/proxy release, 2026-10-04
 touches: []
 ---
 
 ## Problem
 
-The landing's "Requests in parallel on a single worker" section shows ~115 req/s (10 clients, before ~27) and p95 0.57 s (before 1.9 s), measured on 2026-08-17 at v3.12.0 on the sample application, which the framework no longer ships (ADR 0001). The p95 pair was measured at 50 clients but the card does not say so. The numbers are hand-typed in `website/site.json` (`metric_throughput`, `metric_latency`).
+The landing's "Requests in parallel on a single worker" section shows ~115 req/s (10 clients, before ~27) and p95 0.57 s (before 1.9 s), measured on 2026-08-17 at v3.12.0 on the sample application, which the framework no longer ships (ADR 0001). The p95 pair was measured at 50 clients but the card does not say so. The numbers are hand-typed in `data-website/site.json` (`metric_throughput`, `metric_latency`).
 
 ## Evidence
 
@@ -25,7 +25,7 @@ The landing's "Requests in parallel on a single worker" section shows ~115 req/s
 ## Done when
 
 - [ ] Owner chooses the wording (what is measured, with how many clients).
-- [ ] A `website/sync_loadtest.py` writes the facts from a real `tools/loadtest.py` run, like `sync_tests.py` and `sync_benchmark.py`.
+- [ ] A `data-website/sync_loadtest.py` writes the facts from a real `tools/loadtest.py` run, like `sync_tests.py` and `sync_benchmark.py`.
 - [ ] The section names the route, the client count of each figure, and keeps the v3.12 figure only as history.
 
 ## Verify
@@ -36,8 +36,9 @@ docker exec framework sh -lc 'cd /app && python tools/loadtest.py http://127.0.0
 
 ## Notes
 
-Site copy is en/pt-BR/es in `website/locales/`; the site repo is pushed separately.
+Site copy is en/pt-BR/es in `data-website/locales/`; the site repo is pushed separately.
 
 ## History
 
 - 2026-10-04T16:13:41Z created by claude (source: evaluation of the boundary/proxy release, 2026-10-04)
+- 2026-10-05T10:30:44Z paths updated: the site repository moved from website/ to data-website/ (owner ruling 2026-10-05) by claude@claude-code
