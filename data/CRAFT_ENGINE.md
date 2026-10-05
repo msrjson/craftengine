@@ -40,7 +40,8 @@ other.
 | `mail/` | Fluent email delivery, SMTP with TLS/SSL, Log & Array mailers, Mailable classes |
 | `events/` | Dispatcher with framework lifecycle events (model created/updated/deleted, auth login/failed/logout) |
 | `schedule/` | Cron-style scheduled tasks with overlap locking |
-| `modules/`, `plugins/` | DB-backed feature modules and discoverable plugins with hooks |
+| `extensions/` | Modules, plugins and themes: manifest, lifecycle, fault isolation per extension (ADR 0004) |
+| `modules/`, `plugins/` | Module state and the deprecated legacy plugin loader |
 | `security/` | WAF / IDS firewall, Honeypot traps, Login audit logs, Brute-force cooldowns, Captcha, PQC, Throttling, Security headers |
 | `media/` | Fluent Image manipulation, WebP/AVIF compression, Watermarking, Video metadata & thumbnails, DB media tracking |
 | `ai/` | Unified AI SDK (Gemini, OpenAI, Claude, Ollama, Mock), Embeddings, Multi-turn Autonomous Agents |
@@ -213,11 +214,12 @@ python tools/loadtest.py http://127.0.0.1:8000/ --clients 1 --clients 50
   authenticated tenant to its own schema, creating and migrating it on first
   sight. The active tenant is scoped to the thread serving the request, so one
   tenant's request cannot repoint another's `search_path` mid-query.
-- **Modules** — feature areas that can be switched off in the database, with
-  routes declaring `.module("billing")`. Disabled means 404, no deploy needed.
-- **Plugins** — discovered from `plugins/<slug>/plugin.py`, enabled per
-  installation, with hooks. This is the extension point to build on when the
-  application outgrows one team.
+- **Extensions** — modules, plugins and themes, each a self-contained directory
+  under `app/modules`, `app/plugins` or `app/themes` with an `extension.toml`.
+  Installed, activated and deactivated without a deploy or a restart; one that
+  fails is taken out of service while the rest keeps serving
+  (`documentation/extensions.md`). This is the extension point to build on
+  when the application outgrows one team.
 - **Read replicas** and **UUID public identity** are already in the ORM.
 
 ---
@@ -284,7 +286,7 @@ bootstrap/app.py         Container, providers, global middleware pipeline
 config/                  app, auth, cache, database, logging, queue, session
 database/                migrations/ seeders/ factories/
 engine/                  THE FRAMEWORK (published as craft.*)
-plugins/                 Discoverable plugins
+plugins/                 Legacy plugins (deprecated; extensions live in app/)
 public/index.py          ASGI entry point (`application = asgi_app`)
 resources/views/         Forge templates
 routes/                  web.py, api.py, console.py

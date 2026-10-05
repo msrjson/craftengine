@@ -77,18 +77,6 @@ def private_db():
         container.instance("db", original)
 
 
-def _audit_rows_after(last_id: int) -> list:
-    """Return the `system_logs` rows written after `last_id`, i.e. by this test."""
-    return DB.statement(
-        "SELECT message, context FROM system_logs WHERE id > ?", [last_id], read=True
-    ).fetchall()
-
-
-def _last_audit_id() -> int:
-    row = DB.statement("SELECT MAX(id) AS last_id FROM system_logs", read=True).fetchone()
-    return int(row["last_id"] or 0)
-
-
 class TestModelEventsAreEmitted:
     def test_create_emits_model_created(self, events, audit_user, email):
         seen = []
@@ -249,67 +237,3 @@ class TestPluginHookBridge:
 
         events.dispatch(Anonymous())
         assert seen == []
-
-
-class TestBundledAuditLogPlugin:
-    """The bundled plugin is the end-to-end proof that a plugin can carry real
-    logic: it must actually write rows, and must not recurse while doing it."""
-
-    @pytest.fixture
-    def audit_plugin(self, events, migrated_database):
-        import importlib.util
-        import os
-
-        from craft.container.application import Container
-        from craft.plugins.manager import PluginManager
-
-        container = Container.getInstance()
-        path = os.path.join(container.base_path, "plugins", "audit-log", "plugin.py")
-        spec = importlib.util.spec_from_file_location("craft_plugin_audit_log", path)
-        module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
-
-        plugins = PluginManager()
-        plugins.bridge_events(events)
-
-        # Register against this throwaway manager rather than the container's.
-        original = container.make("plugin")
-        container.instance("plugin", plugins)
-        try:
-            module.register(container)
-            yield plugins
-        finally:
-            container.instance("plugin", original)
-
-    def test_it_writes_an_audit_row_for_a_model_create(self, audit_plugin, audit_user, email):
-        last_id = _last_audit_id()
-
-        audit_user.force_create(
-            {"name": "Ev", "email": email, "password": "s3cret"}
-        )
-
-        rows = _audit_rows_after(last_id)
-        assert any(r["message"] == "users.created" for r in rows)
-
-    def test_it_does_not_recurse_on_its_own_table(self, audit_plugin, audit_user, email):
-        """Auditing `system_logs` would make each write trigger another write,
-        forever. One create must produce exactly one audit row."""
-        last_id = _last_audit_id()
-
-        audit_user.force_create(
-            {"name": "Ev", "email": email, "password": "s3cret"}
-        )
-
-        rows = _audit_rows_after(last_id)
-        assert len(rows) == 1
-
-    def test_it_records_a_failed_login_without_the_password(self, audit_plugin, audit_user):
-        last_id = _last_audit_id()
-
-        from craft.facades import Auth
-
-        Auth.attempt({"email": "nobody@craft.local", "password": "hunter2"})
-
-        rows = _audit_rows_after(last_id)
-        assert any(r["message"] == "auth.failed" for r in rows)
-        assert all("hunter2" not in (r["context"] or "") for r in rows)

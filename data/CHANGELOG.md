@@ -36,6 +36,14 @@ full policy (categories to use, what counts as security-relevant, how
   application ran stayed a plain 404 in the running workers until a restart. It
   now refreshes discovery on every pass. Found by the CRM demo.
 
+### Removed
+
+- The bundled example plugin `plugins/audit-log/` and the tests that loaded it from
+  disk: the framework ships no application code. It lives on as the `audit_log`
+  plugin extension of the CRM demo (`msrjson/craftengine-demo`), which records
+  identifiers only. The legacy plugin loader keeps its own coverage in
+  `tests/test_plugins.py`.
+
 ## [4.4.0] r00022 — 2026-10-05
 
 ### Added

@@ -33,7 +33,7 @@ project/
 ├── config/                     # Configuration Files (env merged)
 ├── database/                   # Migrations, Seeders, and Factories
 ├── engine/                     # The framework itself — imported as craft.*
-├── plugins/                    # Installed plugins
+├── plugins/                    # Legacy plugins (deprecated; use app/plugins extensions)
 ├── public/index.py             # Front controller (ASGI entrypoint)
 ├── resources/
 │   ├── lang/                   # Translation catalog
