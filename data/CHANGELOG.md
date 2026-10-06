@@ -18,6 +18,8 @@ full policy (categories to use, what counts as security-relevant, how
 
 ## [Unreleased]
 
+## [4.6.0] r00026 — 2026-10-06
+
 ### Added
 
 - **Fourth extension kind: `connector`** (ADR 0004 amendment). A headless
