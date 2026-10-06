@@ -18,6 +18,8 @@ full policy (categories to use, what counts as security-relevant, how
 
 ## [Unreleased]
 
+## [4.5.0] r00025 — 2026-10-06
+
 ### Added
 
 - **Engine lifecycle: update, upgrade and hotfix** (ADR 0005). A project now
