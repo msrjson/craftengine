@@ -18,6 +18,22 @@ full policy (categories to use, what counts as security-relevant, how
 
 ## [Unreleased]
 
+### Added
+
+- **Engine lifecycle: update, upgrade and hotfix** (ADR 0005). A project now
+  records the engine release it runs in `craft-engine.lock`, and the new
+  `engine` command group acts on it: `adopt`, `status`, `patch`, `hotfix`,
+  `update` and `upgrade`. Both ways of shipping the engine are covered:
+  `package` (a pinned archive; a move rewrites the pin files) and `vendored`
+  (an `engine/` directory; the lock holds the release manifest and every local
+  patch with its class and reason). Unregistered drift blocks a move. Patches
+  absorbed upstream are retired, untouched ones are carried, and conflicting
+  ones are refused until dropped. A move is staged, swapped, checked with
+  `--verify` and rolled back on failure. Releases are read from the canonical
+  repository's tag archives with the standard library only. `craft new` writes
+  a `package` lock for the release that generated the project. Guide:
+  `documentation/engine-lifecycle.md`.
+
 ## [4.4.2] r00024 — 2026-10-06
 
 ### Fixed

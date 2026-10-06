@@ -50,6 +50,7 @@ scaling from a blog to multi-tenant, and what is not implemented yet? That is
 | [Queues and events](queues_events.md) | Jobs, workers, listeners |
 | [Extensions](extensions.md) | Modules, plugins and themes: manifest, lifecycle, fault isolation, scaffolding |
 | [Plugins](plugins.md) | Plugin extensions, and moving a legacy `plugins/` plugin |
+| [Engine lifecycle](engine-lifecycle.md) | `craft-engine.lock`: pin, drift, patches, hotfix, update and upgrade |
 | [Internal proxy](internal-proxy.md) | Module-to-module calls in memory, never through the HTTP kernel |
 | [API resources](resources.md) | Shaping JSON output |
 | [Localization](localization.md) | BCP 47 locales, fallback chain, translations |

@@ -1901,6 +1901,10 @@ def main() -> None:
 from engine.cli.extension_commands import extension_app, register_make_commands  # noqa: E402
 
 cli.add_typer(extension_app)
+
+from engine.cli.engine_commands import engine_app  # noqa: E402
+
+cli.add_typer(engine_app)
 register_make_commands(make_app)
 
 

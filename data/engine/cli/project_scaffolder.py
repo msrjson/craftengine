@@ -20,7 +20,10 @@ from __future__ import annotations
 
 import os
 import shutil
+from pathlib import Path
 from typing import Dict, Final, List
+
+from engine.lifecycle.lock import LOCK_FILE, EngineLock, save_lock
 
 #: Root of the template tree, alongside this module.
 SKELETON_ROOT: Final[str] = os.path.join(os.path.dirname(os.path.abspath(__file__)), "skeleton")
@@ -183,4 +186,13 @@ def build_project(target_path: str, *, force: bool = False) -> Dict[str, object]
 
     _write_package_markers(target, written)
     _write_runtime_directories(target)
+    written[LOCK_FILE] = str(_write_engine_lock(target))
     return {"path": target, "files": written}
+
+
+def _write_engine_lock(target: str) -> Path:
+    """Pin the new project to the engine release generating it (`craft engine status` reads it)."""
+    import engine
+
+    ref = f"v{engine.__version__}-{engine.__release__}"
+    return save_lock(Path(target), EngineLock("package", ref, engine.__version__, engine.__release__))
