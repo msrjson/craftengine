@@ -1,5 +1,9 @@
 """What an extension receives at load time, and the error boundary around it.
 
+Category: Core Framework (Extensions).
+Relations: ExtensionContainer tracks service ownership; loader manages contributions.
+References: documentation/extensions.md, docs/adr/0004-extension-model.md.
+
 An extension never registers on the global objects directly. It goes through
 its `ExtensionContext`, which:
 
@@ -20,6 +24,7 @@ from typing import Any, Protocol
 
 from engine.events.dispatcher import DEFAULT_PRIORITY
 from engine.extensions.manifest import Manifest
+from engine.extensions.bindings import ExtensionContainer
 
 _LOG = logging.getLogger("craft.extensions")
 
@@ -44,17 +49,17 @@ class ExtensionContext:
     """The handle an extension's `provider.register(context)` works through.
 
     Args:
-        app: The application container (bind services, read configuration).
+        app: The application container, wrapped to track service registrations.
         manifest: The extension's manifest.
         guard: The error boundary deciding whether calls run.
     """
 
     def __init__(self, app: Any, manifest: Manifest, guard: Guard) -> None:
-        self.app = app
         self.manifest = manifest
         self.slug = manifest.slug
         self._guard = guard
         self._undo: list[Callable[[], Any]] = []
+        self.app = ExtensionContainer(app, self.slug, self.on_unload)
 
     def listen(self, event: Any, listener: Any, priority: int = DEFAULT_PRIORITY) -> None:
         """Register a listener that runs only while the extension can serve."""

@@ -40,7 +40,7 @@ other.
 | `mail/` | Fluent email delivery, SMTP with TLS/SSL, Log & Array mailers, Mailable classes |
 | `events/` | Dispatcher with framework lifecycle events (model created/updated/deleted, auth login/failed/logout) |
 | `schedule/` | Cron-style scheduled tasks with overlap locking |
-| `extensions/` | Modules, plugins and themes: manifest, lifecycle, fault isolation per extension (ADR 0004) |
+| `extensions/` | Modules, plugins, themes and connectors: ownership, manifest, lifecycle, forward updates and fault isolation (ADR 0004) |
 | `modules/`, `plugins/` | Module state and the deprecated legacy plugin loader |
 | `security/` | WAF / IDS firewall, Honeypot traps, Login audit logs, Brute-force cooldowns, Captcha, PQC, Throttling, Security headers |
 | `media/` | Fluent Image manipulation, WebP/AVIF compression, Watermarking, Video metadata & thumbnails, DB media tracking |
@@ -214,10 +214,11 @@ python tools/loadtest.py http://127.0.0.1:8000/ --clients 1 --clients 50
   authenticated tenant to its own schema, creating and migrating it on first
   sight. The active tenant is scoped to the thread serving the request, so one
   tenant's request cannot repoint another's `search_path` mid-query.
-- **Extensions** — modules, plugins and themes, each a self-contained directory
-  under `app/modules`, `app/plugins` or `app/themes` with an `extension.toml`.
-  Installed, activated and deactivated without a deploy or a restart; one that
-  fails is taken out of service while the rest keeps serving
+- **Extensions** — modules, plugins, themes and connectors, each a self-contained
+  directory under the application's configured roots with an `extension.toml`.
+  Unchanged deployed code can be activated and deactivated without restarting;
+  code updates require forward migrations and coordinated worker restarts.
+  Ordinary exceptions are contained per extension while other extensions serve
   (`documentation/extensions.md`). This is the extension point to build on
   when the application outgrows one team.
 - **Read replicas** and **UUID public identity** are already in the ORM.
@@ -247,6 +248,9 @@ code that cannot work:
 
 `CRAFT_DESIGN.md` describes an aspirational design, not the implemented one.
 Treat it as a target, never as an API reference.
+
+For extension responsibilities, data ownership, CMS composition and the limits
+of in-process isolation, read [Architecture](documentation/architecture.md).
 
 ---
 

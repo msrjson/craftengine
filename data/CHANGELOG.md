@@ -18,6 +18,32 @@ full policy (categories to use, what counts as security-relevant, how
 
 ## [Unreleased]
 
+### Added
+
+- `extension update <slug>` applies pending forward migrations and missing
+  translations to stopped installed extensions, validates dependency and
+  dependent version ranges, refuses downgrades/kind changes, and records the
+  applied version without reactivating. Worker restart is required before
+  reactivation; the command does not download or hot-reload code.
+- Architecture guide defining engine/application composition, domain and data
+  ownership, module/plugin responsibilities, theme selection, connector
+  boundaries, CMS composition and in-process isolation limits.
+- Forward-only migration for new extension ownership/update refusal messages
+  in all three locales, also included in generated projects.
+
+### Fixed
+
+- Extension service bindings, cached instances and aliases now belong to their
+  activation and are released on unload or failed boot. Existing application
+  service keys cannot be overwritten; scoped cache generations prevent reuse
+  after reactivation. Partial route registrations are undone on boot failure.
+- Activation, boot and worker reconciliation validate applied versions and
+  engine/dependency compatibility. Lifecycle state changes preserve the
+  installed version; status distinguishes deployed and installed versions.
+  Reconciliation loads dependencies before their dependents.
+- Screen generator guidance now uses the update procedure instead of
+  reinstalling an already installed extension.
+
 ## [4.6.0] r00026 — 2026-10-06
 
 ### Added

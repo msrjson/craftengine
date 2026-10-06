@@ -1,4 +1,4 @@
-"""`extension` commands: discover, install, activate, deactivate and inspect extensions.
+"""`extension` commands: discover, install, update, activate, deactivate and inspect extensions.
 
 The same operations the extension manager panel offers, for terminals and
 agents, and the way back in when the panel itself is the extension that broke.
@@ -79,6 +79,12 @@ def extension_activate(slug: str) -> None:
     _run(lambda: _manager().activate(slug), f"Activated: {slug}")
 
 
+@extension_app.command("update")
+def extension_update(slug: str) -> None:
+    """Apply a stopped extension's pending migrations and translations; restart workers next."""
+    _run(lambda: _manager().update(slug), f"Updated: {slug}. Restart workers before activation.")
+
+
 @extension_app.command("deactivate")
 def extension_deactivate(slug: str) -> None:
     """Undo the extension's contributions and mark it inactive; its data stays."""
@@ -116,7 +122,7 @@ def register_make_commands(make_app: typer.Typer) -> None:
         from engine.cli.extension_scaffolder import build_screen
 
         _run(lambda: [echo(f"  {path}") for path in build_screen(base_path(), slug, screen)],
-             f"Screen {screen} added to {slug}. Run dev.py extension install again only for new migrations.")
+             f"Screen {screen} added to {slug}. For an installed extension, deactivate, update and restart workers before activation.")
 
 
 __all__ = ["extension_app", "register_make_commands"]

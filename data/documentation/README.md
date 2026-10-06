@@ -11,6 +11,7 @@ scaling from a blog to multi-tenant, and what is not implemented yet? That is
 | Guide | What it covers |
 |---|---|
 | [Introduction](introduction.md) | What Craft Engine is and how the pieces fit together |
+| [Architecture](architecture.md) | Engine vs application; module, plugin, theme and connector responsibilities; CMS composition |
 | [Installation](installation.md) | Requirements, setup, Docker, first run |
 | [Configuration](configuration.md) | `config/`, `.env`, and the `env()` helper |
 | [The dev CLI](cli.md) | Every command, and the generators |
@@ -48,7 +49,7 @@ scaling from a blog to multi-tenant, and what is not implemented yet? That is
 | [Sessions](sessions.md) | Drivers, flash data, CSRF tokens |
 | [Cache](cache.md) | Stores, TTL, `remember` |
 | [Queues and events](queues_events.md) | Jobs, workers, listeners |
-| [Extensions](extensions.md) | Modules, plugins and themes: manifest, lifecycle, fault isolation, scaffolding |
+| [Extensions](extensions.md) | Modules, plugins, themes and connectors: manifest, lifecycle, forward updates, fault isolation, scaffolding |
 | [Plugins](plugins.md) | Plugin extensions, and moving a legacy `plugins/` plugin |
 | [Engine lifecycle](engine-lifecycle.md) | `craft-engine.lock`: pin, drift, patches, hotfix, update and upgrade |
 | [Internal proxy](internal-proxy.md) | Module-to-module calls in memory, never through the HTTP kernel |

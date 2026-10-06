@@ -52,8 +52,9 @@ units; it never rebuilds the engine.
 4. **Every contribution goes through the extension's context.** An extension
    registers listeners, filters, routes and proxy exposures through the
    `ExtensionContext` it receives, never on the global objects directly. The
-   manager records each contribution, so deactivation undoes all of them in
-   the running process - disabled means not running, without a restart.
+   manager records supported contributions, so deactivation withdraws them in
+   the running process. Routes remain registered for a typed disabled response;
+   their handlers are refused. Custom side effects need an explicit undo step.
 
 5. **Fault isolation per extension.** Each extension has its own error
    boundary and circuit breaker:
@@ -122,3 +123,37 @@ append-only delivery log table and a proxy exposure. `make:module` now also
 ships a model and a migration creating `<slug>_records`: a module is born
 with its schema. Lifecycle, isolation and the no-cross-import rule are
 unchanged.
+
+## Amendment 2026-10-06 — ownership, updates and application composition
+
+Owner requested correction and documentation of architecture gaps.
+
+- **Kinds describe responsibility.** Modules own business domains; plugins
+  contribute capabilities through public contracts. Their contribution APIs
+  are intentionally identical. Themes remain presentation-only, and connectors
+  own external transport rather than domain rules. A CMS and its extension
+  management panel belong to the application, not to the framework core.
+- **Service ownership is tracked.** `context.app` wraps the application
+  container. `bind`, `singleton`, `scoped`, `instance` and `alias` reserve
+  unused keys and record undo steps. Collisions are refused, and failed boot
+  removes already registered services. Scoped registrations have independent
+  cache generations. Arbitrary global side effects and retained references
+  are outside this guarantee.
+- **Versions are applied deliberately.** The persisted version is the installed
+  contract. Activation, boot and reconciliation refuse deployed version/kind
+  drift and validate engine/dependency compatibility. State changes preserve
+  the installed version. Reconciliation loads dependencies before dependents.
+- **Updates are forward-only deployments.** `extension update` operates on
+  installed/inactive extensions whose new files are already deployed. It
+  validates the engine, dependencies, installed dependents and catalog; refuses
+  downgrades or a kind change; applies pending migrations and missing
+  translations; then records the applied version without activating it.
+  Partial successes are retained on failure and retried, never rolled back
+  destructively. Workers must be drained/stopped during deployment and
+  restarted before reactivation. Updating code is not Python hot reloading.
+- **Isolation remains in-process.** Exceptions and circuit breakers do not
+  create a security sandbox or revoke running calls. Application services own
+  authorization and tenant boundaries, including calls through the proxy.
+
+The application-facing contract is documented in
+`data/documentation/architecture.md` and `data/documentation/extensions.md`.

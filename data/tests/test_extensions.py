@@ -203,7 +203,7 @@ class TestFaultIsolation:
     def test_a_module_failing_at_load_is_marked_failed_and_the_rest_boot(self, extensions):
         for slug in ("broken", "catalog"):
             extensions.install(slug)
-            extensions.store.save(slug, "module", "1.0.0", ExtensionState.ACTIVE)
+            extensions.store.save(slug, "module", extensions.manifest(slug).version, ExtensionState.ACTIVE)
         assert extensions.boot() == ["catalog"]
         assert extensions.state("broken") is ExtensionState.FAILED
         assert extensions.availability("broken") is Availability.UNAVAILABLE

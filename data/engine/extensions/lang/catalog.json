@@ -42,7 +42,14 @@
     "extension.error.extension_screen_invalid": "The screen name {detail} is invalid.",
     "extension.error.extension_screen_exists": "{slug} already has a screen named {detail}.",
     "extension.error.extension_routes_marker_missing": "The routes file of {slug} has no place marked for new screens.",
-    "extension.error.extension_route_conflict": "{slug} declares {detail}, which another route already answers."
+    "extension.error.extension_route_conflict": "{slug} declares {detail}, which another route already answers.",
+    "extension.error.extension_binding_conflict": "{slug} cannot register a service or alias that is already owned ({detail}).",
+    "extension.error.extension_update_requires_inactive": "Install {slug} and stop it before updating ({detail}).",
+    "extension.error.extension_restart_required": "Restart the application workers before activating the updated extension {slug}.",
+    "extension.error.extension_update_required": "Apply the update for {slug} before activating its deployed version.",
+    "extension.error.extension_kind_change_forbidden": "An update cannot change the extension kind of {slug}.",
+    "extension.error.extension_downgrade_forbidden": "An update cannot downgrade {slug}; schema changes only move forward.",
+    "extension.error.extension_dependent_version": "The proposed version of {slug} is incompatible with an installed dependent ({detail})."
   },
   "pt-BR": {
     "module.error.disabled": "Este módulo está desativado.",
@@ -87,7 +94,14 @@
     "extension.error.extension_screen_invalid": "O nome de tela {detail} é inválido.",
     "extension.error.extension_screen_exists": "{slug} já tem uma tela chamada {detail}.",
     "extension.error.extension_routes_marker_missing": "O arquivo de rotas de {slug} não tem o ponto marcado para novas telas.",
-    "extension.error.extension_route_conflict": "{slug} declara {detail}, que outra rota já atende."
+    "extension.error.extension_route_conflict": "{slug} declara {detail}, que outra rota já atende.",
+    "extension.error.extension_binding_conflict": "{slug} não pode registrar um serviço ou alias que já tem um responsável ({detail}).",
+    "extension.error.extension_update_requires_inactive": "Instale {slug} e desative antes de atualizar ({detail}).",
+    "extension.error.extension_restart_required": "Reinicie os processos da aplicação antes de ativar a extensão atualizada {slug}.",
+    "extension.error.extension_update_required": "Aplique a atualização de {slug} antes de ativar a versão disponibilizada.",
+    "extension.error.extension_kind_change_forbidden": "Uma atualização não pode alterar o tipo da extensão {slug}.",
+    "extension.error.extension_downgrade_forbidden": "Uma atualização não pode reduzir a versão de {slug}; alterações de esquema apenas avançam.",
+    "extension.error.extension_dependent_version": "A versão proposta de {slug} é incompatível com uma extensão dependente instalada ({detail})."
   },
   "es": {
     "module.error.disabled": "Este módulo está desactivado.",
@@ -132,6 +146,13 @@
     "extension.error.extension_screen_invalid": "El nombre de pantalla {detail} no es válido.",
     "extension.error.extension_screen_exists": "{slug} ya tiene una pantalla llamada {detail}.",
     "extension.error.extension_routes_marker_missing": "El archivo de rutas de {slug} no tiene el punto marcado para nuevas pantallas.",
-    "extension.error.extension_route_conflict": "{slug} declara {detail}, que otra ruta ya atiende."
+    "extension.error.extension_route_conflict": "{slug} declara {detail}, que otra ruta ya atiende.",
+    "extension.error.extension_binding_conflict": "{slug} no puede registrar un servicio o alias que ya tiene un responsable ({detail}).",
+    "extension.error.extension_update_requires_inactive": "Instale {slug} y desactívelo antes de actualizar ({detail}).",
+    "extension.error.extension_restart_required": "Reinicie los procesos de la aplicación antes de activar la extensión actualizada {slug}.",
+    "extension.error.extension_update_required": "Aplique la actualización de {slug} antes de activar la versión desplegada.",
+    "extension.error.extension_kind_change_forbidden": "Una actualización no puede cambiar el tipo de la extensión {slug}.",
+    "extension.error.extension_downgrade_forbidden": "Una actualización no puede reducir la versión de {slug}; los cambios de esquema solo avanzan.",
+    "extension.error.extension_dependent_version": "La versión propuesta de {slug} es incompatible con una extensión dependiente instalada ({detail})."
   }
 }

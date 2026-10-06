@@ -18,6 +18,7 @@ References:
 
 import inspect
 import os
+import uuid
 from contextlib import contextmanager
 from contextvars import ContextVar, Token
 from typing import Any, Callable, Dict, List, Optional, Tuple, Type, Union
@@ -95,6 +96,52 @@ class Container:
 
     def singleton(self, abstract: Union[str, Type], concrete: Optional[Union[Callable, Type, str]] = None) -> None:
         self.bind(abstract, concrete, shared=True)
+
+    def bind_reversible(
+        self, abstract: Union[str, Type], concrete: Any = None, *, shared: bool = False, scoped: bool = False,
+    ) -> Callable[[], None]:
+        """Reserve an unused service key and return its registration's undo step.
+
+        Scoped caches use a registration token so other requests cannot reuse
+        an instance from a previous activation. Existing references are not revoked.
+
+        Raises:
+            ValueError: The key is already registered, including as an alias.
+        """
+        key = self._normalize_key(abstract)
+        if key in self._bindings or key in self._instances or key in self._aliases:
+            raise ValueError(key)
+        binding = {"concrete": abstract if concrete is None else concrete,
+                   "shared": shared, "scoped": scoped, "generation": uuid.uuid4().hex}
+        self._bindings[key] = binding
+        return lambda: self._undo_binding(key, binding)
+
+    def _undo_binding(self, key: str, binding: Dict[str, Any]) -> None:
+        """Remove only the registration that owns this undo step."""
+        if self._bindings.get(key) is not binding:
+            return
+        scoped_key, store = self._scoped_slot(key)
+        store.pop(scoped_key, None)
+        self._scoped_instances.pop(f"{key}:{binding['generation']}", None)
+        self._instances.pop(key, None)
+        self._bindings.pop(key, None)
+
+    def alias_reversible(self, abstract: Union[str, Type], alias: str) -> Callable[[], None]:
+        """Reserve an unused alias and return an undo step for that alias.
+
+        Raises:
+            ValueError: The alias is already registered.
+        """
+        if alias in self._bindings or alias in self._instances or alias in self._aliases:
+            raise ValueError(alias)
+        key = self._normalize_key(abstract)
+        self._aliases[alias] = key
+
+        def undo() -> None:
+            if self._aliases.get(alias) == key:
+                self._aliases.pop(alias, None)
+
+        return undo
 
     def instance(self, abstract: Union[str, Type], instance: Any) -> None:
         key = self._normalize_key(abstract)
@@ -277,6 +324,9 @@ class Container:
         Inside a request scope the store belongs to that request; outside one
         (console, worker, tests) it is this container's own dict.
         """
+        generation = self._bindings.get(key, {}).get("generation")
+        if generation is not None:
+            key = f"{key}:{generation}"
         store = _request_scope.get()
         if store is None:
             return key, self._scoped_instances

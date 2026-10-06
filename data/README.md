@@ -8,6 +8,12 @@ else's layout.
 
 The core lives in `engine/` and is exposed publicly as `craft.*`.
 
+For the composition model, read [Architecture](documentation/architecture.md):
+the engine supplies infrastructure, the application owns composition, modules
+own business domains, plugins add capabilities, themes present existing
+features and connectors integrate external systems. A CMS is an application
+built from those pieces.
+
 ```python
 from craft.facades import Route, DB, Auth
 from craft.orm.model import Model
@@ -120,7 +126,7 @@ extra tables:
 | `plugins`, `modules`, `media`, `system_logs` | not generated |
 
 Both trees share `jobs`, `failed_jobs`, `sessions`, `translations`,
-`settings`, the security tables (`auth_audit_logs`, `auth_cooldowns`,
+`settings`, `extensions`, the security tables (`auth_audit_logs`, `auth_cooldowns`,
 `firewall_rules`, `security_events`) and `scheduler_runs`. `craft doctor`
 reports any table the engine needs that a project lacks. When comparing behaviour, compare against a project from
 `craft new`, not against this tree: code that works here because a demo
@@ -383,6 +389,8 @@ resources, i18n, testing, deployment, and the `dev` reference.
 
 - [`CRAFT_ENGINE.md`](CRAFT_ENGINE.md) — what the engine is, the build loop,
   scaling from a blog to multi-tenant, and what is not built yet.
+- [Architecture](documentation/architecture.md) — responsibilities and contracts
+  for composing applications and CMS products from extensions.
 - [`CHANGELOG.md`](CHANGELOG.md) — what changed, in Keep a Changelog format.
 - [`CONTRIBUTING.md`](CONTRIBUTING.md) — how to contribute.
 - [`SECURITY.md`](SECURITY.md) — security policy and production checklist.

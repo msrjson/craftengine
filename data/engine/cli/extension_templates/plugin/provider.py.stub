@@ -1,12 +1,15 @@
 """Wire the __SLUG__ plugin: a capability other extensions use through events and filters."""
 
+from craft.extensions.context import ExtensionContext
 
-def register(context: object) -> None:
+
+def register(context: ExtensionContext) -> None:
     """Register the plugin's listeners and filters.
 
     Args:
         context: The plugin's `ExtensionContext`. Use `context.listen(event,
             listener)`, `context.filter(name, callback)` and
             `context.expose(alias, service, methods)`; each is undone when the
-            plugin is deactivated, and a failure inside one never reaches the caller.
+            plugin is deactivated. Unexpected listener/filter failures are
+            contained; domain errors and proxy failures can reach the caller.
     """

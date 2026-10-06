@@ -1,5 +1,9 @@
 """ExtensionManager: discover, install, activate, isolate and retire extensions.
 
+Category: Core Framework (Extensions).
+Relations: ExtensionStore persists applied versions; ExtensionLoader owns runtime contributions.
+References: documentation/extensions.md, docs/adr/0004-extension-model.md.
+
 The engine is the runtime; each extension is a unit it runs. The manager keeps
 the lifecycle (`discovered -> installed -> active <-> inactive -> uninstalled`,
 plus `failed`), refuses transitions that would break a dependency, loads each
@@ -70,6 +74,7 @@ class ExtensionManager:
         #: slug -> (read at, state): the request path reads the store at most
         #: once per `reconcile_interval`; a write in this process clears it.
         self._state_cache: dict[str, tuple[float, ExtensionState]] = {}
+        self._updated: set[str] = set()
 
     # -- discovery -------------------------------------------------------------
 
@@ -145,7 +150,30 @@ class ExtensionManager:
         catalog = load_catalog(manifest)
         ran = run_migrations(self.app, manifest)
         seed_translations(self.app.make("db"), catalog)
-        self._save(manifest, ExtensionState.INSTALLED)
+        self._save(manifest, ExtensionState.INSTALLED, applied=True)
+        return ran
+
+    def update(self, slug: str) -> list[str]:
+        """Apply pending schema and translations to an installed, stopped extension.
+
+        Code must already be deployed. Restart workers before reactivation;
+        this operation never downloads code, reloads Python or reverses schema.
+
+        Raises:
+            ExtensionError: Not installed, not stopped, incompatible, downgraded,
+                changed kind, or incompatible with an installed dependent.
+        """
+        self.manifests(refresh=True)
+        manifest = self.manifest(slug)
+        state = self.state(slug)
+        if state not in {ExtensionState.INSTALLED, ExtensionState.INACTIVE} or self.loader.is_loaded(slug):
+            raise ExtensionError("EXTENSION_UPDATE_REQUIRES_INACTIVE", slug, state.value)
+        self._check_update(manifest)
+        catalog = load_catalog(manifest)
+        ran = run_migrations(self.app, manifest)
+        seed_translations(self.app.make("db"), catalog)
+        self._save(manifest, state, applied=True)
+        self._updated.add(slug)
         return ran
 
     def activate(self, slug: str) -> None:
@@ -159,8 +187,7 @@ class ExtensionManager:
         manifest = self.manifest(slug)
         if self.state(slug) not in _ACTIVATABLE:
             raise ExtensionError("EXTENSION_NOT_ACTIVATABLE", slug, self.state(slug).value)
-        self._check_engine(manifest)
-        self._check_dependencies(manifest, {ExtensionState.ACTIVE}, "EXTENSION_DEPENDENCY_INACTIVE")
+        self._check_ready(manifest)
         self.breaker.reset(slug)
         self._load(manifest)
         self._save(manifest, ExtensionState.ACTIVE)
@@ -219,12 +246,14 @@ class ExtensionManager:
         """
         try:
             rows = self.store.all()
-            for slug, manifest in self.manifests(refresh=True).items():
+            manifests = self.manifests(refresh=True)
+            for slug in manifests:
                 state = ExtensionState(rows.get(slug, {}).get("state", ExtensionState.DISCOVERED.value))
-                if state is ExtensionState.ACTIVE and not self.loader.is_loaded(slug):
-                    self._try_load(manifest)
-                elif state is not ExtensionState.ACTIVE and self.loader.is_loaded(slug):
+                if state is not ExtensionState.ACTIVE and self.loader.is_loaded(slug):
                     self.loader.unload(slug)
+            for slug in _dependency_order(manifests):
+                if self.state(slug) is ExtensionState.ACTIVE and not self.loader.is_loaded(slug):
+                    self._try_load(manifests[slug])
         finally:
             _release_connection(self.app)
 
@@ -276,6 +305,8 @@ class ExtensionManager:
         return [
             {
                 "slug": slug, "kind": manifest.kind.value, "version": manifest.version,
+                "installed_version": (self.store.get(slug) or {}).get("version"),
+                "update_required": self._update_required(manifest),
                 "name_key": manifest.name_key, "requires": dict(manifest.requires),
                 "state": self.state(slug).value, "availability": self.availability(slug).value,
                 "breaker": self.breaker.state(slug).value, "last_error": self.breaker.last_error(slug),
@@ -289,6 +320,7 @@ class ExtensionManager:
     def _try_load(self, manifest: Manifest) -> bool:
         """Load `manifest`; on failure log it, mark it failed and return False."""
         try:
+            self._check_ready(manifest)
             self._load(manifest)
         except ExtensionError as error:
             _LOG.error("extension_boot_failed slug=%s detail=%s", manifest.slug, error.detail, exc_info=error.__cause__)
@@ -315,10 +347,40 @@ class ExtensionManager:
         self._state_cache[slug] = (time.monotonic(), state)
         return state
 
-    def _save(self, manifest: Manifest, state: ExtensionState) -> None:
-        """Persist the new state of `manifest`."""
+    def _save(self, manifest: Manifest, state: ExtensionState, *, applied: bool = False) -> None:
+        """Change lifecycle state without claiming unapplied code was installed."""
         self._state_cache.pop(manifest.slug, None)
-        self.store.save(manifest.slug, manifest.kind.value, manifest.version, state, manifest.path)
+        row = {} if applied else (self.store.get(manifest.slug) or {})
+        self.store.save(manifest.slug, row.get("kind", manifest.kind.value),
+                        row.get("version", manifest.version), state, manifest.path)
+
+    def _update_required(self, manifest: Manifest) -> bool:
+        """Return whether the deployed manifest differs from the installed contract."""
+        row = self.store.get(manifest.slug)
+        return bool(row and (row["kind"] != manifest.kind.value or row["version"] != manifest.version))
+
+    def _check_ready(self, manifest: Manifest) -> None:
+        """Validate code, engine and active dependencies on every load path."""
+        if manifest.slug in self._updated:
+            raise ExtensionError("EXTENSION_RESTART_REQUIRED", manifest.slug)
+        if self._update_required(manifest):
+            raise ExtensionError("EXTENSION_UPDATE_REQUIRED", manifest.slug)
+        self._check_engine(manifest)
+        self._check_dependencies(manifest, {ExtensionState.ACTIVE}, "EXTENSION_DEPENDENCY_INACTIVE")
+
+    def _check_update(self, manifest: Manifest) -> None:
+        """Validate an update before applying any migrations or translations."""
+        row = self.store.get(manifest.slug)
+        if row["kind"] != manifest.kind.value:
+            raise ExtensionError("EXTENSION_KIND_CHANGE_FORBIDDEN", manifest.slug)
+        if not satisfies(manifest.version, f">={row['version']}"):
+            raise ExtensionError("EXTENSION_DOWNGRADE_FORBIDDEN", manifest.slug)
+        self._check_engine(manifest)
+        self._check_dependencies(manifest, _PRESENT, "EXTENSION_DEPENDENCY_MISSING")
+        for name, dependent in self.manifests().items():
+            spec = dependent.requires.get(manifest.slug)
+            if spec and self.state(name) in _PRESENT and not satisfies(manifest.version, spec):
+                raise ExtensionError("EXTENSION_DEPENDENT_VERSION", manifest.slug, f"{name} {spec}")
 
     def _check_engine(self, manifest: Manifest) -> None:
         """Refuse an extension written for another engine version."""
@@ -331,7 +393,8 @@ class ExtensionManager:
             dependency = self.manifests().get(name)
             if dependency is None or self.state(name) not in states:
                 raise ExtensionError(code, manifest.slug, name)
-            if not satisfies(dependency.version, spec):
+            version = (self.store.get(name) or {}).get("version", dependency.version)
+            if not satisfies(version, spec):
                 raise ExtensionError("EXTENSION_DEPENDENCY_VERSION", manifest.slug, f"{name} {spec}")
 
     def _refuse_dependents(self, slug: str, states: set[ExtensionState], code: str) -> None:

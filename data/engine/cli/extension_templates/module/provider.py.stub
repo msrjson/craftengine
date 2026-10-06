@@ -4,10 +4,12 @@ Everything goes through `context`, so deactivating the module undoes it in the
 running process (ADR 0004).
 """
 
+from craft.extensions.context import ExtensionContext
+
 from .services.__SLUG___service import __CLASS__Service
 
 
-def register(context: object) -> None:
+def register(context: ExtensionContext) -> None:
     """Bind the module's service and expose it to other modules.
 
     Args:

@@ -4,10 +4,12 @@ Everything goes through `context`, so deactivating the connector undoes it in
 the running process (ADR 0004).
 """
 
+from craft.extensions.context import ExtensionContext
+
 from .services.__SLUG___client import __CLASS__Client
 
 
-def register(context: object) -> None:
+def register(context: ExtensionContext) -> None:
     """Bind the connector's client and expose `deliver` to other extensions.
 
     Args:

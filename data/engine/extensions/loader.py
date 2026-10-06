@@ -1,5 +1,9 @@
 """Load and unload one extension's contributions into the running application.
 
+Category: Core Framework (Extensions).
+Relations: ExtensionContext tracks undo steps; ExtensionManager validates lifecycle.
+References: documentation/extensions.md, docs/adr/0004-extension-model.md.
+
 Loading imports the extension's own files - never another extension's - and
 hands each the extension's context:
 
@@ -42,6 +46,7 @@ class ExtensionLoader:
         self._guard = guard
         self._contexts: dict[str, ExtensionContext] = {}
         self._routes_loaded: set[str] = set()
+        self._imported_versions: dict[str, str] = {}
 
     def is_loaded(self, slug: str) -> bool:
         """Return whether the extension's contributions are live in this process."""
@@ -54,6 +59,8 @@ class ExtensionLoader:
             ExtensionError: `EXTENSION_BOOT_FAILED`, chained to what the
                 extension raised.
         """
+        if self._imported_versions.get(manifest.slug, manifest.version) != manifest.version:
+            raise ExtensionError("EXTENSION_RESTART_REQUIRED", manifest.slug)
         context = ExtensionContext(self.app, manifest, self._guard)
         try:
             self._register_views(manifest, context)
@@ -104,19 +111,25 @@ class ExtensionLoader:
         if not callable(register):
             raise ExtensionError("EXTENSION_ENTRY_POINT_MISSING", manifest.slug, "routes.register")
         router = self.app.make("router")
-        first_new = len(router.routes)
-        register(router)
-        added = router.routes[first_new:]
+        added = self._collect_routes(router, register)
         clashes = router.collisions(added)
         if clashes:
-            # A route another one already answers would be dead or would steal
-            # it, depending on load order. Refuse the extension and say where.
             router.remove(added)
             method, uri = clashes[0]
             raise ExtensionError("EXTENSION_ROUTE_CONFLICT", manifest.slug, f"{method} {uri}")
         for route in added:
             route.module(manifest.slug)
         self._routes_loaded.add(manifest.slug)
+
+    def _collect_routes(self, router: Any, register: Any) -> list[Any]:
+        """Collect a route entry point's contributions or undo partial registration."""
+        first_new = len(router.routes)
+        try:
+            register(router)
+        except Exception:  # noqa: BLE001 - undo partial route registration before propagating
+            router.remove(router.routes[first_new:])
+            raise
+        return router.routes[first_new:]
 
     def _import(self, manifest: Manifest, name: str) -> ModuleType:
         """Import one of the extension's own files.
@@ -126,11 +139,16 @@ class ExtensionLoader:
         `craft_extensions.<slug>`. Either way the extension can import its own
         submodules, relatively or absolutely.
         """
+        self._imported_versions[manifest.slug] = manifest.version
         relative = os.path.relpath(manifest.file(name), self.app.base_path)
         parts = relative.split(os.sep)
-        if parts[0] != ".." and all(part.isidentifier() for part in parts):
-            return importlib.import_module(".".join(parts))
-        return importlib.import_module(f"{_synthetic_package(manifest)}.{name}")
+        package = ".".join(parts) if parts[0] != ".." and all(part.isidentifier() for part in parts) else f"{_synthetic_package(manifest)}.{name}"
+        cached = sys.modules.get(package)
+        if cached is not None and getattr(cached, "__craft_extension_version__", manifest.version) != manifest.version:
+            raise ExtensionError("EXTENSION_RESTART_REQUIRED", manifest.slug)
+        module = importlib.import_module(package)
+        module.__craft_extension_version__ = manifest.version
+        return module
 
 
 def _synthetic_package(manifest: Manifest) -> str:

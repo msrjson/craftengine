@@ -68,6 +68,26 @@ Generators refuse to overwrite. Pass `--force` when you mean it.
 Migration names drive the stub: `create_*_table` produces a create migration and
 `add_*_to_*_table` produces an alter migration, with the table inferred.
 
+## Extensions
+
+| Command | What it does |
+|---|---|
+| `make module <slug>` | Generate a business module, including a model and migration |
+| `make plugin <slug>` | Generate a capability plugin |
+| `make theme <slug>` | Generate a presentation-only theme |
+| `make connector <slug>` | Generate a headless external integration |
+| `make screen <slug> <screen>` | Add a controller, route, view and translation keys to a module |
+| `extension list` / `extension status <slug>` | Inspect state, manifest/installed versions, update requirements and health |
+| `extension install <slug>` | Apply initial migrations and seed missing translations from local files |
+| `extension update <slug>` | Apply pending migrations/translations to an installed or inactive extension |
+| `extension activate <slug>` | Register runtime contributions after compatibility checks |
+| `extension deactivate <slug>` | Withdraw owned runtime contributions; preserve data |
+| `extension uninstall <slug>` | Mark an inactive extension uninstalled; preserve data |
+
+Updating requires deploying files and restarting workers before reactivation.
+See [extensions.md](extensions.md#updating-an-installed-extension) for the
+ordered procedure and [architecture.md](architecture.md) for kind selection.
+
 ## Routes
 
 ```bash

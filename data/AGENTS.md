@@ -8,6 +8,10 @@ deleted.
 Verify behaviour in the source, never from memory of another framework.
 Framework internals live in `engine/` and are imported as `craft.*`. Start with
 `README.md` and `documentation/README.md`.
+For engine/application responsibilities and module, plugin, theme and connector
+contracts, read `documentation/architecture.md` and `documentation/extensions.md`.
+New extensions use `ExtensionManager` and the `extensions` state table; the
+legacy module/plugin managers and tables are compatibility paths.
 
 ## Starting a project
 
@@ -33,8 +37,10 @@ Framework internals live in `engine/` and are imported as `craft.*`. Start with
 
 ## Routes
 
-- Every route a project answers is declared in `routes/web.py` or
-  `routes/api.py`. The engine adds only what configuration switches on - the
+- Application-wide routes are declared in `routes/web.py` or `routes/api.py`.
+  Extensions declare their routes in their own `routes.py`, registered through
+  the extension loader and tagged with the owning slug. The engine adds only
+  what configuration switches on - the
   health probes, the metrics scrape and the MSR manifest are all off until a
   flag in `config/` turns them on - plus the static file mount.
 - `craft route:list` shows every route that answers, the engine's included,
