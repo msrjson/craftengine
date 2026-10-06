@@ -133,7 +133,8 @@ naming another site returns **403** `CSRF_ORIGIN_REJECTED`
 (`security.csrf.origin_rejected`). Both keys ship in `en`, `pt-BR` and `es`.
 
 `redirect.back(request)` follows the `Referer` only when it is a relative path
-or a URL on the request's own host; anything else - another site, `//host`,
+or a URL on the request's own host or on the `APP_URL` host (the public address
+behind a reverse proxy); anything else - another site, `//host`,
 `javascript:` - goes to the `fallback` instead, so a form is never an open
 redirect.
 

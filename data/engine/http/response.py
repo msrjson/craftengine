@@ -135,13 +135,32 @@ class RedirectHelper:
 
 
 def _same_site(url: str, host: str) -> bool:
-    """Return whether `url` is a relative path or an http(s) URL on `host`."""
+    """Return whether `url` is a relative path or an http(s) URL on this site.
+
+    This site is the request's own `Host` or the configured `APP_URL`: behind
+    a reverse proxy the Host header is internal while the browser used the
+    public address, which is also what the CSRF origin check trusts.
+    """
     from urllib.parse import urlsplit
 
     if url.startswith("/") and not url.startswith("//") and "\\" not in url:
         return True
     parts = urlsplit(url)
-    return parts.scheme in ("http", "https") and bool(host) and parts.netloc.lower() == host.lower()
+    allowed = {name.lower() for name in (host, _app_url_host()) if name}
+    return parts.scheme in ("http", "https") and parts.netloc.lower() in allowed
+
+
+def _app_url_host() -> str:
+    """Return the `host[:port]` of `app.APP_URL`, or an empty string."""
+    from urllib.parse import urlsplit
+
+    from engine.container.application import Container
+
+    try:
+        app_url = str(Container.getInstance().make("config").get("app.APP_URL", "") or "")
+    except KeyError:
+        return ""
+    return urlsplit(app_url).netloc
 
 
 redirect = RedirectHelper()

@@ -77,3 +77,22 @@ class TestCsrfRefusalsAreTyped:
         from craft.facades import DB
 
         assert {row["locale"] for row in DB.table("translations").where("key", key).get()} == {"en", "pt-BR", "es"}
+
+
+class TestRedirectBackBehindAProxy:
+    """Behind a reverse proxy the Host header is internal while APP_URL is the
+    public address the browser used; the CSRF check trusts APP_URL, so
+    `redirect.back()` must trust it too, or a valid form error lands on `/`."""
+
+    def test_a_referer_on_app_url_is_followed_whatever_the_host_header(self, monkeypatch):
+        from engine.http import response
+
+        monkeypatch.setattr(response, "_app_url_host", lambda: "crm.example")
+        back = redirect.back(_request("https://crm.example/companies/create", host="app:9000"), fallback="/")
+        assert back.headers["location"] == "https://crm.example/companies/create"
+
+    def test_another_site_still_falls_back(self, monkeypatch):
+        from engine.http import response
+
+        monkeypatch.setattr(response, "_app_url_host", lambda: "crm.example")
+        assert redirect.back(_request("https://evil.example/x", host="app:9000"), fallback="/").headers["location"] == "/"

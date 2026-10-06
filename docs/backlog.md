@@ -184,6 +184,27 @@ its absence.
 
 ## 🤖 Done automatically
 
+**2026-10-05 to 2026-10-06 (extension model, CRM demo):**
+
+- Found by the CRM demo (`msrjson/craftengine-demo`), which installs the framework
+  from its release like any project; all fixed in 4.4.1 with regression tests: the
+  package lacked the auth and shared templates; an extension added after boot never
+  served; `make auth` / `make admin` left half a scaffold on failure; `make admin`
+  never created the `admin` role it tells you to assign; `regex:` split its pattern on
+  commas; `redirect.back()` was an open redirect; route collisions were decided by load
+  order; CSRF refusals rendered hardcoded English.
+- Found by the demo running on its real `APP_URL` after 4.4.1: `redirect.back()`
+  trusted only the `Host` header, so behind a reverse proxy a form with errors went to
+  `/`; fixed under `[Unreleased]` (accepts the `APP_URL` host too).
+- Added the pre-release gate `.claude/scripts/rehearse-demo.sh` (the demo's whole suite
+  against the candidate, on SQLite and PostgreSQL) and made it a step of the release
+  procedure in `data/CONTRIBUTING.md`.
+- Moved the bundled `plugins/audit-log` example out of the framework into the demo,
+  and the site repository from `website/` to `data-website/`.
+- The demo was not reachable (`/login` 404): it ran engine 4.4.0, whose package lacked
+  the auth templates. Pinned it to the published v4.4.1, generated sign-in and admin,
+  and created a local admin account; 28 demo tests pass in its container.
+
 **2026-10-03:**
 
 - Found while migrating to the queue: two L6 leftovers were already fixed in
