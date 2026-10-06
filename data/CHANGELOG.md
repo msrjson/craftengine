@@ -18,6 +18,16 @@ full policy (categories to use, what counts as security-relevant, how
 
 ## [Unreleased]
 
+## [4.4.2] r00024 — 2026-10-06
+
+### Fixed
+
+- **`redirect.back()` dropped a valid Referer behind a reverse proxy**: it trusted only
+  the request's `Host` header, while the CSRF origin check trusts `APP_URL`. Behind a
+  proxy the Host is internal, so a form with errors sent the user to `/` instead of
+  back to the form. It now accepts the request's host or the `APP_URL` host; any
+  other site still falls back. Found by the CRM demo running with its real `APP_URL`.
+
 ## [4.4.1] r00023 — 2026-10-05
 
 ### Fixed
