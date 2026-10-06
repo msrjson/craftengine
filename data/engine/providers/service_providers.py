@@ -183,6 +183,25 @@ class CacheServiceProvider(ServiceProvider):
         self.app.instance("cache", CacheManager(self.app))
 
 
+class LifecycleServiceProvider(ServiceProvider):
+    """Binds `engine_updates`: the engine update notice and guarded move (ADR 0005)."""
+
+    def register(self):
+        self.app.singleton("engine_updates", _make_engine_updates)
+
+
+def _make_engine_updates(app):
+    """Build the update service for the application's project root and cache."""
+    from pathlib import Path
+
+    import engine
+    from engine.lifecycle.service import EngineLifecycle
+    from engine.lifecycle.updates import EngineUpdates
+
+    lifecycle = EngineLifecycle(Path(app.base_path), (engine.__version__, engine.__release__))
+    return EngineUpdates(lifecycle, app.make("cache"))
+
+
 class MigratorServiceProvider(ServiceProvider):
     def register(self):
         from engine.migrations.migrator import Migrator

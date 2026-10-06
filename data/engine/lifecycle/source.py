@@ -21,7 +21,7 @@ from urllib.parse import urlparse
 
 from engine.lifecycle.errors import EngineLifecycleError
 from engine.lifecycle.lock import Source
-from engine.lifecycle.release import Release, releases_from_tags
+from engine.lifecycle.release import Release, newest, newest_patch, releases_from_tags
 
 #: URL schemes a release may come from.
 ALLOWED_SCHEMES = frozenset({"https", "file"})
@@ -76,6 +76,21 @@ def list_releases(source: Source) -> list[Release]:
     return releases_from_tags(names)
 
 
+def newer_releases(source: Source, current: Release) -> tuple[Release | None, Release | None]:
+    """Return the update target on the current minor line and the newest release, each only when newer.
+
+    Args:
+        source: Where releases come from.
+        current: The release the project is pinned to.
+
+    Returns:
+        `(update, newest)`; either is None when nothing newer exists.
+    """
+    releases = list_releases(source)
+    latest = newest(releases)
+    return newest_patch(current, releases), latest if latest is not None and latest > current else None
+
+
 def _relative_member(name: str, subdirectory: str) -> tuple[str, ...] | None:
     """Return a member's path inside the source subdirectory, without the archive's top folder."""
     inner = PurePosixPath(name).parts[1:]
@@ -120,4 +135,4 @@ def fetch_release(source: Source, ref: str, destination: Path) -> Path:
     return destination / "tree" / top / source.subdirectory
 
 
-__all__ = ["ALLOWED_SCHEMES", "fetch_release", "list_releases", "read_url"]
+__all__ = ["ALLOWED_SCHEMES", "fetch_release", "list_releases", "newer_releases", "read_url"]

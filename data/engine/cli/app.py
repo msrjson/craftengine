@@ -783,6 +783,27 @@ def make_admin(
     echo("     " + _app_url() + "/admin", "cyan")
 
 
+@make_app.command("engine-panel")
+def make_engine_panel(
+    force: bool = typer.Option(False, "--force", "-f", help="Overwrite existing files."),
+) -> None:
+    """Add the engine update screen to the admin panel: controller, views, alert, translations, routes."""
+    from engine.cli import engine_panel_scaffolder
+
+    try:
+        result = engine_panel_scaffolder.build_engine_panel(base_path(), force=force)
+    except engine_panel_scaffolder.EnginePanelRequiresAdmin as exc:
+        echo(f"ENGINE_PANEL_REQUIRES_ADMIN {exc.path}", "red")
+        raise typer.Exit(code=1) from None
+    except FileExistsError as exc:
+        echo(f"ENGINE_PANEL_FILE_EXISTS {exc}", "red")
+        raise typer.Exit(code=1) from None
+    for kind, path in result["files"].items():
+        echo(f"  -> {kind:<48} {path}", "green")
+    if not result["already_configured"]:
+        echo("Next: python dev.py migrate, then open /admin/engine", "cyan")
+
+
 def _simple_generator(kind: str, label: str):
     def command(name: str, force: bool = typer.Option(False, "--force")) -> None:
         from engine.cli import generators

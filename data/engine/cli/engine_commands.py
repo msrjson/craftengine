@@ -52,6 +52,7 @@ def _render_status(report: StatusReport) -> None:
     lock = report.lock
     echo(f"pinned     {lock.ref} ({lock.mode})")
     echo(f"running    v{report.running[0]}-{report.running[1]}", None if lock.version == report.running[0] else "yellow")
+    echo(f"verify     {lock.verify_command or '-'}")
     echo(f"patches    {len(lock.patches)}")
     for patch in lock.patches:
         echo(f"  {patch.id:<20} {patch.patch_class:<14} files={len(patch.files):<4} {patch.reason}")
@@ -92,14 +93,18 @@ def engine_adopt(
     archive_url: str = typer.Option(Source.archive_url, help="Archive URL template with {ref}."),
     tags_url: str = typer.Option(Source.tags_url, help="JSON tag listing URL."),
     subdirectory: str = typer.Option(Source.subdirectory, help="Archive directory holding engine/."),
+    verify_command: str = typer.Option("", help="Command every move runs after the swap (the panel's too)."),
     force: bool = typer.Option(False, "--force", help="Replace an existing lock."),
 ) -> None:
     """Pin this project to an engine release and write craft-engine.lock."""
     from engine.cli.app import echo
 
     source = Source(archive_url, tags_url, subdirectory)
-    lock = _run(lambda: _lifecycle().adopt(ref, mode, engine_path=engine_path, pin_files=pin or [], source=source,
-                                           force=force))
+    lifecycle = _lifecycle()
+    lock = _run(lambda: lifecycle.adopt(ref, mode, engine_path=engine_path, pin_files=pin or [], source=source,
+                                        force=force))
+    if verify_command:
+        lock = lifecycle.set_verify_command(verify_command)
     echo(_record("ENGINE_PINNED", ref=lock.ref, mode=lock.mode, files=len(lock.manifest)), "green")
 
 
@@ -110,6 +115,30 @@ def engine_status(offline: bool = typer.Option(False, "--offline", help="Do not 
     _render_status(report)
     if report.drift:
         raise typer.Exit(code=1)
+
+
+@engine_app.command("check")
+def engine_check() -> None:
+    """Ask the source for newer releases and refresh the notice the panel shows."""
+    from engine.cli.app import echo, get_app
+
+    notice = get_app().make("engine_updates").check()
+    color = "red" if notice.error else "yellow" if notice.available else "green"
+    echo(_record("ENGINE_CHECKED", pinned=notice.pinned or "-", update=notice.update or "-",
+                 newest=notice.newest or "-", error=notice.error or "-"), color)
+    if notice.error:
+        raise typer.Exit(code=1)
+
+
+@engine_app.command("verify-command")
+def engine_verify_command(
+    command: Annotated[str, typer.Argument(help="Command line; an empty string clears it.")],
+) -> None:
+    """Set the command every move runs after the swap, from the console and from the panel."""
+    from engine.cli.app import echo
+
+    lock = _run(lambda: _lifecycle().set_verify_command(command))
+    echo(_record("ENGINE_VERIFY_COMMAND_SET", verify_command=lock.verify_command or "-"), "green")
 
 
 @engine_app.command("patch")
@@ -145,7 +174,7 @@ def engine_hotfix(
 
 @engine_app.command("update")
 def engine_update(
-    verify: str = typer.Option("", help="Command that must pass after the swap, or the move is rolled back."),
+    verify: Annotated[str | None, typer.Option(help="Command that must pass after the swap; defaults to the lock's.")] = None,
     dry_run: bool = typer.Option(False, "--dry-run", help="Show the plan and notes; change nothing."),
     drop_patch: Annotated[list[str] | None, typer.Option(help="Patch id to discard in favor of upstream. Repeatable.")] = None,
 ) -> None:
@@ -156,7 +185,7 @@ def engine_update(
 @engine_app.command("upgrade")
 def engine_upgrade(
     to: str = typer.Option(..., "--to", help="Target version, e.g. 4.5.0."),
-    verify: str = typer.Option("", help="Command that must pass after the swap, or the move is rolled back."),
+    verify: Annotated[str | None, typer.Option(help="Command that must pass after the swap; defaults to the lock's.")] = None,
     dry_run: bool = typer.Option(False, "--dry-run", help="Show the plan and notes; change nothing."),
     drop_patch: Annotated[list[str] | None, typer.Option(help="Patch id to discard in favor of upstream. Repeatable.")] = None,
 ) -> None:

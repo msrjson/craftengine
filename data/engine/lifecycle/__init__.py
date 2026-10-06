@@ -11,14 +11,17 @@ from engine.lifecycle.errors import EngineLifecycleError
 from engine.lifecycle.lock import LOCK_FILE, EngineLock, Patch, Source
 from engine.lifecycle.reports import MoveReport, StatusReport
 from engine.lifecycle.service import EngineLifecycle
+from engine.lifecycle.updates import EngineUpdates, UpdateNotice
 
 __all__ = [
     "LOCK_FILE",
     "EngineLifecycle",
     "EngineLifecycleError",
+    "EngineUpdates",
     "EngineLock",
     "MoveReport",
     "Patch",
     "Source",
     "StatusReport",
+    "UpdateNotice",
 ]

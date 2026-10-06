@@ -54,7 +54,14 @@ from accidental drift.
    `https` and `file` URLs are accepted. There is no dependency on git, which
    the application container does not have. The development workspace is
    never a source (owner ruling 2026-09-22).
-7. **Database is out of scope.** Engine migrations run forward-only through
+7. **Panel and console are one service.** `EngineUpdates` (container key
+   `engine_updates`) caches the update notice that `engine check` produces,
+   and reviews and applies moves. The admin panel screen (`make:engine-panel`,
+   included in `make:admin`) and the console both call it. A panel request
+   never calls the network, except the explicit "check" action. Moves run only
+   the verification command recorded in the lock, never one from a request,
+   and one at a time per project.
+8. **Database is out of scope.** Engine migrations run forward-only through
    `migrate` after a move, as they always have (NR-02). There is no schema
    rollback.
 

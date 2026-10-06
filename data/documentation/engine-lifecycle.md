@@ -85,6 +85,60 @@ After a move, rebuild or reinstall the engine where it is packaged, then run
 `python dev.py migrate`. Engine migrations only go forward. There is no schema
 rollback.
 
+## Checking for updates
+
+`engine check` asks the canonical repository for newer releases and caches the
+answer as the **update notice**. The panel reads only that cache, so a page
+never waits on the network. Schedule the check in `routes/console.py`:
+
+```python
+Schedule.command("engine check").cron("0 */6 * * *")
+```
+
+## The verification command
+
+Every move runs the command recorded in the lock after the swap, and rolls
+back if it fails. Set it once from the console, and the panel uses the same
+command:
+
+```bash
+python dev.py engine verify-command "python -m pytest tests -q"
+python dev.py engine verify-command ""        # clear it
+```
+
+`--verify` on `update` and `upgrade` overrides it for one run. The panel never
+accepts a command from a form. If it did, every admin could run any command
+on the server.
+
+## Updating from the admin panel
+
+`make:admin` generates the **Engine updates** screen at `/admin/engine`. An
+existing panel gets it with:
+
+```bash
+python dev.py make:engine-panel
+python dev.py migrate          # seeds the screen's translations (en, pt-BR, es)
+```
+
+| Panel action | Console equivalent |
+|---|---|
+| The alert on the panel pages ("a new release is available") | `engine check` (scheduled) |
+| **Check for updates** | `engine check` |
+| Overview: pin, running engine, verification command, patches, drift | `engine status --offline` |
+| **Review update / upgrade**: patches and changelog, nothing changed | `engine update --dry-run`, `engine upgrade --to X.Y.Z --dry-run` |
+| **Apply** | `engine update`, `engine upgrade --to X.Y.Z` |
+
+Every route requires `auth` and `role:admin`. The two state-changing actions are
+POST forms with `@csrf`. Only one move runs at a time per project: a second
+request is refused with `ENGINE_MOVE_IN_PROGRESS`. Each applied move is logged
+as `engine_lifecycle_moved`, with the admin's e-mail and both refs.
+
+Panels generated before this screen do not show the alert on their other
+pages. To add it, put the `engine_update` notice in the context in
+`PanelPage.panel()` (see the current `make:admin` template), then add
+`@include("partials.engine_update_alert")` to the top of each page's content
+section.
+
 ## Refusal codes
 
 | Code | Meaning |
@@ -101,3 +155,4 @@ rollback.
 | `ENGINE_PATCH_CONFLICT` | both the patch and the target changed a file |
 | `ENGINE_PIN_NOT_FOUND` | a pin file is missing or no longer spells the pinned ref |
 | `ENGINE_VERIFY_FAILED` | the verification command failed; the move was rolled back |
+| `ENGINE_MOVE_IN_PROGRESS` | another move is running in this project |

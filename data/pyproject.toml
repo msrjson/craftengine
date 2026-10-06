@@ -105,6 +105,7 @@ include = ["engine*"]
     "auth_templates/**/*",
     "shared_templates/**/*",
     "extension_templates/**/*",
+    "engine_panel_templates/**/*",
 ]
 # The extension model's messages, seeded by its migration (ADR 0004).
 "engine.extensions" = ["lang/*.json"]

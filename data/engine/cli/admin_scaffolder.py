@@ -33,7 +33,7 @@ import re
 import shutil
 from typing import Any, Dict, Final, List, Optional
 
-from engine.cli import identity_config, layout_scaffolder
+from engine.cli import engine_panel_scaffolder, identity_config, layout_scaffolder
 
 #: Root of the template tree, alongside this module.
 ADMIN_TEMPLATE_ROOT: Final[str] = os.path.join(
@@ -317,6 +317,8 @@ def build_admin(base_path: str, *, force: bool = False) -> Dict[str, Any]:
         written[layout_scaffolder.LAYOUT_RELATIVE_PATH] = layout_path
     _write_package_markers(base_path, written)
     written["routes/web.py"] = register_admin_routes(base_path)
+    # The engine update screen renders through the shell written above.
+    written.update(engine_panel_scaffolder.build_engine_panel(base_path, force=force)["files"])
     config_path = configure_identity_models(base_path)
     if config_path is not None:
         written["config/auth.py"] = config_path

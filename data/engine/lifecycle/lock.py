@@ -101,6 +101,8 @@ class EngineLock:
         manifest: Engine-relative path to SHA-256 of the pinned release (vendored only).
         patches: Registered local changes (vendored only).
         pin_files: Project files that spell the pinned ref (package only).
+        verify_command: Command a move runs after the swap when none is given;
+            the only command the panel ever runs. Set from the console.
     """
 
     mode: str
@@ -112,6 +114,7 @@ class EngineLock:
     manifest: dict[str, str] = field(default_factory=dict)
     patches: list[Patch] = field(default_factory=list)
     pin_files: list[str] = field(default_factory=list)
+    verify_command: str = ""
 
     def patched_files(self) -> dict[str, str | None]:
         """Return every patched path with the hash its patch recorded."""

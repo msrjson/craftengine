@@ -33,6 +33,14 @@ full policy (categories to use, what counts as security-relevant, how
   repository's tag archives with the standard library only. `craft new` writes
   a `package` lock for the release that generated the project. Guide:
   `documentation/engine-lifecycle.md`.
+- **Engine updates in the admin panel**. `make:admin` (or `make:engine-panel`
+  for an existing panel) generates `/admin/engine`. Admins see a cached "new
+  release available" alert on the panel pages and can check, review (patches
+  and changelog) and apply an update or upgrade visually. The console has the
+  same operations: `engine check` refreshes the notice (schedule it), and
+  `engine verify-command` sets the command every move runs, from the panel and
+  from the console. Moves never run a command taken from a request, and only
+  one runs at a time per project (`ENGINE_MOVE_IN_PROGRESS`).
 
 ## [4.4.2] r00024 — 2026-10-06
 

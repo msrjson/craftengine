@@ -23,6 +23,7 @@
 @section("title", __('admin.groups.title'))
 
 @section("content")
+@include("partials.engine_update_alert")
 <div class="space-y-8">
     @if(conditions_rejected)
         <p role="alert" class="p-4 rounded-xl bg-rose-50 border border-rose-100 text-rose-700 text-sm">{{ __('admin.groups.error.conditions') }}</p>

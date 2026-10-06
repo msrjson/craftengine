@@ -15,6 +15,7 @@
 @section("title", __('admin.permissions.title'))
 
 @section("content")
+@include("partials.engine_update_alert")
 <div class="space-y-8">
     <div class="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
         <div class="overflow-x-auto">

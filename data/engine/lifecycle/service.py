@@ -21,12 +21,12 @@ from pathlib import Path
 from engine.lifecycle import applier
 from engine.lifecycle.changelog import crossed_sections
 from engine.lifecycle.errors import EngineLifecycleError
-from engine.lifecycle.lock import PATCH_CLASSES, EngineLock, Patch, Source, load_lock, lock_path, save_lock, utc_now
+from engine.lifecycle.lock import EngineLock, Patch, Source, load_lock, lock_path, save_lock, utc_now
 from engine.lifecycle.manifest import Drift, build_manifest, compare, expected_with_patches, hash_file
-from engine.lifecycle.planner import checked_plan
-from engine.lifecycle.release import Release, find_version, newest, newest_patch, parse_version, require_ref
+from engine.lifecycle.planner import check_new_patch, checked_plan
+from engine.lifecycle.release import Release, find_version, newest_patch, parse_version, require_ref
 from engine.lifecycle.reports import MoveReport, StatusReport
-from engine.lifecycle.source import fetch_release, list_releases
+from engine.lifecycle.source import fetch_release, list_releases, newer_releases
 
 
 class EngineLifecycle:
@@ -121,7 +121,7 @@ class EngineLifecycle:
                 `ENGINE_PATCH_EXISTS` or `ENGINE_PATCH_EMPTY`.
         """
         lock = self._vendored_lock()
-        self._check_new_patch(lock, patch_id, patch_class)
+        check_new_patch(lock, patch_id, patch_class)
         files = {path: self._current_hash(lock, path) for path in self._normalize(lock, paths)}
         unchanged = sorted(path for path, digest in files.items() if digest == lock.manifest.get(path))
         if unchanged or not files:
@@ -151,7 +151,7 @@ class EngineLifecycle:
                 `ENGINE_HOTFIX_NO_CHANGE`, or a patch or source refusal.
         """
         lock = self._vendored_lock()
-        self._check_new_patch(lock, patch_id, patch_class)
+        check_new_patch(lock, patch_id, patch_class)
         wanted = self._normalize(lock, paths)
         clobbered = sorted(set(wanted) & set(self.unregistered_drift(lock).paths()))
         if clobbered:
@@ -164,8 +164,10 @@ class EngineLifecycle:
 
     # -- moves ----------------------------------------------------------------
 
-    def update(self, *, verify: str = "", dry_run: bool = False, dropped: Iterable[str] = ()) -> MoveReport:
+    def update(self, *, verify: str | None = None, dry_run: bool = False, dropped: Iterable[str] = ()) -> MoveReport:
         """Move to the newest release of the same `major.minor` line.
+
+        `verify` defaults to the lock's `verify_command`; pass "" to skip it.
 
         Raises:
             EngineLifecycleError: `ENGINE_ALREADY_LATEST`, or any move refusal.
@@ -176,8 +178,11 @@ class EngineLifecycle:
             raise EngineLifecycleError("ENGINE_ALREADY_LATEST", lock.ref)
         return self._move(lock, target, verify, dry_run, set(dropped))
 
-    def upgrade(self, to: str, *, verify: str = "", dry_run: bool = False, dropped: Iterable[str] = ()) -> MoveReport:
+    def upgrade(self, to: str, *, verify: str | None = None, dry_run: bool = False,
+                dropped: Iterable[str] = ()) -> MoveReport:
         """Move to the release carrying version `to`, across minors and majors.
+
+        `verify` defaults to the lock's `verify_command`; pass "" to skip it.
 
         Raises:
             EngineLifecycleError: `ENGINE_NOT_NEWER` for the same or an older
@@ -190,8 +195,10 @@ class EngineLifecycle:
             raise EngineLifecycleError("ENGINE_NOT_NEWER", f"{current.ref}->{target.ref}")
         return self._move(lock, target, verify, dry_run, set(dropped))
 
-    def _move(self, lock: EngineLock, target: Release, verify: str, dry_run: bool, dropped: set[str]) -> MoveReport:
+    def _move(self, lock: EngineLock, target: Release, verify: str | None, dry_run: bool,
+              dropped: set[str]) -> MoveReport:
         """Fetch `target`, plan the patches, then apply unless this is a dry run."""
+        verify = lock.verify_command if verify is None else verify
         if lock.mode == "vendored" and (drift := self.unregistered_drift(lock)):
             raise EngineLifecycleError("ENGINE_DRIFT_UNREGISTERED", ",".join(drift.paths()))
         current = require_ref(lock.ref)
@@ -228,6 +235,12 @@ class EngineLifecycle:
             rollback()
             raise EngineLifecycleError("ENGINE_VERIFY_FAILED", target.ref)
 
+    def set_verify_command(self, command: str) -> EngineLock:
+        """Record the command every move runs after the swap; "" clears it."""
+        lock = replace(load_lock(self.root), verify_command=command.strip())
+        save_lock(self.root, lock)
+        return lock
+
     # -- helpers --------------------------------------------------------------
 
     def _engine_dir(self, lock: EngineLock) -> Path:
@@ -256,13 +269,6 @@ class EngineLifecycle:
         prefix = lock.engine_path.rstrip("/") + "/"
         return sorted({Path(path).as_posix().removeprefix(prefix) for path in paths})
 
-    def _check_new_patch(self, lock: EngineLock, patch_id: str, patch_class: str) -> None:
-        """Refuse an unknown class or an id already in use."""
-        if patch_class not in PATCH_CLASSES:
-            raise EngineLifecycleError("ENGINE_PATCH_CLASS_INVALID", patch_class)
-        if any(patch.id == patch_id for patch in lock.patches):
-            raise EngineLifecycleError("ENGINE_PATCH_EXISTS", patch_id)
-
     def _check_hotfix_files(self, lock: EngineLock, release_engine: Path, paths: list[str]) -> None:
         """Refuse a hotfix path the ref lacks or whose content equals the pinned release."""
         missing = sorted(path for path in paths if not (release_engine / path).is_file())
@@ -275,15 +281,9 @@ class EngineLifecycle:
     def _fill_remote(self, report: StatusReport) -> None:
         """Add newer releases to the report, or the reason the source was unreadable."""
         try:
-            releases = list_releases(report.lock.source)
+            report.update, report.newest = newer_releases(report.lock.source, require_ref(report.lock.ref))
         except EngineLifecycleError as unreachable:
             report.remote_error = unreachable.code
-            return
-        current = require_ref(report.lock.ref)
-        report.update = newest_patch(current, releases)
-        latest = newest(releases)
-        report.newest = latest if latest is not None and latest > current else None
-
 
 def _without_paths(patches: list[Patch], paths: dict[str, str | None]) -> list[Patch]:
     """Return the patches with `paths` removed, dropping any patch left empty."""

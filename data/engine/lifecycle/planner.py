@@ -20,7 +20,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field, replace
 
 from engine.lifecycle.errors import EngineLifecycleError
-from engine.lifecycle.lock import EngineLock, Patch
+from engine.lifecycle.lock import PATCH_CLASSES, EngineLock, Patch
 
 
 @dataclass
@@ -97,4 +97,16 @@ def checked_plan(lock: EngineLock, manifest: dict[str, str], dropped: set[str]) 
     return plan
 
 
-__all__ = ["MovePlan", "checked_plan", "plan_move"]
+def check_new_patch(lock: EngineLock, patch_id: str, patch_class: str) -> None:
+    """Refuse an unknown patch class or an id already in use.
+
+    Raises:
+        EngineLifecycleError: `ENGINE_PATCH_CLASS_INVALID` or `ENGINE_PATCH_EXISTS`.
+    """
+    if patch_class not in PATCH_CLASSES:
+        raise EngineLifecycleError("ENGINE_PATCH_CLASS_INVALID", patch_class)
+    if any(patch.id == patch_id for patch in lock.patches):
+        raise EngineLifecycleError("ENGINE_PATCH_EXISTS", patch_id)
+
+
+__all__ = ["MovePlan", "check_new_patch", "checked_plan", "plan_move"]

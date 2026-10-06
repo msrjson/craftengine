@@ -33,9 +33,17 @@ class PanelPage:
             # The panel layout owns its own sidebar; the marketing layout's
             # rail must never be switched on underneath it.
             "show_sidebar": False,
+            # The cached engine update notice, admins only; never the network.
+            "engine_update": self.engine_update_notice(user),
         }
         context.update(data)
         return self.view(template, context)
+
+    def engine_update_notice(self, user):
+        """The cached engine update notice for an admin, or None (ADR 0005)."""
+        if not self.is_admin(user) or not self.container().bound("engine_updates"):
+            return None
+        return self.container().make("engine_updates").notice()
 
     @staticmethod
     def current_path(request) -> str:
