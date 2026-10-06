@@ -191,8 +191,9 @@ its absence.
   Tests: generated one-of-each lifecycle, connector webhook under `api/*` (CSRF-exempt)
   and its removal on deactivation, connector-to-module dependency blocking deactivation,
   uninstall keeping rows, a second install refused. Framework container: all green.
-  Demo slices wait for a release: `backlog/pending/*demo-generated-extensions.md` and
-  `*demo-stress-suite.md`.
+  Published as v4.6.0-r00026; the demo moved to it and its two slices closed
+  (`backlog/done/*demo-*`): five CLI-generated extensions and 27 matrix tests, 55 passed
+  on SQLite and on PostgreSQL.
 
 **2026-10-05 to 2026-10-06 (extension model, CRM demo):**
 
