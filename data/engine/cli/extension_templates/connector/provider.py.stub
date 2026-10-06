@@ -1,0 +1,17 @@
+"""Wire the __SLUG__ connector: the client and its exposure on the internal proxy.
+
+Everything goes through `context`, so deactivating the connector undoes it in
+the running process (ADR 0004).
+"""
+
+from .services.__SLUG___client import __CLASS__Client
+
+
+def register(context: object) -> None:
+    """Bind the connector's client and expose `deliver` to other extensions.
+
+    Args:
+        context: The connector's `ExtensionContext`.
+    """
+    context.app.singleton(__CLASS__Client, lambda container: __CLASS__Client())
+    context.expose("__SLUG__", __CLASS__Client, {"deliver"})

@@ -105,3 +105,20 @@ extension from its own failures.
   `CHANGELOG.md`.
 - The extension manager panel is itself a module: it gets no privilege the
   CLI does not have, and if it fails the application keeps serving.
+
+## Amendment 2026-10-06 — a fourth kind, `connector`
+
+Owner order: the reference application must stress the whole extension model,
+so an integration with an outside service gets its own kind instead of
+hiding in a module.
+
+| kind | contributes |
+|---|---|
+| `connector` | a headless integration: provider, services, migrations, translations and optionally `routes.py` for inbound webhooks. No `views`, no `assets` - the manifest is refused with `EXTENSION_KIND_CONTRIBUTION_FORBIDDEN` |
+
+Its root is `app/connectors`. `make:connector <slug>` generates it with an
+injectable transport (no network until the application wires one), an
+append-only delivery log table and a proxy exposure. `make:module` now also
+ships a model and a migration creating `<slug>_records`: a module is born
+with its schema. Lifecycle, isolation and the no-cross-import rule are
+unchanged.

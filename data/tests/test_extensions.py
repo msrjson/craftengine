@@ -312,8 +312,8 @@ class TestScaffolding:
         assert client.get(url + "/reports").status_code == 200
         assert Proxy.call(slug, "summary") == {"items": 0}
 
-    @pytest.mark.parametrize("kind", [ExtensionKind.PLUGIN, ExtensionKind.THEME])
-    def test_generated_plugins_and_themes_install_and_activate(self, extensions, tmp_path, kind):
+    @pytest.mark.parametrize("kind", [ExtensionKind.PLUGIN, ExtensionKind.THEME, ExtensionKind.CONNECTOR])
+    def test_generated_plugins_themes_and_connectors_install_and_activate(self, extensions, tmp_path, kind):
         from engine.cli.extension_scaffolder import DEFAULT_ROOTS, build_extension
 
         slug = "gen_" + uuid.uuid4().hex[:8]
@@ -321,6 +321,124 @@ class TestScaffolding:
         extensions.roots = [str(tmp_path / DEFAULT_ROOTS[kind])]
         _activate(extensions, slug)
         assert extensions.availability(slug) is Availability.SERVING
+
+    def test_a_generated_module_is_born_with_its_migration_and_table(self, extensions, tmp_path):
+        from engine.cli.extension_scaffolder import build_extension
+
+        slug = "gen_" + uuid.uuid4().hex[:8]
+        build_extension(str(tmp_path), ExtensionKind.MODULE, slug)
+        extensions.roots = [str(tmp_path / "app" / "modules")]
+        assert extensions.manifests()[slug].has("migrations")
+        extensions.install(slug)
+        assert any(name.endswith(f"_create_{slug}_records_table") for name in Migrator(app).applied())
+        assert DB.table(f"{slug}_records").count() == 0
+
+    def test_a_generated_connector_logs_its_delivery_through_the_proxy(self, extensions, tmp_path):
+        from engine.cli.extension_scaffolder import DEFAULT_ROOTS, build_extension
+
+        slug = "gen_" + uuid.uuid4().hex[:8]
+        build_extension(str(tmp_path), ExtensionKind.CONNECTOR, slug)
+        extensions.roots = [str(tmp_path / DEFAULT_ROOTS[ExtensionKind.CONNECTOR])]
+        _activate(extensions, slug)
+        assert Proxy.call(slug, "deliver", "order.paid", {"id": 1}) == {"status": "not_configured"}
+        assert DB.table(f"{slug}_deliveries").where("event", "order.paid").count() == 1
+
+    def test_a_connector_shipping_a_view_is_refused(self, tmp_path):
+        from engine.cli.extension_scaffolder import DEFAULT_ROOTS, build_extension
+        from engine.extensions.manifest import load_manifest
+
+        build_extension(str(tmp_path), ExtensionKind.CONNECTOR, "hooked")
+        directory = tmp_path / DEFAULT_ROOTS[ExtensionKind.CONNECTOR] / "hooked"
+        (directory / "views").mkdir()
+        with pytest.raises(ExtensionError) as refused:
+            load_manifest(str(directory))
+        assert refused.value.code == "EXTENSION_KIND_CONTRIBUTION_FORBIDDEN"
+
+    def test_one_of_each_kind_lives_and_dies_without_touching_anything_else(self, extensions, client, tmp_path):
+        from engine.cli.extension_scaffolder import DEFAULT_ROOTS, build_extension
+
+        slugs = {kind: f"gen_{kind.value}_" + uuid.uuid4().hex[:6] for kind in ExtensionKind}
+        written = [path for kind, slug in slugs.items() for path in build_extension(str(tmp_path), kind, slug)]
+        for path in written:
+            assert any(os.path.join(DEFAULT_ROOTS[kind], slug) in path for kind, slug in slugs.items())
+        extensions.roots = [str(tmp_path / root) for root in DEFAULT_ROOTS.values()]
+        for slug in slugs.values():
+            _activate(extensions, slug)
+        assert all(extensions.availability(slug) is Availability.SERVING for slug in slugs.values())
+        module = slugs[ExtensionKind.MODULE]
+        assert client.get("/" + module.replace("_", "-")).status_code == 200
+        for slug in slugs.values():
+            extensions.deactivate(slug)
+        assert client.get("/" + module.replace("_", "-")).status_code != 200
+        for kind in (ExtensionKind.MODULE, ExtensionKind.CONNECTOR):
+            with pytest.raises(InternalProxyError):
+                Proxy.call(slugs[kind], "summary" if kind is ExtensionKind.MODULE else "deliver")
+        assert sorted(os.listdir(tmp_path)) == ["app"]
+
+    def test_installing_twice_is_refused_and_runs_the_migrations_once(self, extensions, tmp_path):
+        from engine.cli.extension_scaffolder import build_extension
+
+        slug = "gen_" + uuid.uuid4().hex[:8]
+        build_extension(str(tmp_path), ExtensionKind.MODULE, slug)
+        extensions.roots = [str(tmp_path / "app" / "modules")]
+        assert len(extensions.install(slug)) == 1
+        with pytest.raises(ExtensionError) as refused:
+            extensions.install(slug)
+        assert refused.value.code == "EXTENSION_ALREADY_INSTALLED"
+        assert DB.table(f"{slug}_records").count() == 0
+
+    def test_uninstalling_a_generated_module_keeps_its_rows(self, extensions, tmp_path):
+        from engine.cli.extension_scaffolder import build_extension
+
+        slug = "gen_" + uuid.uuid4().hex[:8]
+        build_extension(str(tmp_path), ExtensionKind.MODULE, slug)
+        extensions.roots = [str(tmp_path / "app" / "modules")]
+        _activate(extensions, slug)
+        DB.table(f"{slug}_records").insert({"name": "kept"})
+        extensions.deactivate(slug)
+        extensions.uninstall(slug)
+        assert DB.table(f"{slug}_records").where("name", "kept").count() == 1
+
+    def test_modules_generated_back_to_back_do_not_collide(self, extensions, tmp_path):
+        from engine.cli.extension_scaffolder import build_extension
+
+        slugs = [f"gen_{index}_" + uuid.uuid4().hex[:6] for index in range(3)]
+        for slug in slugs:
+            build_extension(str(tmp_path), ExtensionKind.MODULE, slug)
+        extensions.roots = [str(tmp_path / "app" / "modules")]
+        for slug in slugs:
+            _activate(extensions, slug)
+            assert DB.table(f"{slug}_records").count() == 0
+
+    def test_a_connector_answers_an_inbound_webhook_and_stops_when_deactivated(self, extensions, client, tmp_path):
+        from engine.cli.extension_scaffolder import DEFAULT_ROOTS, build_extension
+
+        slug = "gen_" + uuid.uuid4().hex[:8]
+        build_extension(str(tmp_path), ExtensionKind.CONNECTOR, slug)
+        directory = tmp_path / DEFAULT_ROOTS[ExtensionKind.CONNECTOR] / slug
+        (directory / "routes.py").write_text(
+            'def register(router):\n    router.post("/api/hooks/' + slug + '", lambda: {"received": True})\n'
+        )
+        extensions.roots = [str(tmp_path / DEFAULT_ROOTS[ExtensionKind.CONNECTOR])]
+        _activate(extensions, slug)
+        assert client.post(f"/api/hooks/{slug}").status_code == 200
+        extensions.deactivate(slug)
+        assert client.post(f"/api/hooks/{slug}").status_code != 200
+
+    def test_a_connector_needing_a_module_blocks_that_modules_deactivation(self, extensions, tmp_path):
+        from engine.cli.extension_scaffolder import DEFAULT_ROOTS, build_extension
+
+        module, connector = "gen_m" + uuid.uuid4().hex[:6], "gen_c" + uuid.uuid4().hex[:6]
+        build_extension(str(tmp_path), ExtensionKind.MODULE, module)
+        build_extension(str(tmp_path), ExtensionKind.CONNECTOR, connector)
+        manifest = tmp_path / DEFAULT_ROOTS[ExtensionKind.CONNECTOR] / connector / "extension.toml"
+        manifest.write_text(manifest.read_text() + f'{module} = ">=0.1"\n')
+        extensions.roots = [str(tmp_path / root) for root in DEFAULT_ROOTS.values()]
+        _activate(extensions, module, connector)
+        with pytest.raises(ExtensionError):
+            extensions.deactivate(module)
+        extensions.deactivate(connector)
+        extensions.deactivate(module)
 
     def test_an_existing_extension_is_not_overwritten(self, tmp_path):
         from engine.cli.extension_scaffolder import build_extension

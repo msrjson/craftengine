@@ -1,0 +1,10 @@
+"""The delivery log of the __SLUG__ connector."""
+
+from craft.orm import Model
+
+
+class __CLASS__Delivery(Model):
+    """One attempt to deliver an event; rows are append-only."""
+
+    __table__ = "__SLUG___deliveries"
+    fillable = ["event", "status"]

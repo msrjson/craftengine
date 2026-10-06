@@ -4,7 +4,7 @@ Every generated extension is self-contained under the first configured root of
 its kind (`app/modules`, `app/plugins`, `app/themes` by default), installs and
 activates as it is, and ships its copy as keys in `en`, `pt-BR` and `es`.
 Templates live in `extension_templates/` as `.stub` files; placeholders are
-`__SLUG__`, `__CLASS__`, `__NAME__`, `__URL__`, `__SCREEN__`, `__SCREEN_CLASS__`
+`__STAMP__` (the UTC time that prefixes a migration file), `__SLUG__`, `__CLASS__`, `__NAME__`, `__URL__`, `__SCREEN__`, `__SCREEN_CLASS__`
 and the engine version bounds.
 """
 # Craft Framework
@@ -16,6 +16,7 @@ from __future__ import annotations
 import json
 import os
 import re
+from datetime import UTC, datetime
 from typing import Final
 
 from engine.extensions.errors import ExtensionError
@@ -36,6 +37,7 @@ DEFAULT_ROOTS: Final[dict[ExtensionKind, str]] = {
     ExtensionKind.MODULE: os.path.join("app", "modules"),
     ExtensionKind.PLUGIN: os.path.join("app", "plugins"),
     ExtensionKind.THEME: os.path.join("app", "themes"),
+    ExtensionKind.CONNECTOR: os.path.join("app", "connectors"),
 }
 
 
@@ -94,7 +96,8 @@ def _values(slug: str) -> dict[str, str]:
     major = int(str(getattr(engine, "__version__", "4")).split(".")[0])
     return {
         "__SLUG__": slug, "__CLASS__": _studly(slug), "__NAME__": slug.replace("_", " ").title(),
-        "__URL__": slug.replace("_", "-"), "__ENGINE_MAJOR__": str(major), "__ENGINE_NEXT__": str(major + 1),
+        "__URL__": slug.replace("_", "-"), "__STAMP__": datetime.now(UTC).strftime("%Y_%m_%d_%H%M%S"),
+        "__ENGINE_MAJOR__": str(major), "__ENGINE_NEXT__": str(major + 1),
     }
 
 

@@ -1,0 +1,10 @@
+"""The record of the __SLUG__ module."""
+
+from craft.orm import Model, SoftDeletes
+
+
+class __CLASS__Record(SoftDeletes, Model):
+    """A row of `__SLUG___records`. Deleting it only stamps `deleted_at`."""
+
+    __table__ = "__SLUG___records"
+    fillable = ["name"]

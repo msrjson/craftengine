@@ -1,0 +1,10 @@
+slug = "__SLUG__"
+kind = "connector"
+version = "0.1.0"
+engine = ">=__ENGINE_MAJOR__.0,<__ENGINE_NEXT__"
+name_key = "__SLUG__.extension.name"
+
+# A connector is headless: no views and no assets. It may ship `routes.py`
+# for inbound webhooks. Other extensions reach it through the internal proxy
+# or events - never by importing its code.
+[requires]

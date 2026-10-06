@@ -52,6 +52,7 @@ RUNTIME_DIRECTORIES: Final[List[str]] = [
     os.path.join("app", "modules"),
     os.path.join("app", "plugins"),
     os.path.join("app", "themes"),
+    os.path.join("app", "connectors"),
 ]
 
 #: Package directories that need an `__init__.py` to be importable.

@@ -1,4 +1,4 @@
-# Extensions: modules, plugins and themes
+# Extensions: modules, plugins, themes and connectors
 
 An application grows by adding extensions, never by changing the engine. The
 engine is the runtime; each extension is a self-contained unit it discovers,
@@ -10,13 +10,14 @@ The decision and its limits are in `docs/adr/0004-extension-model.md`.
 | `module` | A business feature and its screens (contacts, billing, deals) | provider, routes, controllers, services, views, migrations, translations, assets |
 | `plugin` | A cross-cutting capability (audit trail, pricing rules, a payment gateway) | the same as a module |
 | `theme` | Presentation only | views that override others, assets, translations |
+| `connector` | A headless integration with an outside service | provider, services, migrations, translations, optional webhook `routes.py`; never views or assets |
 
 ## Where extensions live
 
 `config/extensions.py` lists the roots, relative to the application:
 
 ```python
-paths = ["app/modules", "app/plugins", "app/themes"]
+paths = ["app/modules", "app/plugins", "app/themes", "app/connectors"]
 ```
 
 Every directory directly under a root that holds an `extension.toml` is one
@@ -29,6 +30,7 @@ python dev.py make module sales_pipeline     # app/modules/sales_pipeline/
 python dev.py make screen sales_pipeline deals
 python dev.py make plugin member_pricing     # app/plugins/member_pricing/
 python dev.py make theme sunrise             # app/themes/sunrise/
+python dev.py make connector payments        # app/connectors/payments/ (client, delivery log, no UI)
 
 python dev.py extension install sales_pipeline
 python dev.py extension activate sales_pipeline
@@ -57,7 +59,7 @@ app/modules/sales_pipeline/
 
 ```toml
 slug = "ordering"                    # unique; also the view namespace and key prefix
-kind = "module"                      # module | plugin | theme
+kind = "module"                      # module | plugin | theme | connector
 version = "1.0.0"
 engine = ">=4.3,<5"                  # engine versions it runs on
 name_key = "ordering.extension.name" # translation key of its name

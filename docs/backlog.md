@@ -184,6 +184,16 @@ its absence.
 
 ## 🤖 Done automatically
 
+**2026-10-06 (extension kinds, owner order):**
+
+- Added the `connector` extension kind (`make:connector`, `app/connectors`) and made
+  `make:module` generate a model and a migration, so a module is born with its schema.
+  Tests: generated one-of-each lifecycle, connector webhook under `api/*` (CSRF-exempt)
+  and its removal on deactivation, connector-to-module dependency blocking deactivation,
+  uninstall keeping rows, a second install refused. Framework container: all green.
+  Demo slices wait for a release: `backlog/pending/*demo-generated-extensions.md` and
+  `*demo-stress-suite.md`.
+
 **2026-10-05 to 2026-10-06 (extension model, CRM demo):**
 
 - Found by the CRM demo (`msrjson/craftengine-demo`), which installs the framework

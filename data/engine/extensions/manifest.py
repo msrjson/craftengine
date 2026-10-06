@@ -39,13 +39,17 @@ class ExtensionKind(StrEnum):
     MODULE = "module"
     PLUGIN = "plugin"
     THEME = "theme"
+    CONNECTOR = "connector"
 
 
-#: Files and directories a kind may not ship. A theme is presentation only.
+#: Files and directories a kind may not ship. A theme is presentation only;
+#: a connector is headless (an integration with an outside service), so it
+#: ships no views and no assets. It may ship routes, for inbound webhooks.
 FORBIDDEN_CONTRIBUTIONS: dict[ExtensionKind, tuple[str, ...]] = {
     ExtensionKind.MODULE: (),
     ExtensionKind.PLUGIN: (),
     ExtensionKind.THEME: ("provider.py", "routes.py", "migrations"),
+    ExtensionKind.CONNECTOR: ("views", "assets"),
 }
 
 
@@ -56,7 +60,7 @@ class Manifest:
     Attributes:
         slug: Unique identifier; also the view namespace and the translation
             key prefix.
-        kind: Module, plugin or theme.
+        kind: Module, plugin, theme or connector.
         version: Dotted integers.
         engine: Range of engine versions the extension runs on.
         name_key: Translation key of the human-readable name.

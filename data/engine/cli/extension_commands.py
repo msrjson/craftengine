@@ -17,7 +17,7 @@ import typer
 
 from engine.extensions.errors import ExtensionError
 
-extension_app = typer.Typer(name="extension", help="Modules, plugins and themes (ADR 0004).", no_args_is_help=True)
+extension_app = typer.Typer(name="extension", help="Modules, plugins, themes and connectors (ADR 0004).", no_args_is_help=True)
 
 
 def _manager() -> Any:
@@ -92,7 +92,7 @@ def extension_uninstall(slug: str) -> None:
 
 
 def register_make_commands(make_app: typer.Typer) -> None:
-    """Add `make:module`, `make:plugin`, `make:theme` and `make:screen` to `make`."""
+    """Add `make:module`, `make:plugin`, `make:theme`, `make:connector` and `make:screen` to `make`."""
     from engine.extensions.manifest import ExtensionKind
 
     def scaffold(kind: ExtensionKind) -> Callable[..., None]:

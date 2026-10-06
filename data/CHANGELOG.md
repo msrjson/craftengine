@@ -18,6 +18,21 @@ full policy (categories to use, what counts as security-relevant, how
 
 ## [Unreleased]
 
+### Added
+
+- **Fourth extension kind: `connector`** (ADR 0004 amendment). A headless
+  integration with an outside service: provider, services, migrations,
+  translations and optional webhook routes; a manifest shipping `views` or
+  `assets` is refused. `make:connector <slug>` generates it under
+  `app/connectors` (now in the default `extensions.paths` and the project
+  skeleton) with an injectable transport and an append-only delivery log.
+
+### Changed
+
+- `make:module` now generates a model and a migration creating
+  `<slug>_records`, so a module is born with its schema instead of an empty
+  `migrations/.gitkeep`. Migration file names carry the UTC generation time.
+
 ## [4.5.0] r00025 — 2026-10-06
 
 ### Added

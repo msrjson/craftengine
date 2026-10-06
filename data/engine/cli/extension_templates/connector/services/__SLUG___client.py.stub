@@ -1,0 +1,39 @@
+"""The outbound side of the __SLUG__ connector."""
+
+from collections.abc import Callable
+from typing import Any
+
+from ..models import __CLASS__Delivery
+
+Transport = Callable[[str, dict[str, Any]], dict[str, Any]]
+
+
+def _not_configured(event: str, payload: dict[str, Any]) -> dict[str, Any]:
+    """Default transport: talks to nobody, so a fresh connector never reaches the network."""
+    return {"status": "not_configured"}
+
+
+class __CLASS__Client:
+    """Delivers events to the outside service and records every attempt.
+
+    Args:
+        transport: Callable doing the actual call. Inject a real one at boot
+            (through the provider) and a fake in tests.
+    """
+
+    def __init__(self, transport: Transport = _not_configured) -> None:
+        self._transport = transport
+
+    def deliver(self, event: str, payload: dict[str, Any]) -> dict[str, Any]:
+        """Send one event and log the outcome in `__SLUG___deliveries`.
+
+        Args:
+            event: Machine name of the event, e.g. `order.paid`.
+            payload: Data to send; never a rendered sentence.
+
+        Returns:
+            The transport's answer, always carrying a `status`.
+        """
+        answer = self._transport(event, payload)
+        __CLASS__Delivery.create({"event": event, "status": str(answer.get("status", "unknown"))})
+        return answer

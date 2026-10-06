@@ -1,4 +1,4 @@
-"""Extension configuration: where the application keeps its modules, plugins and themes.
+"""Extension configuration: where the application keeps its modules, plugins, themes and connectors.
 
 The engine never names an application directory (ADR 0003, EB-02); it reads
 the roots listed here, relative to the application base path. Each directory
@@ -11,7 +11,7 @@ directly under a root that holds an `extension.toml` is one extension
 
 from craft.config import env
 
-paths = ["app/modules", "app/plugins", "app/themes"]
+paths = ["app/modules", "app/plugins", "app/themes", "app/connectors"]
 
 #: Unexpected failures of one extension, inside `failure_window` seconds, that
 #: take it out of service: its routes answer 503, its proxy targets are
