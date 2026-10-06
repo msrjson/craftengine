@@ -1,6 +1,6 @@
 # Backlog - CraftEngine (history)
 
-**Updated:** 2026-10-06T20:10:00Z
+**Updated:** 2026-10-06T20:12:00Z
 
 **Open work no longer lives here.** It is a queue of task files under
 [`backlog/`](../backlog/README.md), one file per item, each named and stamped with
@@ -13,6 +13,9 @@ predates 4.0.0 and stays as history.
 
 ## Revision history
 
+- 2026-10-06T20:12:00Z - logged two more findings from the dependency and hosting
+  review (Starlette coupling, missing deployment guide); the open items live in the
+  queue.
 - 2026-10-06T20:10:00Z - logged the passlib/bcrypt pin workaround finding; the open
   item itself lives in the queue, not here.
 - 2026-10-03T23:05:00Z - the queue became mandatory: rules in
@@ -195,6 +198,12 @@ its absence.
   `backlog/pending/p2-20261006-200037-replace-passlib-bcrypt-pin-workaround.md`
   (owner decision, auth-sensitive, no code changed). Whether passlib is still
   maintained is `UNVERIFIED` and recorded as such in the task.
+- Starlette is imported directly by 11 engine modules instead of through one boundary.
+  Documented as a decision task, no code changed:
+  `backlog/pending/p3-20261006-200424-starlette-adapter-layer-decision.md`.
+- No deployment guide explains running the ASGI framework behind Apache or nginx
+  (`Dockerfile.prod:60` runs gunicorn with uvicorn workers). Documented as
+  `backlog/pending/p2-20261006-200727-document-deployment-behind-apache-nginx.md`.
 
 **2026-10-06 (extension kinds, owner order):**
 
