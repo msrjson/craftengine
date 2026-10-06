@@ -1,0 +1,77 @@
+"""Refuse framework edits during an application feature task.
+
+Compare against the recorded starting commit or CI merge-base, including
+committed, staged, unstaged and untracked changes. No engine imports required.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import subprocess
+from pathlib import Path
+
+
+def _git(root: Path, *args: str) -> str:
+    """Read Git state without invoking a shell or mutating the repository."""
+    return subprocess.run(
+        ["git", "-C", str(root), *args], check=True, capture_output=True, text=True,
+    ).stdout
+
+
+def _engine_path(lock: dict) -> str:
+    """Validate a project-local engine path from the reviewed baseline lock."""
+    if not isinstance(lock, dict):
+        raise ValueError("APPLICATION_ENGINE_LOCK_INVALID")
+    path = Path(lock.get("engine_path", "engine"))
+    if path.is_absolute() or ".." in path.parts or str(path) == ".":
+        raise ValueError("APPLICATION_ENGINE_PATH_INVALID")
+    if lock.get("schema") != 1 or lock.get("mode") not in {"package", "vendored"}:
+        raise ValueError("APPLICATION_ENGINE_LOCK_INVALID")
+    return path.as_posix()
+
+
+def findings(root: Path, base: str) -> list[str]:
+    """Return protected paths changed since the reviewed starting commit.
+
+    Raises:
+        CalledProcessError: The project, baseline commit or baseline lock is missing.
+        ValueError: The baseline lock does not describe a supported local layout.
+    """
+    revision = _git(root, "rev-parse", "--verify", "--end-of-options", base + "^{commit}").strip()
+    lock = json.loads(_git(root, "show", revision + ":craft-engine.lock"))
+    engine_path = _engine_path(lock)
+    protected = sorted({engine_path, "engine", "craft-engine.lock", "AGENTS.md", "CLAUDE.md",
+                        "GEMINI.md", "QWEN.md", ".cursorrules", "tools/check_engine_changes.py"})
+    changed = _git(root, "diff", "--name-only", "-z", revision, "--", *protected)
+    untracked = _git(root, "ls-files", "--others", "--exclude-standard", "-z", "--", *protected)
+    found = {path for path in (changed + untracked).split("\0") if path}
+    if lock["mode"] == "package":
+        for path in {engine_path, "engine"}:
+            local = root / path
+            if local.exists() or local.is_symlink():
+                found.add(path + "/")
+    return sorted(found)
+
+
+def main() -> int:
+    """Check the project boundary, reporting engineer-facing codes only."""
+    parser = argparse.ArgumentParser(description="Check the application's engine boundary against a task baseline.")
+    parser.add_argument("--base", required=True, help="starting commit or target-branch merge-base")
+    args = parser.parse_args()
+    root = Path(__file__).resolve().parents[1]
+    try:
+        changed = findings(root, args.base)
+    except (subprocess.CalledProcessError, OSError, ValueError, TypeError):
+        print("APPLICATION_ENGINE_CHECK_UNAVAILABLE")
+        return 2
+    for path in changed:
+        print("APPLICATION_ENGINE_CHANGE_FORBIDDEN " + path)
+    if changed:
+        return 1
+    print("APPLICATION_ENGINE_BOUNDARY_OK")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

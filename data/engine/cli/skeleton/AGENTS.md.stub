@@ -1,0 +1,70 @@
+# Application instructions for every agent
+
+This repository is a product built on Craft Engine. The engine is a pinned
+dependency; application features belong to the application. This file is the
+single instruction source. CLAUDE.md, GEMINI.md, QWEN.md and .cursorrules link
+to it; edit this file rather than giving different tools different rules.
+
+## The engine boundary
+
+- A request for a new product feature authorizes application changes only.
+- Never edit engine/, a vendored framework directory, the installed engine in
+  site-packages, or the engine release pin/lock as part of a product feature.
+- Never copy framework internals into the application or monkey-patch them to
+  work around this boundary.
+- Read the installed API and existing application code before implementing.
+  Use configuration, providers and supported extension points.
+- If an engine capability is missing, document the smallest reproducible gap
+  and the required public contract. Continue independent application work.
+  Framework changes require a separate, explicit owner-authorized maintenance
+  task in the framework repository, with tests and a release before adoption.
+- An agent must not authorize an engine change merely because its preferred
+  implementation needs one. Do not bypass or modify the boundary guard.
+
+## Where features belong
+
+| Need | Location |
+|---|---|
+| Business domain, records, invariants, screens | app/modules/ |
+| Capability or behavior attached to public hooks | app/plugins/ |
+| Presentation of existing features | app/themes/ |
+| External integration and inbound webhooks | app/connectors/ |
+| Application composition and shared contract types | app/, bootstrap/, config/ |
+
+The roots above are defaults; inspect config/extensions.py for this project.
+Modules and plugins share an extension runtime but have different design
+responsibilities. Themes have no providers, routes or migrations. Connectors
+have no views or assets. Each domain owns its data and authorization rules.
+
+Use extension.toml dependencies, the internal proxy for synchronous calls,
+events for reactions and filters for value adjustments. Do not import another
+extension's implementation. Register owned contributions through the supplied
+ExtensionContext, including context.app service registrations.
+
+## Task workflow and verification
+
+1. Read Git status and preserve work owned by others. Record the task's starting
+   commit with git rev-parse HEAD before editing. Do not replace this baseline
+   with a commit the agent makes later in the task.
+2. Implement the feature in application-owned paths and add behavioral tests
+   appropriate to the change. Keep source code, comments and documentation in
+   English; user-facing copy uses database-backed translation keys.
+3. Before completion, run python tools/check_engine_changes.py --base
+   <starting-commit>, the relevant application tests and craft doctor after
+   changing routes, views, models or identity configuration. Resolve findings.
+4. In CI/review, run the guard against the target branch's merge-base or the
+   reviewed starting commit. Comparing only to the latest HEAD would miss an
+   engine edit the agent already committed.
+
+The guard detects project-local source/lock/governance changes. It is not an
+OS sandbox and does not inspect installed packages outside the repository.
+The owner controls a separate framework-update workflow; feature tasks never
+silently become framework-update tasks.
+
+## Data and lifecycle safety
+
+Never wipe, drop, truncate, reset or physically delete persisted data. Use
+forward-only migrations and soft deletion. Never edit applied migrations.
+Deactivation/uninstallation preserves extension data. Code updates require
+deactivation, forward updates and coordinated worker restart before activation.
+Engine updates are separate from extension updates and from feature delivery.

@@ -14,6 +14,11 @@ own business domains, plugins add capabilities, themes present existing
 features and connectors integrate external systems. A CMS is an application
 built from those pieces.
 
+Commercial products keep the engine as a pinned package dependency. `craft new`
+includes agent instructions and a baseline-based change guard so feature tasks
+stay in application-owned code. See the
+[maintenance workflow](documentation/architecture.md#maintaining-commercial-applications-with-agents).
+
 ```python
 from craft.facades import Route, DB, Auth
 from craft.orm.model import Model

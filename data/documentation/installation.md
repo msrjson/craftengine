@@ -5,22 +5,36 @@
 - **Python 3.14 or newer.** The suite is validated on 3.14.
 - A database. **SQLite is the default** and ships with Python — no server
   needed. PostgreSQL and MySQL are opt-in.
+- Git for installing pinned source releases and running the application change guard.
 
-## Setup
+## Start an application
+
+Commercial applications use the engine as a pinned package dependency. Each
+application owns its code and repository; a product feature does not authorize
+editing the framework. Choose the release tag approved for the application:
 
 ```bash
-git clone <repository-url> my-app
+python -m pip install "craft[dev] @ git+https://github.com/msrjson/craftengine.git@<approved-tag>#subdirectory=data"
+craft new my-app
 cd my-app
-pip install -e ".[dev]"
 ```
 
-`[dev]` adds `pytest` and `httpx`. For a production install, drop it.
+`[dev]` adds the development tools. For production, omit that extra. Record the
+same approved tag in the application's dependency manifest or image build and
+adopt that pin file with `craft engine adopt <approved-tag> --pin <pin-file>`.
+The generated engine lock records the release used to create the project;
+the lock does not install the dependency by itself.
+
+Initialize the application's own Git repository and create its initial commit
+before assigning feature tasks. Exclude secrets and runtime data from version
+control. New projects include `AGENTS.md` and a baseline-based engine change
+guard; see [architecture.md](architecture.md#maintaining-commercial-applications-with-agents).
 
 Optional extras:
 
 ```bash
-pip install -e ".[mysql]"   # PyMySQL
-pip install -e ".[redis]"   # Redis cache store
+python -m pip install "craft[mysql] @ git+https://github.com/msrjson/craftengine.git@<approved-tag>#subdirectory=data"
+python -m pip install "craft[redis] @ git+https://github.com/msrjson/craftengine.git@<approved-tag>#subdirectory=data"
 ```
 
 ## Configure
@@ -78,7 +92,9 @@ The application is at `http://127.0.0.1:9000`. Use `--host`, `--port` and
 
 ## Docker
 
-`docker-compose.yml` brings up the app and PostgreSQL together:
+The framework development repository's `docker-compose.yml` brings up the
+framework and PostgreSQL together. A generated application supplies its own
+deployment configuration and installs the approved engine package there:
 
 ```bash
 docker compose up -d --build
@@ -86,6 +102,12 @@ docker compose up -d --build
 
 - Application: `http://localhost:9000`
 - PostgreSQL: `localhost:5499` (user `craft`, database `craft_db`)
+
+## Contributing to the engine
+
+Cloning the canonical framework repository and installing it with
+`pip install -e ".[dev]"` is for framework development. That editable checkout
+is separate from commercial application repositories and their feature tasks.
 
 Run the suite inside the container to check the minimum Python version:
 

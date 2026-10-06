@@ -13,6 +13,12 @@ take a single fix without moving. The design is in ADR 0005.
 
 `craft new` writes a `package` lock for the release that generated the project.
 
+For commercial applications, keep package mode and treat engine adoption as a
+separate, owner-authorized maintenance task. Adding a product feature does not
+authorize changing the engine, its pin or registered patches. The generated
+application's baseline guard enforces this task boundary for repository-local
+changes; see [architecture.md](architecture.md#maintaining-commercial-applications-with-agents).
+
 ## Adopting a release
 
 ```bash

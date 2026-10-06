@@ -1,5 +1,9 @@
 """Generation of a new, bare Craft Engine project.
 
+Category: Core Framework (CLI scaffolding).
+Relations: Skeleton templates define application layout and engine boundary instructions.
+References: documentation/installation.md, documentation/architecture.md.
+
 The framework repository used to be the starting point: a developer cloned an
 application - admin panel, demo models, theme, documentation site - and had to
 work out which parts were the engine and which were a demonstration. Nothing
@@ -24,6 +28,9 @@ from pathlib import Path
 from typing import Dict, Final, List
 
 from engine.lifecycle.lock import LOCK_FILE, EngineLock, save_lock
+
+#: All tools read the generated application's single instruction source.
+AGENT_LINKS: Final[tuple[str, ...]] = ("CLAUDE.md", "GEMINI.md", "QWEN.md", ".cursorrules")
 
 #: Root of the template tree, alongside this module.
 SKELETON_ROOT: Final[str] = os.path.join(os.path.dirname(os.path.abspath(__file__)), "skeleton")
@@ -187,8 +194,19 @@ def build_project(target_path: str, *, force: bool = False) -> Dict[str, object]
 
     _write_package_markers(target, written)
     _write_runtime_directories(target)
+    _write_agent_links(target, written)
     written[LOCK_FILE] = str(_write_engine_lock(target))
     return {"path": target, "files": written}
+
+
+def _write_agent_links(target: str, written: Dict[str, str]) -> None:
+    """Point tools at AGENTS.md without overwriting existing project instructions."""
+    for name in AGENT_LINKS:
+        destination = Path(target) / name
+        if destination.exists() or destination.is_symlink():
+            continue
+        destination.symlink_to("AGENTS.md")
+        written[name] = str(destination)
 
 
 def _write_engine_lock(target: str) -> Path:

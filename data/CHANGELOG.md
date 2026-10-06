@@ -20,6 +20,13 @@ full policy (categories to use, what counts as security-relevant, how
 
 ### Added
 
+- Generated applications now include one `AGENTS.md` instruction source and
+  tool symlinks, plus a task-baseline guard against project-local engine,
+  lock and governance edits during product feature work. The guard catches
+  committed edits and local engine copies as well as working-tree changes.
+  Commercial setup guidance now starts from an approved package release and
+  `craft new`, reserving engine maintenance for a separate authorized workflow.
+
 - `extension update <slug>` applies pending forward migrations and missing
   translations to stopped installed extensions, validates dependency and
   dependent version ranges, refuses downgrades/kind changes, and records the

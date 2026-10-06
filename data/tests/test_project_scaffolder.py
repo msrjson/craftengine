@@ -62,6 +62,8 @@ class TestBuildProject:
             "database/seeders/DatabaseSeeder.py",
             "dev.py",
             "public/index.py",
+            "AGENTS.md",
+            "tools/check_engine_changes.py",
         ):
             assert required in written, required
             assert os.path.isfile(written[required])

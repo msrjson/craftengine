@@ -160,3 +160,42 @@ an extension loader.
 This division lets a CMS provide a simple administration experience while
 other applications use the same engine without inheriting CMS-specific data
 models, screens or content assumptions.
+
+## Maintaining commercial applications with agents
+
+Keep each product in its own repository, with the engine installed as a
+package from an approved, pinned release. Start with `craft new`, not a clone
+of the framework development repository. Product features belong to modules,
+plugins, themes, connectors and application composition. The engine release
+is a separate maintenance decision.
+
+New generated projects include application-specific `AGENTS.md` instructions,
+tool symlinks to that single source, and `tools/check_engine_changes.py`.
+Before a feature task, record its starting commit. Before completion, run:
+
+```bash
+python tools/check_engine_changes.py --base <starting-commit>
+```
+
+The check compares protected engine, lock and governance paths against that
+baseline, including commits the agent made during the task, staged/unstaged
+changes and untracked files. A package-mode project also refuses a local
+engine copy, including one hidden by ignore rules. In CI, use the target
+branch's reviewed merge-base; resetting the comparison to the agent's latest
+commit would miss an already committed change.
+
+An existing application can adopt these instructions and the guard from the
+project skeleton in a deliberate setup task. The guard needs the Git executable, a Git repository
+and a baseline commit containing `craft-engine.lock`; it fails closed when
+those are absent. It is a workflow gate, not an OS sandbox, and cannot inspect
+installed dependencies outside the repository or infer arbitrary monkey patches.
+
+When a feature reveals a genuine missing engine contract, document a minimal
+reproduction and the proposed seam. A separate owner-authorized framework
+task implements and tests the generic capability, releases it, and then the
+application deliberately adopts that release. Agents continue independent
+product work instead of modifying the installed or vendored engine.
+
+Framework adoption and governance changes use their own reviewed maintenance
+workflow. An ordinary feature task cannot bypass or modify this guard to
+authorize its own engine edit.
