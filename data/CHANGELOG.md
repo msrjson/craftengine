@@ -18,6 +18,8 @@ full policy (categories to use, what counts as security-relevant, how
 
 ## [Unreleased]
 
+## [4.7.0] r00027 — 2026-10-06
+
 ### Added
 
 - Generated applications now include one `AGENTS.md` instruction source and

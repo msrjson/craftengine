@@ -26,7 +26,7 @@ docker run --rm --name crm-rehearsal --network "$NET" \
     cp -r /src /tmp/engine && pip install -q --root-user-action=ignore "/tmp/engine[dev]" >/tmp/pip.log 2>&1
     python -c "import engine; print(\"ENGINE\", engine.__version__, engine.__release__)"
     cp -r /demo /tmp/crm && cd /tmp/crm && rm -rf .env .git && cp .env.example .env
-    export APP_URL=http://testserver
+    export APP_URL=http://testserver APP_LOCALE=pt-BR
     python dev.py key:generate >/dev/null
     python dev.py make auth >/dev/null
     python dev.py make admin >/dev/null
