@@ -1,6 +1,6 @@
 # Backlog - CraftEngine (history)
 
-**Updated:** 2026-10-03T23:05:00Z
+**Updated:** 2026-10-06T20:10:00Z
 
 **Open work no longer lives here.** It is a queue of task files under
 [`backlog/`](../backlog/README.md), one file per item, each named and stamped with
@@ -13,6 +13,8 @@ predates 4.0.0 and stays as history.
 
 ## Revision history
 
+- 2026-10-06T20:10:00Z - logged the passlib/bcrypt pin workaround finding; the open
+  item itself lives in the queue, not here.
 - 2026-10-03T23:05:00Z - the queue became mandatory: rules in
   `.claude/rules/BACKLOG_QUEUE_STANDARD.md`, gate `.claude/rules/lint_backlog.py`
   wired as a Claude hook and a Git `pre-commit`.
@@ -183,6 +185,16 @@ coded exception is still exposed. The test that asserted the leak now asserts
 its absence.
 
 ## 🤖 Done automatically
+
+**2026-10-06 (dependency review, owner request):**
+
+- A framework comparison surfaced a workaround in password hashing: `pyproject.toml`
+  pins `bcrypt<4.1` so `passlib` does not raise, and `engine/auth/password.py:56-88`
+  suppresses the passlib logger and falls back silently when the backend fails to
+  load. Documented instead of patched: task
+  `backlog/pending/p2-20261006-200037-replace-passlib-bcrypt-pin-workaround.md`
+  (owner decision, auth-sensitive, no code changed). Whether passlib is still
+  maintained is `UNVERIFIED` and recorded as such in the task.
 
 **2026-10-06 (extension kinds, owner order):**
 
