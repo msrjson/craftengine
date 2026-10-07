@@ -16,6 +16,7 @@ backlog/
 ├── bugfix/        Priority 1 - production incidents, webhooks, broken behavior
 ├── pending/       Priority 2 - features, roadmap, decisions waiting on the owner
 ├── processing/    A task an agent is executing right now (one owner)
+├── revision/      Kept, not executed: awaiting the owner's review of its purpose
 ├── resolutions/   The resolution report an agent writes for each finished task
 ├── done/          The original task file, archived after a verified resolution
 └── failed/        Tasks that could not be completed, with the failure log
@@ -84,7 +85,16 @@ a History line and sets `updated_at` in the same write.
 ```text
 bugfix/ or pending/ --claim--> processing/ --verified--> done/  (+ resolutions/<name>.resolution.md)
                                            \--failed---> failed/ (+ failed/<name>.log.md)
+
+bugfix/ or pending/ --set aside--> revision/ --owner restores--> pending/
+                                           \--owner confirms obsolete--> done/
 ```
+
+`revision/` holds tasks that may have lost their purpose. Setting one aside is:
+set `autonomous: false`, append a History line saying who set it aside and why,
+and `mv` it into `revision/`. A task there is never picked, never claimed and
+never deleted; only the owner moves it back to `pending/` or closes it as
+`obsolete`.
 
 ### 1. Pick
 
@@ -92,6 +102,8 @@ bugfix/ or pending/ --claim--> processing/ --verified--> done/  (+ resolutions/<
 2. Within a directory, take the first file in name order whose front matter has
    `autonomous: true` and `blocked_by: none`.
 3. Skip a task whose `touches` overlaps a task already in `processing/`.
+4. Never read `revision/`: those tasks are set aside awaiting the owner
+   (`BACKLOG_QUEUE_STANDARD.md`, BQ-02). They are not available work.
 
 ### 2. Claim
 

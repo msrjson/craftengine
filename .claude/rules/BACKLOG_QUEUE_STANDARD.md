@@ -37,12 +37,18 @@ open item is added to it.
 | `bugfix/` | open, priority over everything in `pending/` | anyone |
 | `pending/` | open | anyone |
 | `processing/` | claimed by exactly one agent | the claiming agent, by rename |
+| `revision/` | kept, not executed: awaiting the owner's review of whether it still has a purpose | the owner, or an agent the owner authorized |
 | `done/` | verified and closed | the agent that resolved it |
 | `failed/` | could not be finished | the agent that failed it |
 | `resolutions/` | resolution reports, one per task in `done/` | the agent that resolved it |
 
-No other directory, and no task file outside these six. `backlog/` root holds
+No other directory, and no task file outside these seven. `backlog/` root holds
 only `README.md` and `TEMPLATE.md`.
+
+A task in `revision/` is never picked by an agent: it is `autonomous: false`,
+carries no claim, and its History says why it was set aside. It leaves
+`revision/` only by moving to `pending/` (the owner restored it) or to `done/`
+as `obsolete` (the owner confirmed it has no purpose). It is never deleted.
 
 ### BQ-03 - Every file is versioned with date and time
 
@@ -135,6 +141,7 @@ or gate. Those stay with the owner (`AGENTS.md`, NR-02, NR-03).
 | `BQ-DUP` | the same task id in two places |
 | `BQ-AUTO` | blocked task marked autonomous |
 | `BQ-CLAIM` | task in `processing/` without `claimed_by` or with `attempts < 1`; `attempts > max_attempts` |
+| `BQ-RV` | task in `revision/` is claimed or `autonomous: true` |
 | `BQ-CLOSE` | `done/` without resolution, `failed/` without log, or a report without its task |
 | `BQ-DEL` | a task file deleted from the queue (with `--staged`) |
 

@@ -2,7 +2,7 @@
 """Backlog queue gate - enforces `.claude/rules/BACKLOG_QUEUE_STANDARD.md`.
 
 Validates every file under `backlog/`: directory, file name, front matter,
-UTC timestamps, append-only History, claim and closing invariants. With
+UTC timestamps, append-only History, claim, revision and closing invariants. With
 `--staged` it also reads the Git index to refuse deleted tasks, renamed tasks
 and rewritten History lines. With `--hook` it reads a Claude Code PostToolUse
 payload from stdin and runs only when the tool touched `backlog/`.
@@ -27,7 +27,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 QUEUE = ROOT / "backlog"
-TASK_DIRS = ("bugfix", "pending", "processing", "done", "failed")
+TASK_DIRS = ("bugfix", "pending", "processing", "revision", "done", "failed")
 ALL_DIRS = TASK_DIRS + ("resolutions",)
 ROOT_FILES = {"README.md", "TEMPLATE.md"}
 KEEP = ".gitkeep"
@@ -66,6 +66,8 @@ CATALOG = {
     "ATTEMPTS_EXCEEDED": "attempts ({attempts}) exceed max_attempts ({limit})",
     "CLAIM_INCOMPLETE": "a task in processing/ needs `claimed_by` and attempts >= 1",
     "CLAIM_NOT_ALLOWED": "only autonomous, unblocked tasks may be claimed",
+    "REVISION_CLAIMED": "a task in revision/ waits for the owner; it cannot be claimed",
+    "REVISION_AUTONOMOUS": "a task in revision/ must set autonomous: false",
     "RESOLUTION_MISSING": "missing resolutions/{stem}.resolution.md",
     "FAILURE_LOG_MISSING": "missing failed/{stem}.log.md",
     "NAME_TASK": "name must be p<1-3>-<YYYYMMDD-HHMMSS>-<kebab-slug>.md",
@@ -137,7 +139,7 @@ def _to_iso(stamp: str) -> str:
 
 
 def check_layout() -> list[Violation]:
-    """BQ-DIR: only the six queue directories and the two root documents."""
+    """BQ-DIR: only the seven queue directories and the two root documents."""
     found: list[Violation] = []
     if not QUEUE.is_dir():
         return [_v("BQ-DIR", "backlog", "QUEUE_MISSING")]
@@ -211,6 +213,11 @@ def _check_state(path: Path, meta: dict[str, str]) -> list[Violation]:
         found.append(_v("BQ-CLAIM", rel, "CLAIM_INCOMPLETE"))
     if state == "processing" and (meta.get("autonomous") != "true" or meta.get("blocked_by") != "none"):
         found.append(_v("BQ-CLAIM", rel, "CLAIM_NOT_ALLOWED"))
+    if state == "revision":
+        if meta.get("claimed_by"):
+            found.append(_v("BQ-RV", rel, "REVISION_CLAIMED"))
+        if meta.get("autonomous") == "true":
+            found.append(_v("BQ-RV", rel, "REVISION_AUTONOMOUS"))
     if state == "done" and not (QUEUE / "resolutions" / f"{stem}.resolution.md").is_file():
         found.append(_v("BQ-CLOSE", rel, "RESOLUTION_MISSING", stem=stem))
     if state == "failed" and not (QUEUE / "failed" / f"{stem}.log.md").is_file():
