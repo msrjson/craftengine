@@ -36,13 +36,22 @@ class Seeder:
         raise NotImplementedError("Seeder must implement run().")
 
     def call(self, seeders: Union[Type["Seeder"], List[Type["Seeder"]]]) -> None:
-        """Invoke one or many other seeders."""
+        """Invoke one or many other seeders, honouring `SEED_ONCE`."""
         if not isinstance(seeders, (list, tuple)):
             seeders = [seeders]
+        from engine.seeding.ledger import SeedLedger, once_key
+
         for seeder_class in seeders:
             instance = seeder_class(self.app) if _accepts_app(seeder_class) else seeder_class()
             instance.app = instance.app or self.app
+            key = once_key(seeder_class)
+            ledger = SeedLedger(self.app)
+            if key and ledger.has(key):
+                self.command_output.append(f"Skipped (already seeded): {seeder_class.__name__}")
+                continue
             instance.run()
+            if key:
+                ledger.record(key, note="ran via Seeder.call()")
             self.command_output.append(f"Seeded: {seeder_class.__name__}")
 
     def info(self, message: str) -> None:
@@ -60,14 +69,28 @@ def _accepts_app(seeder_class: Type[Seeder]) -> bool:
 
 
 def run_seeder(name: str = "DatabaseSeeder", app: Any = None) -> Seeder:
-    """Import and execute a seeder from `database/seeders` by class name."""
+    """Import and execute a seeder from `database/seeders` by class name.
+
+    A seeder declaring `SEED_ONCE` runs at most once per node: the key is checked
+    against, and then written to, the `seed_ledger` (`engine/seeding/ledger.py`).
+    """
     import importlib
+
+    from engine.seeding.ledger import SeedLedger, once_key
 
     module = importlib.import_module(f"database.seeders.{name}")
     seeder_class = getattr(module, name)
     seeder = seeder_class(app) if _accepts_app(seeder_class) else seeder_class()
     seeder.app = getattr(seeder, "app", None) or app
+
+    key = once_key(seeder_class)
+    ledger = SeedLedger(app)
+    if key and ledger.has(key):
+        seeder.info(f"Skipped (already seeded): {name}")
+        return seeder
     seeder.run()
+    if key:
+        ledger.record(key, note="ran by release:sync / db seed")
     return seeder
 
 

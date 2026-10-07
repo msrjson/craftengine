@@ -28,6 +28,14 @@ full policy (categories to use, what counts as security-relevant, how
   served, so a stale image cannot silently migrate a node. `release:status`
   prints the running identity, the file and the last sync. New forward-only
   migration `2026_10_07_000002_create_release_syncs_table.py`.
+- A seed ledger. A seeder declaring `SEED_ONCE` (a stable string, or `True` to
+  key on its module and class name) runs at most once per node: `run_seeder()`
+  and `Seeder.call()` check and then write the `seed_ledger`
+  (`engine/seeding/ledger.py`). An idempotent-by-`first_or_create` seeder stops
+  being idempotent once a row it looks for is edited, so an edited catalog used
+  to be duplicated on the next `release:sync`; the declaration replaces that
+  fragile assumption. New forward-only migration
+  `2026_10_07_000003_create_seed_ledger_table.py`.
 
 ### Changed
 
