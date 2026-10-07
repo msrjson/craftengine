@@ -11,6 +11,8 @@ from __future__ import annotations
 import mimetypes
 from typing import Any, BinaryIO, Dict, Optional, Union
 
+from engine.storage.paths import normalize_key
+
 
 class S3StorageDriver:
     """Cloud storage driver for S3-compatible object storage."""
@@ -47,7 +49,7 @@ class S3StorageDriver:
 
     def put(self, path: str, contents: Union[str, bytes, BinaryIO], **kwargs: Any) -> bool:
         client = self._get_client()
-        clean_path = path.lstrip("/\\").replace("\\", "/")
+        clean_path = normalize_key(path)
 
         if hasattr(contents, "read") and callable(contents.read):
             body = contents.read()
@@ -72,7 +74,7 @@ class S3StorageDriver:
 
     def get(self, path: str) -> Optional[bytes]:
         client = self._get_client()
-        clean_path = path.lstrip("/\\").replace("\\", "/")
+        clean_path = normalize_key(path)
         try:
             resp = client.get_object(Bucket=self.bucket, Key=clean_path)
             return resp["Body"].read()
@@ -81,7 +83,7 @@ class S3StorageDriver:
 
     def exists(self, path: str) -> bool:
         client = self._get_client()
-        clean_path = path.lstrip("/\\").replace("\\", "/")
+        clean_path = normalize_key(path)
         try:
             client.head_object(Bucket=self.bucket, Key=clean_path)
             return True
@@ -90,7 +92,7 @@ class S3StorageDriver:
 
     def delete(self, path: str) -> bool:
         client = self._get_client()
-        clean_path = path.lstrip("/\\").replace("\\", "/")
+        clean_path = normalize_key(path)
         try:
             client.delete_object(Bucket=self.bucket, Key=clean_path)
             return True
@@ -99,7 +101,7 @@ class S3StorageDriver:
 
     def size(self, path: str) -> int:
         client = self._get_client()
-        clean_path = path.lstrip("/\\").replace("\\", "/")
+        clean_path = normalize_key(path)
         try:
             resp = client.head_object(Bucket=self.bucket, Key=clean_path)
             return int(resp.get("ContentLength", 0))
@@ -111,7 +113,7 @@ class S3StorageDriver:
         return mime or "application/octet-stream"
 
     def url(self, path: str) -> str:
-        clean_path = path.lstrip("/\\").replace("\\", "/")
+        clean_path = normalize_key(path)
         if self.custom_url:
             return f"{self.custom_url.rstrip('/')}/{clean_path}"
         if self.endpoint:
@@ -120,7 +122,7 @@ class S3StorageDriver:
 
     def temporary_url(self, path: str, minutes: int = 5) -> str:
         client = self._get_client()
-        clean_path = path.lstrip("/\\").replace("\\", "/")
+        clean_path = normalize_key(path)
         return client.generate_presigned_url(
             "get_object",
             Params={"Bucket": self.bucket, "Key": clean_path},

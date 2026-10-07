@@ -19,6 +19,15 @@ disks = {
         "url": "/storage",
         "visibility": "public",
     },
+    # Every key is prefixed with the bound tenant, so tenants share no
+    # namespace on disk and one tenant can never name another's file. A call
+    # with no tenant bound is refused. See documentation/storage.md.
+    "tenant": {
+        "driver": "local",
+        "root": "storage/app",
+        "url": "/storage",
+        "tenant_scoped": True,
+    },
     "s3": {
         "driver": "s3",
         "key": os.getenv("AWS_ACCESS_KEY_ID", ""),

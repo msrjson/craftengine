@@ -39,3 +39,25 @@ Storage.disk("s3").put("backups/database.sql", backup_content)
 # Read from public disk
 avatar_url = Storage.disk("public").url("avatars/user_1.jpg")
 ```
+
+## Tenant-Scoped Disks
+
+A disk with `"tenant_scoped": true` keeps each tenant's files under
+`tenants/<tenant_id>/`. The path you pass is relative to the tenant's own
+directory, so one tenant can never name another's file, and a call with no
+tenant bound raises `TenantNotBoundError` instead of writing to a shared root:
+
+```python
+# config/storage.py
+"tenant": {"driver": "local", "root": "storage/app", "tenant_scoped": True},
+
+Storage.disk("tenant").put("contracts/2026.pdf", pdf)   # storage/app/tenants/<id>/contracts/2026.pdf
+```
+
+## Safe Paths
+
+Every key is validated before it is used, by the local and S3 drivers alike: a
+`..` segment, an absolute path, a `\0` byte or a `scheme://` is refused with a
+`ValueError`, whether the key is written to disk or rendered into a URL. A
+stored filename is therefore never a traversal, and neither is a link.
+

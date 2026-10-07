@@ -20,6 +20,13 @@ full policy (categories to use, what counts as security-relevant, how
 
 ### Added
 
+- A tenant-scoped storage disk, and key validation on every disk (Slice 4 of
+  the upstream roadmap). A disk with `"tenant_scoped": true` (a `tenant` disk
+  ships in `config/storage.py`) keeps each tenant's files under
+  `tenants/<tenant_id>/` and refuses a call with no tenant bound, so one tenant
+  can never name another's file. `normalize_key()` refuses a `..` segment, an
+  absolute path, a NUL byte and a `scheme://` on the local and S3 drivers
+  alike, whether the key goes to disk or into a URL.
 - Per-tenant translation overrides (Slice 4 of the upstream roadmap). The
   `translations` table gains a nullable `tenant_id`; a row carrying the bound
   tenant's id wins over the global row with the same `(key, locale)`, and with

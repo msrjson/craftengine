@@ -18,6 +18,7 @@ from typing import Any, BinaryIO, Dict, Optional, Union
 from engine.storage.contracts import StorageDriver
 from engine.storage.drivers.local import LocalStorageDriver
 from engine.storage.drivers.s3 import S3StorageDriver
+from engine.storage.paths import TenantScopedStorage
 
 
 class StorageManager:
@@ -62,6 +63,11 @@ class StorageManager:
             root = disk_cfg.get("root", "storage/app")
             url = disk_cfg.get("url", "/storage")
             instance = LocalStorageDriver(root=root, url=url)
+
+        if disk_cfg.get("tenant_scoped"):
+            # Wrap after the driver is built: the tenant prefix is a concern of
+            # the disk, and it applies to local and S3 alike.
+            instance = TenantScopedStorage(instance, prefix=disk_cfg.get("prefix", "tenants"))
 
         self._disks[disk_name] = instance
         return instance

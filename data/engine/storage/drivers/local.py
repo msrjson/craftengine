@@ -11,6 +11,8 @@ import shutil
 from pathlib import Path
 from typing import Any, BinaryIO, Optional, Union
 
+from engine.storage.paths import normalize_key
+
 
 class LocalStorageDriver:
     """Storage driver for local and public filesystem disks."""
@@ -21,9 +23,10 @@ class LocalStorageDriver:
         self.root.mkdir(parents=True, exist_ok=True)
 
     def _full_path(self, path: str) -> Path:
-        clean = path.lstrip("/\\")
-        full = (self.root / clean).resolve()
+        full = (self.root / normalize_key(path)).resolve()
         if not str(full).startswith(str(self.root)):
+            # `normalize_key` already refuses a `..` segment; this is the
+            # second lock, for a symlink or a root that moved under us.
             raise ValueError(f"Path traversal detected: {path}")
         return full
 
@@ -78,8 +81,9 @@ class LocalStorageDriver:
         return mime or "application/octet-stream"
 
     def url(self, path: str) -> str:
-        clean = path.lstrip("/\\").replace("\\", "/")
-        return f"{self.base_url}/{clean}"
+        # The key is validated before it reaches a link: a `..` rendered into a
+        # URL is a traversal a browser, not the filesystem, would resolve.
+        return f"{self.base_url}/{normalize_key(path)}"
 
     def temporary_url(self, path: str, minutes: int = 5) -> str:
         # Local disks return standard URL (or signed token if configured)
