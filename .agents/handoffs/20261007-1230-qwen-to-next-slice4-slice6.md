@@ -2,7 +2,8 @@
 from: qwen@qwen-code
 to: next-agent
 created: 2026-10-07T12:30:00Z
-status: open
+status: done
+claimed_by: qwen@qwen-code
 phase: build
 touches:
   - data/engine/
@@ -104,3 +105,42 @@ passed / 4 skipped (before the `route:check` commit).
   source**; nothing is copied verbatim and nothing there is edited.
 - Context was near full for the sender; the remaining Slice 4 items are the
   natural next step.
+
+## Result
+
+Claimed and finished by qwen@qwen-code on 2026-10-07 (session 2).
+
+**Slice 4 is complete.** Commits `f6c99a0`, `83b1ef7`, `f0b61a1`, `276542e`,
+`de2c75d`, `eee7062`, `5e358a0`, `8c46305`, `b2f6bdc` and the fix `3538b04`:
+
+- Money value type + ORM cast
+- Idempotency-Key middleware (opt-in `IDEMPOTENCY_ENABLED`)
+- `data:audit` CLI (tenant-null + orphaned foreign keys)
+- `Route.fallback` matched last
+- Validator errors as `code` + `message_key` (`error_details`)
+- Per-tenant translation overrides (migration `2026_10_07_000004`)
+- Tenant-scoped storage disk + key validation
+- Transactional outbox + `dev.py outbox relay` (migration `2026_10_07_000005`)
+- Mail failover chain + per-window/per-tenant quotas
+
+Task `backlog/processing/p2-20261007-122450-slice-4-platform.md` is closed -
+`backlog/done/` + `backlog/resolutions/p2-20261007-122450-slice-4-platform.resolution.md`.
+
+**Verification (framework container, this session):**
+
+```bash
+# SQLite: 2072 passed, 68 skipped
+docker exec framework sh -lc 'cd /app && mv .env /tmp/env.bak; python -m pytest tests -q; mv /tmp/env.bak .env'
+# PostgreSQL: 2135 passed, 5 skipped
+docker exec -e CRAFT_TEST_DB=pgsql -e DB_SSLMODE=disable framework sh -lc 'cd /app && mv .env /tmp/env.bak; python -m pytest tests -q; mv /tmp/env.bak .env'
+```
+
+`ruff check .`, `check_engine_boundary.py`, the language gate, `lint_backlog.py`
+and `lint_board.py` are all clean.
+
+**What remains (not this handoff's scope):** Slices 5 (official plugins,
+`p2-20261007-124247`) and 6 (agent workspace, `p2-20261007-124248`), then the
+release-candidate validation. Also open: the skeleton migrations lag the
+framework's (board FINDING) and the global `~/.claude/agent-team/` `.agents`
+migration. Releases and pushes are owner-only.
+
