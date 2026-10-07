@@ -109,3 +109,28 @@ cache._store = ArrayStore()
 whether this caller won. Reach for it instead of `has()` then `put()`
 whenever the answer decides who does the work: the pair is a race, and every
 guarantee built on it silently does not hold.
+
+## Idempotent writes
+
+The cache backs the `IdempotencyKey` middleware. With
+`IDEMPOTENCY_ENABLED=true` a write carrying an `Idempotency-Key` header has its
+response stored for `IDEMPOTENCY_TTL` seconds, and a retry of the same key is
+answered from the store instead of running the handler again:
+
+```bash
+curl -X POST https://app.example.com/payments \
+  -H 'Idempotency-Key: 0f2b7c1e-...' -H 'Content-Type: application/json' \
+  -d '{"amount": "19.90"}'
+```
+
+The key is scoped to the tenant and the authenticated user, so one caller's key
+can never replay another's response. The first request claims the key with
+`Cache.add()`; a retry that arrives while it is still running gets a `409`, and
+the claim is released when the handler finishes (or fails). A `5xx` response is
+not stored - a retry after a transient failure must be able to run again.
+
+On more than one worker the store must be shared: the array store is
+per-process, so a retry that lands on another worker would run the write a
+second time. Use `redis` (or a shared `file` store) when the app runs behind a
+load balancer.
+

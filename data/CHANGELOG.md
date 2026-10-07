@@ -20,6 +20,13 @@ full policy (categories to use, what counts as security-relevant, how
 
 ### Added
 
+- An `Idempotency-Key` middleware (Slice 4 of the upstream roadmap), opt-in via
+  `IDEMPOTENCY_ENABLED=true`. A write carrying the header has its response
+  stored; a retry of the same key is replayed instead of running the handler
+  twice, so a retried `POST /payments` charges once. The key is scoped to the
+  tenant and the authenticated user, the first request claims it with
+  `Cache.add()` (a concurrent retry gets `409`), and a `5xx` is never stored so
+  a retry after a transient failure can run again.
 - A `Money` value type and its ORM cast (Slice 4 of the upstream roadmap).
   `craft.support.money.Money` holds an exact `Decimal` amount in one currency,
   quantized to that currency's minor unit, and refuses to add or compare two

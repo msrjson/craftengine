@@ -85,6 +85,21 @@ HEALTH_READINESS_CACHE_SECONDS = env("HEALTH_READINESS_CACHE_SECONDS", 5)
 # that is mostly cached or static and rarely touches the database.
 HTTP_THREADPOOL_SIZE = env("HTTP_THREADPOOL_SIZE", 0)
 
+# Idempotent writes. With this on, a request carrying an `Idempotency-Key`
+# header has its response stored, and every retry of the same key (scoped to
+# the tenant and the authenticated user) is answered from the store instead of
+# running the handler again - so a retried `POST /payments` charges once. Off
+# by default: it only engages for a request that sends the header, but it does
+# add a cache read to every write, and a deployment that does not use the
+# header should not pay for it.
+IDEMPOTENCY_ENABLED = env("IDEMPOTENCY_ENABLED", False)
+
+# How long a stored response stays replayable, and how long the in-flight lock
+# is held while the first request runs. The lock is a ceiling on how long one
+# request may run before a concurrent retry is told the key is busy.
+IDEMPOTENCY_TTL = env("IDEMPOTENCY_TTL", 86400)
+IDEMPOTENCY_LOCK_TTL = env("IDEMPOTENCY_LOCK_TTL", 30)
+
 # Prometheus scrape endpoint. Off by default: the payload names every route
 # the application serves and how often each is hit, which is reconnaissance if
 # it is reachable from outside. Turn it on behind an internal network, or set

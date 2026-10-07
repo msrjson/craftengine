@@ -52,6 +52,7 @@ from craft.http.kernel import Kernel
 
 from craft.http.middleware import (
     Authenticate,
+    IdempotencyKey,
     RequestContext,
     ScopeTenant,
     SecurityHeaders,
@@ -104,6 +105,13 @@ if _config.get("framework.MULTI_TENANCY_ENABLED", False):
             f"An unrecognised value here would silently serve every tenant from "
             f"the same tables."
         )
+
+# Idempotent writes. Registered last so it wraps the handler after the tenant
+# and the user are bound - the replay key is scoped to both, and a key one
+# caller invents must never replay another caller's response. Off by default;
+# a request without the `Idempotency-Key` header passes straight through.
+if _config.get("framework.IDEMPOTENCY_ENABLED", False):
+    _global_middleware.append(IdempotencyKey)
 
 kernel.with_middleware(*_global_middleware)
 

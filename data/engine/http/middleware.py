@@ -975,6 +975,162 @@ class ThrottleRequests(Middleware):
         return next_callable(request)
 
 
+class IdempotencyKey(Middleware):
+    """Replay a retried write instead of running its side effect twice.
+
+    A client whose request times out cannot know whether the write landed; a
+    retry of `POST /payments` that runs twice charges twice. When the request
+    carries an `Idempotency-Key` header this middleware answers every retry
+    with the first response, and the handler runs once.
+
+    The key is scoped to the tenant and the authenticated user, so a key one
+    caller invents can never replay another caller's response. Registration is
+    opt-in (`IDEMPOTENCY_ENABLED=true`); a request without the header passes
+    straight through, which is why the flag is safe to leave off.
+
+    The first request claims the key with `Cache.add()` - an atomic
+    put-if-absent - so a retry that arrives while the first is still running is
+    refused with 409 rather than run a second time. Responses with a 5xx status
+    are not stored: the failure may be transient, and re-running an operation
+    that failed is exactly what a client wants.
+    """
+
+    HEADER = "Idempotency-Key"
+    SAFE_METHODS = ("GET", "HEAD", "OPTIONS", "TRACE")
+
+    def __init__(
+        self,
+        app: Any = None,
+        ttl: Any = None,
+        lock_ttl: Any = None,
+    ):
+        self.app = app
+        self._ttl = ttl
+        self._lock_ttl = lock_ttl
+
+    def _policy(self) -> Tuple[int, int]:
+        """TTL and lock TTL, from the constructor or the framework config."""
+        if self._ttl is not None and self._lock_ttl is not None:
+            return int(self._ttl), int(self._lock_ttl)
+        config = _container(self.app).make("config")
+        ttl = int(self._ttl if self._ttl is not None
+                  else config.get("framework.IDEMPOTENCY_TTL", 86400))
+        lock_ttl = int(self._lock_ttl if self._lock_ttl is not None
+                       else config.get("framework.IDEMPOTENCY_LOCK_TTL", 30))
+        return ttl, lock_ttl
+
+    def _cache(self) -> Any:
+        return _container(self.app).make("cache")
+
+    def _scope(self, request: Any) -> str:
+        from engine.orm.tenancy import current_tenant_id
+
+        tenant = current_tenant_id() or "-"
+        user = "anon"
+        try:
+            if getattr(request, "has_session", lambda: False)():
+                user = request.session().get(Authenticate.SESSION_KEY) or "anon"
+        except Exception:
+            pass
+        return f"{tenant}:{user}"
+
+    def _cache_key(self, request: Any, raw: str) -> str:
+        import hashlib
+
+        path = str(getattr(getattr(request, "url", None), "path", "") or "")
+        method = str(getattr(request, "method", "GET")).upper()
+        digest = hashlib.sha256(raw.encode("utf-8")).hexdigest()
+        return f"idempotency:{self._scope(request)}:{method}:{path}:{digest}"
+
+    def handle(self, request: Any, next_callable: Callable) -> Any:
+        method = str(getattr(request, "method", "GET")).upper()
+        if method in self.SAFE_METHODS:
+            return next_callable(request)
+
+        raw = self._header(request)
+        if not raw:
+            return next_callable(request)
+
+        cache = self._cache()
+        ttl, lock_ttl = self._policy()
+        key = self._cache_key(request, raw)
+        lock = f"{key}:lock"
+
+        stored = cache.get(key)
+        if stored is not None:
+            return self._replay(stored)
+
+        if not cache.add(lock, True, lock_ttl):
+            # Either the first request is still running (replay nothing yet) or
+            # it finished between our two reads; check once more before giving
+            # up, so a completed key is replayed rather than reported as busy.
+            stored = cache.get(key)
+            if stored is not None:
+                return self._replay(stored)
+            from engine.exceptions.handler import CraftException
+
+            error = CraftException(
+                "A request with this Idempotency-Key is still being processed."
+            )
+            error.status_code = 409
+            raise error
+
+        try:
+            response = next_callable(request)
+        except Exception:
+            cache.forget(lock)
+            raise
+
+        record = self._capture(response)
+        if record is not None:
+            cache.put(key, record, ttl)
+        cache.forget(lock)
+        return response
+
+    def _header(self, request: Any) -> Optional[str]:
+        try:
+            value = request.headers.get(self.HEADER.lower())
+        except Exception:
+            return None
+        return value.strip() if isinstance(value, str) and value.strip() else None
+
+    def _capture(self, response: Any) -> Optional[dict]:
+        """The status, headers and body to replay, or None if not replayable."""
+        starlette_response = _as_starlette(response)
+        if starlette_response is None:
+            return None
+        body = getattr(starlette_response, "body", None)
+        if not isinstance(body, (bytes, bytearray)):
+            # A streaming response has no body to store; replay is impossible.
+            return None
+        if starlette_response.status_code >= 500:
+            return None
+        if starlette_response.headers.get("content-encoding"):
+            # The body is compressed and re-encoding it would double-compress.
+            return None
+        headers = [
+            [name, value]
+            for name, value in starlette_response.headers.items()
+            if name.lower() not in ("content-length", "transfer-encoding")
+        ]
+        return {
+            "status": starlette_response.status_code,
+            "body": bytes(body).decode("utf-8", "surrogateescape"),
+            "headers": headers,
+        }
+
+    def _replay(self, record: Any) -> Any:
+        from starlette.responses import Response as StarletteResponse
+
+        headers = {name: value for name, value in record.get("headers", [])}
+        headers["Idempotency-Replayed"] = "true"
+        return StarletteResponse(
+            content=record["body"].encode("utf-8", "surrogateescape"),
+            status_code=int(record["status"]),
+            headers=headers,
+        )
+
+
 def __getattr__(name: str):
     """Re-export `FirewallMiddleware` on first access (PEP 562).
 
@@ -1004,6 +1160,7 @@ __all__ = [
     "AuthenticateApiToken",
     "SecurityHeaders",
     "ThrottleRequests",
+    "IdempotencyKey",
     "FirewallMiddleware",
 ]
 
