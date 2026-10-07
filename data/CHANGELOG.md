@@ -20,6 +20,12 @@ full policy (categories to use, what counts as security-relevant, how
 
 ### Added
 
+- The first official plugin ships: `plugins/brazil_validator/` (Slice 5 of the
+  upstream roadmap). A legacy `PluginManager` plugin that binds `BrazilValidator`
+  in the container: CPF and RG, legacy and 2026-alphanumeric CNPJ, Inscrição
+  Estadual for all 27 states (SINTEGRA layouts), and CEP, phone, CNAE and address
+  normalizers. Every check returns a `ValidationResult` carrying a stable
+  `error_code` and a `message_key`, so no user-facing copy lives in the plugin.
 - The sign-in audit log is now hash-chained (Slice 5 of the upstream roadmap).
   `auth_audit_logs` gains `previous_hash` and `chain_hash` (forward-only
   migration `2026_10_07_000006_add_hash_chain_to_auth_audit_logs.py`), and
