@@ -9,7 +9,7 @@ max_attempts: 2
 attempts: 1
 claimed_by: qwen@qwen-code
 created_at: 2026-10-07T17:06:13Z
-updated_at: 2026-10-07T19:15:53Z
+updated_at: 2026-10-07T19:19:42Z
 source: owner decision 2026-10-07 (in session)
 touches:
   - data-demo/app/
@@ -53,8 +53,8 @@ carry translation keys in en/pt-BR/es, and the demo suite stays green:
 - [x] Slice 4 - Pages (list + editor).
 - [x] Slice 5 - Users (list, add, roles), reusing the RBAC admin.
 - [x] Slice 6 - Media (library + upload) on the storage layer.
-- [ ] Slice 7 - Menus (navigation) and Settings.
-- [ ] Each slice's History carries `created_at`/`finished_at`, and every `dev.py`
+- [x] Slice 7 - Menus (navigation) and Settings.
+- [x] Each slice's History carries `created_at`/`finished_at`, and every `dev.py`
       friction becomes a board FINDING that names the command and the fix.
 
 ## Verify
@@ -87,3 +87,5 @@ sh .agents/scripts/rehearse-demo.sh
 - 2026-10-07T19:09:16Z slice 4 landed by qwen@qwen-code: a new `pages` module mirroring posts (list, editor, publish/draft), exposed on the proxy as `pages` with its own dashboard card; demo suite 84 passed on SQLite and PostgreSQL (rehearse-demo.sh, engine 4.7.0 r00027), data-demo commit f144bfe; pages installed and activated in the live demo. Slices 5-7 (Users, Media, Menus/Settings) remain
 - 2026-10-07T19:12:26Z slice 5 landed by qwen@qwen-code: an admin-only `users` module (list, add and role assignment) reusing the RBAC models (User, Role, role_user pivot); creation goes through User.create so the password is hashed, input is validated with a unique email, and role gating is proven by tests (guest redirects, a plain user cannot reach the screen). Demo suite 92 passed on SQLite and PostgreSQL (rehearse-demo.sh, engine 4.7.0 r00027), data-demo commit 7ff1f4d; users installed and activated in the live demo. Slices 6-7 (Media, Menus/Settings) remain
 - 2026-10-07T19:15:53Z slice 6 landed by qwen@qwen-code: a `media` module that stores uploads on the storage layer (public disk) and serves them back through a route; it validates the extension and the size itself because the request input bag does not carry files, keeps rows soft-deleted, and shows image thumbnails. Demo suite 98 passed on SQLite and PostgreSQL (rehearse-demo.sh, engine 4.7.0 r00027), data-demo commit 97a8034; media installed and activated in the live demo. Slice 7 (Menus/Settings) remains
+- 2026-10-07T19:19:42Z slice 7 landed by qwen@qwen-code: an admin-only `settings` module with a general screen (site title, tagline, posts per page, on the engine's settings store) and a menu-visibility screen; AppServiceProvider hides the unchecked entries and shares `setting`, and the admin bar shows the site title. Demo suite 105 passed on SQLite and PostgreSQL (rehearse-demo.sh, engine 4.7.0 r00027), data-demo commit e758348; settings installed and activated in the live demo. All seven slices landed; the dev.py friction is on the board as a FINDING
+- 2026-10-07T19:19:42Z resolved by qwen@qwen-code (resolutions/p2-20261007-170613-wordpress-style-admin-demo.resolution.md)
