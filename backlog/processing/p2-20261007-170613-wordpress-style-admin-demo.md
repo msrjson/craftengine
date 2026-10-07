@@ -6,9 +6,10 @@ priority: 2
 autonomous: true
 blocked_by: none
 max_attempts: 2
-attempts: 0
+attempts: 1
+claimed_by: qwen@qwen-code
 created_at: 2026-10-07T17:06:13Z
-updated_at: 2026-10-07T17:06:13Z
+updated_at: 2026-10-07T18:54:33Z
 source: owner decision 2026-10-07 (in session)
 touches:
   - data-demo/app/
@@ -44,7 +45,7 @@ surfaces, and turn every `dev.py` friction into an improvement.
 Slices, in this order; each slice is done when its screens render with the theme,
 carry translation keys in en/pt-BR/es, and the demo suite stays green:
 
-- [ ] Slice 1 - professional login screen and the admin chrome (left sidebar
+- [x] Slice 1 - professional login screen and the admin chrome (left sidebar
       menu, top bar) as a WordPress-style theme.
 - [ ] Slice 2 - dashboard (Home) with WordPress-like widgets (At a Glance,
       Activity, Quick Draft).
@@ -79,3 +80,5 @@ sh .agents/scripts/rehearse-demo.sh
 ## History
 
 - 2026-10-07T17:06:13Z created by qwen@qwen-code (owner decision 2026-10-07: data-demo becomes a WordPress-style admin, built as extensions, measured through the queue)
+- 2026-10-07T18:51:10Z claimed by qwen@qwen-code (attempt 1; owner authorised crossing the data-demo/ claim of p2-20261005-095553, dev version)
+- 2026-10-07T18:54:33Z slice 1 landed by qwen@qwen-code: the harbor theme gained the WordPress-style chrome (top admin bar + left menu from the active modules) and a dedicated auth shell for login/register; en/pt-BR/es keys, progressive-enhancement menu toggle. Demo suite 66 passed on SQLite and PostgreSQL (rehearse-demo.sh, engine 4.7.0 r00027), data-demo commit a372c26. Slices 2-7 remain; the task stays claimed in processing/
