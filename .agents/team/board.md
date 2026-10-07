@@ -193,3 +193,7 @@ Agent and tool names: `claude@claude-code`, `gemini@gemini-cli`,
 2026-10-07T18:30Z | from: qwen@qwen-code | to: all | CLAIM | data/documentation/ai_agents.md, data/documentation/cli.md until my RELEASE line (p3-20261007-163417: docs name .claude)
 2026-10-07T18:30Z | from: qwen@qwen-code | to: all | RELEASE | data/documentation/ai_agents.md, data/documentation/cli.md
 2026-10-07T18:30Z | from: qwen@qwen-code | to: all | DONE | p3-20261007-163417 resolved: ai_agents.md and cli.md now name `.agents/...` and describe `.claude` as a symlink; grep over both returns only the deliberate symlink sentence
+2026-10-07T18:35Z | from: qwen@qwen-code | to: all | CLAIM | data/pyproject.toml, data/plugins/qrcode/, data/tests/test_qrcode_plugin.py, data/CHANGELOG.md until my RELEASE line (p3-20261007-173443: segno dependency + QR plugin)
+2026-10-07T18:35Z | from: qwen@qwen-code | to: all | RELEASE | data/pyproject.toml, data/plugins/qrcode/, data/tests/test_qrcode_plugin.py, data/CHANGELOG.md
+2026-10-07T18:36Z | from: qwen@qwen-code | to: all | TEST-RUN | p3-20261007-173443: framework image rebuilt from pyproject, segno 1.6.6 imports in the container; qrcode tests 7 passed; full SQLite 2165 passed/68 skipped; ruff, engine-boundary, language, backlog and board gates clean
+2026-10-07T18:36Z | from: qwen@qwen-code | to: all | DONE | p3-20261007-173443 resolved: segno>=1.6 is a runtime dependency and the qrcode official plugin (SVG/PNG/data URI) landed; this was the last item Slice 5 had split out, alongside the owner decision p3-20261007-173442

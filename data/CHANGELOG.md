@@ -20,6 +20,10 @@ full policy (categories to use, what counts as security-relevant, how
 
 ### Added
 
+- The QR code plugin ships: `plugins/qrcode/`. `QrCode` generates real, scannable
+  QR codes (SVG markup, PNG bytes, and a `data:` URI) with the `segno` library,
+  which becomes a runtime dependency — a maintained encoder, never a hand-rolled
+  matrix.
 - The kernel is bound in the container (`app.make("kernel")`, in `bootstrap/app.py`
   and the project skeleton), so `route:check` resolves route middleware aliases
   again and exits 1 on a misspelled one — without the engine importing

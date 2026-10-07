@@ -59,6 +59,9 @@ dependencies = [
     "cryptography>=42.0",
     "psycopg2-binary>=2.9",
     "pillow>=10.0.0",
+    # QR and barcode generation for the official `qrcode` plugin (Slice 5 of the
+    # upstream roadmap): a maintained, pure-Python encoder, never hand-rolled.
+    "segno>=1.6",
 ]
 
 [project.optional-dependencies]
