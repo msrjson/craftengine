@@ -21,7 +21,10 @@ from __future__ import annotations
 import fnmatch
 import logging
 import secrets
-from typing import Any, Callable, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Callable, List, Optional, Tuple
+
+if TYPE_CHECKING:  # pragma: no cover - typing only
+    from engine.security.firewall import FirewallMiddleware
 
 
 class Middleware:
@@ -972,7 +975,21 @@ class ThrottleRequests(Middleware):
         return next_callable(request)
 
 
-from engine.security.firewall import FirewallMiddleware
+def __getattr__(name: str):
+    """Re-export `FirewallMiddleware` on first access (PEP 562).
+
+    Importing it at module level dragged the whole `engine.security` package -
+    and the captcha, and Pillow behind it - into every import of the middleware
+    stack. The name stays on this module (it is still in `__all__`) without the
+    cost until something actually asks for it (ADR 0002, step 0).
+    """
+    if name == "FirewallMiddleware":
+        from engine.security.firewall import FirewallMiddleware
+
+        globals()[name] = FirewallMiddleware
+        return FirewallMiddleware
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
 
 __all__ = [
     "Middleware",

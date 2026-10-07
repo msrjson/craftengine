@@ -29,6 +29,13 @@ full policy (categories to use, what counts as security-relevant, how
   (`__`, `translate`). `trans` and `t` were authorised by the gate while the
   Forge engine defines only `__`, so a view using them passed the gate and
   failed at render.
+- ADR 0002 step 0 is finished: `engine/security/__init__.py` and the
+  `FirewallMiddleware` re-export in `engine/http/middleware.py` now resolve
+  their names lazily (PEP 562), so importing the engine or the HTTP middleware
+  stack no longer loads the captcha, firewall, honeypot and PQC subsystems -
+  and no longer needs Pillow behind the captcha - until one is used. The
+  dependency half of step 0 (drop `fastapi`, move `faker` to `dev`, declare the
+  `s3` extra, defer the Pillow import) had already shipped in v4.2.0-r00020.
 
 ### Fixed
 

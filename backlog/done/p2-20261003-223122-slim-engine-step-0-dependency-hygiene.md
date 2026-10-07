@@ -6,9 +6,10 @@ priority: 2
 autonomous: true
 blocked_by: none
 max_attempts: 2
-attempts: 0
+attempts: 1
+claimed_by: qwen@qwen-code
 created_at: 2026-10-03T22:31:22Z
-updated_at: 2026-10-03T22:31:22Z
+updated_at: 2026-10-07T11:59:07Z
 source: docs/adr/0002-slim-engine-optional-extras.md, Plan step 0
 touches:
   - data/pyproject.toml
@@ -30,10 +31,10 @@ ADR 0002 chose the slim engine. Step 0 is the no-break groundwork: remove `fasta
 
 ## Done when
 
-- [ ] `fastapi` absent and `faker` only in the `dev` extra.
-- [ ] Importing `engine` does not import the captcha, firewall or other `security` submodules until used (a test asserts it through `sys.modules`).
-- [ ] Full suite green on SQLite and PostgreSQL in the container.
-- [ ] CHANGELOG entry under `[Unreleased]`.
+- [x] `fastapi` absent and `faker` only in the `dev` extra.
+- [x] Importing `engine` does not import the captcha, firewall or other `security` submodules until used (a test asserts it through `sys.modules`).
+- [x] Full suite green on SQLite and PostgreSQL in the container.
+- [x] CHANGELOG entry under `[Unreleased]`.
 
 ## Verify
 
@@ -49,3 +50,5 @@ Wait for the v4.2.0 decision task if it touches the same files. No public API br
 ## History
 
 - 2026-10-03T22:31:22Z created by claude (source: docs/adr/0002-slim-engine-optional-extras.md, Plan step 0; migrated from the single-file backlog)
+- 2026-10-07T11:53:18Z claimed by qwen@qwen-code (attempt 1)
+- 2026-10-07T11:59:07Z resolved by qwen@qwen-code (resolutions/p2-20261003-223122-slim-engine-step-0-dependency-hygiene.resolution.md)
