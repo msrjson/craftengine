@@ -9,7 +9,7 @@ max_attempts: 2
 attempts: 1
 claimed_by: qwen@qwen-code
 created_at: 2026-10-07T12:42:47Z
-updated_at: 2026-10-07T17:53:29Z
+updated_at: 2026-10-07T18:04:13Z
 source: .agents/plans/softpax-upstream-roadmap.md, Slice 5
 touches:
   - data/plugins/
@@ -76,3 +76,4 @@ cd data && python tools/check_engine_boundary.py
 - 2026-10-07T17:34:43Z scope note by qwen@qwen-code: two items split out per the standard and this task's Notes - the QR/barcode item to p3-20261007-173443 (needs the segno dependency, and pyproject.toml is outside these touches) and the XLSX/PKCS#12/e-signature artifacts to the owner-decision task p3-20261007-173442. Landed so far: item 1 hash-chained audit trail (7ee3981), item 2 brazil_validator (668e14c), item 3 cookieless SEO (c362a7a), item 4 PIX BR Code (11e540e). Still in scope here and not yet landed: mTLS channel, privacy kit (portability + legal pages), document seal
 - 2026-10-07T17:37:43Z progress by qwen@qwen-code (item 5): the document seal plugin landed under data/plugins/document_seal/ - DocumentSeal.seal returns a tamper-evident SHA-256 digest (or HMAC when keyed) and verify recomputes it, so any change to the document is detected; 8 tests, full SQLite 2141 passed/68 skipped; gates clean. Still in scope and not yet landed: mTLS channel, privacy kit (portability + legal pages)
 - 2026-10-07T17:53:29Z progress by qwen@qwen-code (items 6-7, re-implemented from the softpax reference at app/plugins/mtls/channel.py): the mtls plugin (ssl_context builds a client TLS context from a PEM pair, writing it to a 0600 temp file deleted in the same block, cached by material, with a typed ChannelError) and the privacy plugin (portability_bundle for a subject's rows + legal_pages as a keys/routes contract) landed under data/plugins/mtls/ and data/plugins/privacy/; 7 + 7 tests, full SQLite 2155 passed/68 skipped; gates clean. Every in-scope item of the slice has now landed; the only items left are the two split out - p3-20261007-173443 (segno/QR) and p3-20261007-173442 (owner sizing of XLSX/PKCS#12/e-signature) - so this task stays in processing until those resolve, holding its paths
+- 2026-10-07T18:04:13Z failed by qwen@qwen-code (failed/p2-20261007-124247-slice-5-official-plugins.log.md): every in-scope item landed (7ee3981, 668e14c, c362a7a, 11e540e, 0a8b9fa, 3ab35d7) but the Done-when also lists two items outside an agent's authority - XLSX/PKCS#12/e-signature need the owner's money/legal sizing (p3-20261007-173442) and QR/barcode needs the segno dependency in pyproject.toml, outside these touches (p3-20261007-173443); failing releases the broad paths it held so the rest of the framework queue can proceed
