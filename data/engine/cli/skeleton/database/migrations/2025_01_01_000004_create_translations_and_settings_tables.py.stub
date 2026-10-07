@@ -20,6 +20,9 @@ def up():
         t.string("locale"),
         t.text("value"),
         t.timestamps(),
+        # One row per (key, locale): the translator keeps the last duplicate it
+        # reads otherwise, so a duplicate silently changes displayed copy.
+        t.unique_index(["key", "locale"], name="uq_translations_key_locale"),
     ))
 
     Schema.create_table("settings", lambda t: (

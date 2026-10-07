@@ -18,8 +18,28 @@ full policy (categories to use, what counts as security-relevant, how
 
 ## [Unreleased]
 
+### Changed
+
+- `config/database.py` and the project skeleton no longer carry the inert
+  `disposable_databases` key. `is_disposable_database()` returns false
+  unconditionally, so no name, no `_test` suffix and no in-memory database ever
+  authorised `migrate fresh|reset|refresh` or `db wipe`; the note that described
+  an allowlist was wrong (NR-02).
+- `language-standard.toml` lists only the translator functions that exist
+  (`__`, `translate`). `trans` and `t` were authorised by the gate while the
+  Forge engine defines only `__`, so a view using them passed the gate and
+  failed at render.
+
 ### Fixed
 
+- `translations` now enforces one row per `(key, locale)` through a forward-only
+  unique index. The table was created without it while its own seeders already
+  pre-checked for an existing row, and `_fetch_bundle` kept whichever duplicate
+  the query returned last, so a duplicate silently changed displayed copy. New
+  projects create the table with the index; existing databases get
+  `2026_10_07_000001_unique_index_on_translations.py`. A database that already
+  holds duplicates is refused with a reconciliation message - no translation row
+  is ever deleted (NR-02).
 - `AuthenticatableMixin` now refuses the base order that stores passwords in
   plaintext. With `class User(Model, AuthenticatableMixin)` the MRO gave
   `Model.force_create()` and `Model.save()`, so no hashing hook ran, the column

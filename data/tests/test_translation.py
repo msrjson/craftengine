@@ -107,3 +107,38 @@ class TestTranslationLookup:
             config.set("lang.pt-BR.fallback_only_key", None)
 
 
+class TestOneRowPerKeyAndLocale:
+    """The table keys `(key, locale)`: a duplicate is refused, not silently kept.
+
+    Each probe uses a fresh key: the session database is shared and rows are
+    never deleted (NR-02), so tests isolate by unique data, not by cleanup.
+    """
+
+    @staticmethod
+    def _key() -> str:
+        import uuid
+
+        return f"probe.unique.{uuid.uuid4().hex}"
+
+    def test_a_duplicate_pair_is_refused(self, migrated_database):
+        key = self._key()
+        DB.table("translations").insert({"key": key, "locale": "en", "value": "alpha"})
+        with pytest.raises(Exception):  # noqa: B017 - any driver integrity error
+            DB.table("translations").insert({"key": key, "locale": "en", "value": "beta"})
+        count = DB.statement(
+            "SELECT COUNT(*) AS c FROM translations WHERE key = ? AND locale = ?",
+            [key, "en"],
+        ).fetchone()
+        assert count["c"] == 1
+
+    def test_the_same_key_in_another_locale_is_allowed(self, migrated_database):
+        key = self._key()
+        DB.table("translations").insert({"key": key, "locale": "en", "value": "alpha"})
+        DB.table("translations").insert({"key": key, "locale": "pt-BR", "value": "beta"})
+        count = DB.statement(
+            "SELECT COUNT(*) AS c FROM translations WHERE key = ?",
+            [key],
+        ).fetchone()
+        assert count["c"] == 2
+
+

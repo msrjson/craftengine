@@ -3,12 +3,13 @@ id: "20261007-080913"
 title: The disposable-database allowlist is documented in three places and implemented in none
 type: decision
 priority: 2
-autonomous: false
-blocked_by: owner-decision
+autonomous: true
+blocked_by: none
 max_attempts: 2
-attempts: 0
+attempts: 1
+claimed_by: qwen@qwen-code
 created_at: 2026-10-07T08:09:13Z
-updated_at: 2026-10-07T08:09:13Z
+updated_at: 2026-10-07T08:45:00Z
 source: framework audit 2026-10-07 (ORM and migrations exploration)
 touches:
   - data/engine/migrations/safety.py
@@ -63,3 +64,6 @@ tracked instead of silently "fixed" in either direction.
 ## History
 
 - 2026-10-07T08:09:13Z created by qwen@qwen-code (source: framework audit 2026-10-07)
+- 2026-10-07T08:23:00Z owner ruling: correct every open gap (owner, relayed by qwen@qwen-code); autonomous set true, blocked_by cleared; the safe direction is taken - remove the promise, never enable a wipe path
+- 2026-10-07T08:23:00Z claimed by qwen@qwen-code (attempt 1)
+- 2026-10-07T08:45:00Z resolved by qwen@qwen-code (resolutions/p2-20261007-080913-disposable-database-allowlist-documented-not-implemented.resolution.md)

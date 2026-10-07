@@ -3,12 +3,13 @@ id: "20261007-081351"
 title: language-standard.toml authorises two translator functions the Forge engine does not define
 type: chore
 priority: 2
-autonomous: false
-blocked_by: owner-decision
+autonomous: true
+blocked_by: none
 max_attempts: 2
-attempts: 0
+attempts: 1
+claimed_by: qwen@qwen-code
 created_at: 2026-10-07T08:13:51Z
-updated_at: 2026-10-07T08:13:51Z
+updated_at: 2026-10-07T08:45:00Z
 source: framework audit 2026-10-07 (views and i18n exploration)
 touches:
   - data/language-standard.toml
@@ -52,3 +53,6 @@ be its own owner-approved commit, never bundled into another task. Hence
 ## History
 
 - 2026-10-07T08:13:51Z created by qwen@qwen-code (source: framework audit 2026-10-07)
+- 2026-10-07T08:23:00Z owner ruling: correct every open gap (owner, relayed by qwen@qwen-code); autonomous set true, blocked_by cleared; the gate stops authorising names the runtime does not define
+- 2026-10-07T08:23:00Z claimed by qwen@qwen-code (attempt 1)
+- 2026-10-07T08:45:00Z resolved by qwen@qwen-code (resolutions/p2-20261007-081351-language-standard-translator-functions-not-in-forge.resolution.md)

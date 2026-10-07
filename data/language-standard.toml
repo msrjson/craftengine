@@ -72,7 +72,7 @@ allowlist = [
 # and LANG-D is what will flag them when those paths enter scope.
 key_pattern = "^[a-z0-9_]+(\\.[a-z0-9_]+)+$"
 
-translator_functions = ["__", "translate", "trans", "t"]
+translator_functions = ["__", "translate"]
 
 [language_standard.copy]
 sinks        = []

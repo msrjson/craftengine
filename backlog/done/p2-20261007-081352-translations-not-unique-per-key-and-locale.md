@@ -3,16 +3,20 @@ id: "20261007-081352"
 title: The translations table has no unique index on (key, locale); duplicates resolve silently
 type: bugfix
 priority: 2
-autonomous: false
-blocked_by: owner-decision
+autonomous: true
+blocked_by: none
 max_attempts: 2
-attempts: 0
+attempts: 1
+claimed_by: qwen@qwen-code
 created_at: 2026-10-07T08:13:52Z
-updated_at: 2026-10-07T08:13:52Z
+updated_at: 2026-10-07T08:45:00Z
 source: framework audit 2026-10-07 (i18n exploration)
 touches:
   - data/database/migrations/
+  - data/engine/cli/skeleton/database/migrations/
   - data/engine/support/translation.py
+  - data/tests/
+  - data/CHANGELOG.md
 ---
 
 ## Problem
@@ -60,3 +64,7 @@ soft-touch decision by the owner.
 ## History
 
 - 2026-10-07T08:13:52Z created by qwen@qwen-code (source: framework audit 2026-10-07)
+- 2026-10-07T08:23:00Z owner ruling: correct every open gap (owner, relayed by qwen@qwen-code); autonomous set true, blocked_by cleared; forward-only migration, no row deleted (NR-02)
+- 2026-10-07T08:23:00Z claimed by qwen@qwen-code (attempt 1)
+- 2026-10-07T08:32:00Z scope: touches widened to the skeleton migration, the tests and the changelog - a new constraint needs a forward migration for existing databases, the index at creation for new ones, and a test
+- 2026-10-07T08:45:00Z resolved by qwen@qwen-code (resolutions/p2-20261007-081352-translations-not-unique-per-key-and-locale.resolution.md)

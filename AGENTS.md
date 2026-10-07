@@ -105,7 +105,7 @@ claim only by `mv` into `processing/`; execute only `autonomous: true` with
 | `python3 .claude/rules/lint_backlog.py` | the backlog queue | Claude hook, Git `pre-commit` |
 | `python3 .claude/rules/lint_board.py` | the board: format, append-only | Claude hook, Git `pre-commit` |
 | `cd data && python tools/check_engine_boundary.py` | the engine never imports the application | CI |
-| `python .claude/rules/lint_language.py --config language-standard.toml` | English code, no hardcoded copy | Claude hook, CI |
+| `cd data && python3 ../.claude/rules/lint_language.py --config language-standard.toml` | English code, no hardcoded copy | Claude hook, CI |
 
 Tools without hooks (Codex, Cursor, Antigravity) run the gates themselves
 before declaring work done. Enable the Git hook once per clone:

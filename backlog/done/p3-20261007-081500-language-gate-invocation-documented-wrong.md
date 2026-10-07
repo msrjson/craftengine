@@ -3,12 +3,13 @@ id: "20261007-081500"
 title: The documented language-gate command fails when run from the workspace root
 type: chore
 priority: 3
-autonomous: false
-blocked_by: owner-decision
+autonomous: true
+blocked_by: none
 max_attempts: 2
-attempts: 0
+attempts: 1
+claimed_by: qwen@qwen-code
 created_at: 2026-10-07T08:15:00Z
-updated_at: 2026-10-07T08:15:00Z
+updated_at: 2026-10-07T08:45:00Z
 source: framework audit 2026-10-07 (running the gates)
 touches:
   - AGENTS.md
@@ -56,3 +57,6 @@ root.)
 ## History
 
 - 2026-10-07T08:15:00Z created by qwen@qwen-code (source: framework audit 2026-10-07)
+- 2026-10-07T08:23:00Z owner ruling: correct every open gap (owner, relayed by qwen@qwen-code); autonomous set true, blocked_by cleared
+- 2026-10-07T08:23:00Z claimed by qwen@qwen-code (attempt 1)
+- 2026-10-07T08:45:00Z resolved by qwen@qwen-code (resolutions/p3-20261007-081500-language-gate-invocation-documented-wrong.resolution.md)
