@@ -50,6 +50,7 @@ security_app = typer.Typer(name="security", help="Security audit logs and alerts
 docs_app = typer.Typer(name="docs", help="Documentation site.", no_args_is_help=True)
 agent_app = typer.Typer(name="agent", help="AI Agent discovery and scaffolding.", no_args_is_help=True)
 msr_app = typer.Typer(name="msr", help="MSR JSON manifest (/.well-known/msr.json).", no_args_is_help=True)
+release_app = typer.Typer(name="release", help="Release synchronization.", no_args_is_help=True)
 
 cli.add_typer(make_app)
 cli.add_typer(migrate_app)
@@ -68,6 +69,7 @@ cli.add_typer(security_app)
 cli.add_typer(docs_app)
 cli.add_typer(agent_app)
 cli.add_typer(msr_app)
+cli.add_typer(release_app)
 
 
 
@@ -1912,6 +1914,48 @@ def agent_install(
         raise typer.Exit(code=1) from None
     for kind, paths in installed.items():
         echo(f"  -> {kind:<10} {len(paths)} installed", "green")
+
+
+# -- release --------------------------------------------------------------------
+
+@release_app.command("status")
+def release_status() -> None:
+    """Show the running version, the VERSION file and the last recorded sync."""
+    from engine.lifecycle.sync import ReleaseSync
+
+    report = ReleaseSync(get_app()).status()
+    echo(f"Code identity : {report['code']}")
+    declared = report["version_file"]
+    drift = "" if declared == report["code"] else "  (drift)"
+    echo(f"VERSION file  : {declared or '-'}{drift}")
+
+    last = report["last_sync"]
+    if last is None:
+        echo("Last sync     : none")
+        return
+    echo(f"Last sync     : {last['version']} ({last['status']})")
+    echo(f"  migrations  : {last['migrations_run']}")
+    echo(f"  seeders     : {last['seeders_run']}")
+
+
+@release_app.command("sync")
+def release_sync_command() -> None:
+    """Migrate and seed the node, then record the release in `release_syncs`."""
+    from engine.lifecycle.errors import EngineLifecycleError
+    from engine.lifecycle.sync import ReleaseSync
+
+    try:
+        result = ReleaseSync(get_app()).sync()
+    except EngineLifecycleError as refused:
+        echo(f"Refused: {refused} ({refused.message_key}).", "red")
+        raise typer.Exit(code=1) from refused
+    for note in result["findings"]:
+        echo(note, "green")
+    echo(
+        f"Release {result['version']} synced: {result['migrations_run']} migration(s), "
+        f"{result['seeders_run']} seeder(s) in {result['duration_ms']} ms.",
+        "green",
+    )
 
 
 def main() -> None:

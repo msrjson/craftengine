@@ -18,6 +18,17 @@ full policy (categories to use, what counts as security-relevant, how
 
 ## [Unreleased]
 
+### Added
+
+- `release:sync` / `release:status` and a `VERSION` file (Slice 3 of the
+  upstream roadmap). `release:sync` applies the pending migrations and runs the
+  release seeders under the migrator's advisory lock, then records one
+  `release_syncs` row (version, migration and seeder counts, status, duration);
+  a `VERSION` that disagrees with the running code is refused instead of
+  served, so a stale image cannot silently migrate a node. `release:status`
+  prints the running identity, the file and the last sync. New forward-only
+  migration `2026_10_07_000002_create_release_syncs_table.py`.
+
 ### Changed
 
 - `config/database.py` and the project skeleton no longer carry the inert
