@@ -20,6 +20,14 @@ full policy (categories to use, what counts as security-relevant, how
 
 ### Added
 
+- The mutual TLS channel plugin ships: `plugins/mtls/`. `ssl_context()` returns a
+  client TLS context from a certificate and key without the private key durably
+  touching disk (a `0600` temporary file, deleted in the same block, cached by
+  material), and refuses bad or missing material with a typed `ChannelError`.
+- The privacy kit plugin ships: `plugins/privacy/`. `Privacy.portability_bundle()`
+  turns a subject's collected rows into one deterministic JSON export, and
+  `Privacy.legal_pages()` declares the privacy/terms/cookies pages as routes and
+  title keys — the contract, never the copy.
 - The document seal plugin ships: `plugins/document_seal/`. `DocumentSeal.seal()`
   returns a tamper-evident digest of a document's bytes (SHA-256, or an HMAC when
   a key is given) and `verify()` recomputes it, so any change to the document is
