@@ -220,6 +220,29 @@ class TestGate:
         gate.authorize("view", object())
 
 
+class TestAuthenticatableMixinBaseOrder:
+    """The plaintext failure mode is refused at class creation, not documented."""
+
+    def test_model_before_mixin_is_refused(self):
+        from craft.auth.models import AuthenticatableMixin
+        from craft.orm.model import Model
+
+        with pytest.raises(TypeError, match="plaintext"):
+
+            class BackwardsUser(Model, AuthenticatableMixin):
+                __table__ = "users"
+
+    def test_mixin_before_model_is_accepted(self):
+        from craft.auth.models import AuthenticatableMixin
+        from craft.orm.model import Model
+
+        class ForwardsUser(AuthenticatableMixin, Model):
+            __table__ = "users"
+
+        mro = ForwardsUser.__mro__
+        assert mro.index(AuthenticatableMixin) < mro.index(Model)
+
+
 class TestPasswordHashingOnUpdate:
     """A changed password is hashed on every write path, not only on insert."""
 

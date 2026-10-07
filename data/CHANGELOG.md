@@ -18,6 +18,15 @@ full policy (categories to use, what counts as security-relevant, how
 
 ## [Unreleased]
 
+### Fixed
+
+- `AuthenticatableMixin` now refuses the base order that stores passwords in
+  plaintext. With `class User(Model, AuthenticatableMixin)` the MRO gave
+  `Model.force_create()` and `Model.save()`, so no hashing hook ran, the column
+  kept the plaintext and a login still succeeded. The mixin raises `TypeError`
+  at class creation, matching the guard `SoftDeletes` and `TenantScoped`
+  already carry.
+
 ## [4.7.0] r00027 — 2026-10-06
 
 ### Added

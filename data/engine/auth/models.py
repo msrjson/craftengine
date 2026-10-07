@@ -33,6 +33,33 @@ class AuthenticatableMixin:
     seeders, and admin actions that set fields `fillable` refuses.
     """
 
+    def __init_subclass__(cls, **kwargs):
+        """Refuse the base order that stores passwords in plaintext.
+
+        With `class User(Model, AuthenticatableMixin)` the MRO gives
+        `Model.force_create()` and `Model.save()`, so neither hook below runs
+        and every password reaches the column as plaintext - and a login still
+        succeeds, because `check_password` hashes the candidate. The same
+        failure mode `SoftDeletes` refuses for deletes is too quiet here to
+        leave as a documentation footnote.
+        """
+        super().__init_subclass__(**kwargs)
+
+        mro = cls.__mro__
+        model_class = next(
+            (base for base in mro if base.__name__ == "Model"), None
+        )
+        if model_class is None:
+            return
+
+        if mro.index(model_class) < mro.index(AuthenticatableMixin):
+            raise TypeError(
+                f"{cls.__name__} lists AuthenticatableMixin after Model, so "
+                f"Model.force_create() and Model.save() win the MRO and passwords "
+                f"are stored in plaintext. Write "
+                f"`class {cls.__name__}(AuthenticatableMixin, Model)` instead."
+            )
+
     @classmethod
     def force_create(cls, attributes: Dict[str, Any]) -> Any:
         """Persist a record, hashing the password on the way in.
