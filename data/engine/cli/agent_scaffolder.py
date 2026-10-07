@@ -365,6 +365,74 @@ def coordination_kit() -> Dict[str, str]:
     }
 
 
+def developer_files() -> Dict[str, str]:
+    """Return the environment guard, pre-commit, CI and editor files, by path.
+
+    The guard refuses the suite on the host, where the real database and the
+    image's dependencies are absent; the pre-commit and CI call it, and the
+    editor files run the same commands from VS Code.
+    """
+    return {
+        ".agents/hooks/environment_guard.sh": (
+            "#!/bin/sh\n"
+            "# The container is the only place the suite counts: it carries the real\n"
+            "# database and the image's dependencies.\n"
+            "if [ ! -f /.dockerenv ]; then\n"
+            "  echo \"environment guard: run the tests inside the application container\" >&2\n"
+            "  exit 1\n"
+            "fi\n"
+        ),
+        ".githooks/pre-commit": (
+            "#!/bin/sh\n"
+            "# Quick gates before a commit. Enable once: git config core.hooksPath .githooks\n"
+            "set -e\n"
+            "sh .agents/hooks/environment_guard.sh\n"
+            "python -m pytest tests -q\n"
+        ),
+        ".github/workflows/ci.yml": (
+            "name: ci\n"
+            "on: [push, pull_request]\n"
+            "jobs:\n"
+            "  test:\n"
+            "    runs-on: ubuntu-latest\n"
+            "    steps:\n"
+            "      - uses: actions/checkout@v4\n"
+            "      - uses: actions/setup-python@v5\n"
+            "        with:\n"
+            "          python-version: \"3.14\"\n"
+            "      - run: pip install -e \".[dev]\"\n"
+            "      - run: python -m pytest tests -q\n"
+        ),
+        ".vscode/tasks.json": (
+            "{\n"
+            "  \"version\": \"2.0.0\",\n"
+            "  \"tasks\": [\n"
+            "    {\n"
+            "      \"label\": \"test\",\n"
+            "      \"type\": \"shell\",\n"
+            "      \"command\": \"python -m pytest tests -q\",\n"
+            "      \"group\": {\"kind\": \"test\", \"isDefault\": true}\n"
+            "    }\n"
+            "  ]\n"
+            "}\n"
+        ),
+        ".vscode/launch.json": (
+            "{\n"
+            "  \"version\": \"0.2.0\",\n"
+            "  \"configurations\": [\n"
+            "    {\n"
+            "      \"name\": \"Current test file\",\n"
+            "      \"type\": \"debugpy\",\n"
+            "      \"request\": \"launch\",\n"
+            "      \"module\": \"pytest\",\n"
+            "      \"args\": [\"${file}\", \"-q\"]\n"
+            "    }\n"
+            "  ]\n"
+            "}\n"
+        ),
+    }
+
+
 def scaffold_agent_stack(base_path: str, force: bool = False) -> Dict[str, Any]:
     """Scaffold the AI Agent context files and development catalog."""
     result: Dict[str, Any] = {"files": {}}
@@ -415,6 +483,15 @@ def scaffold_agent_stack(base_path: str, force: bool = False) -> Dict[str, Any]:
         destination = os.path.join(base_path, *relative.split("/"))
         if not os.path.exists(destination) or force:
             _write_file(destination, content, force=force)
+        result["files"][relative] = destination
+
+    # 7. Environment guard, pre-commit, CI and editor files
+    for relative, content in developer_files().items():
+        destination = os.path.join(base_path, *relative.split("/"))
+        if not os.path.exists(destination) or force:
+            _write_file(destination, content, force=force)
+        if relative.endswith(".sh") or relative.endswith("pre-commit"):
+            os.chmod(destination, 0o755)
         result["files"][relative] = destination
 
     return result

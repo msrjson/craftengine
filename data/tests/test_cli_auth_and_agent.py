@@ -128,6 +128,12 @@ class TestAgentScaffolder:
             ".agents/handoffs/.gitkeep",
             ".agents/journeys/smoke.json",
             ".agents/validation.json",
+            # the environment guard, pre-commit, CI and editor files
+            ".agents/hooks/environment_guard.sh",
+            ".githooks/pre-commit",
+            ".github/workflows/ci.yml",
+            ".vscode/tasks.json",
+            ".vscode/launch.json",
         ):
             assert os.path.exists(os.path.join(base_dir, *relative.split("/"))), relative
 

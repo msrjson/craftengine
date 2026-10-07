@@ -20,6 +20,10 @@ full policy (categories to use, what counts as security-relevant, how
 
 ### Added
 
+- `agent:scaffold` also generates the environment guard (`.agents/hooks/`), a
+  pre-commit hook, a CI workflow and VS Code tasks/launch (Slice 6 of the
+  upstream roadmap), so a fresh project starts with the same verification the
+  framework uses.
 - `agent:scaffold` generates the coordination kit and integration points under
   `.agents/` (Slice 6 of the upstream roadmap): an append-only `team/board.md`,
   `lessons.md`, the `handoffs/` directory, `journeys/smoke.json` and

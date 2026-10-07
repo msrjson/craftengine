@@ -9,7 +9,7 @@ max_attempts: 2
 attempts: 1
 claimed_by: qwen@qwen-code
 created_at: 2026-10-07T12:42:48Z
-updated_at: 2026-10-07T18:04:53Z
+updated_at: 2026-10-07T18:15:18Z
 source: .agents/plans/softpax-upstream-roadmap.md, Slice 6
 touches:
   - data/engine/cli/agent_scaffolder.py
@@ -69,3 +69,4 @@ docker exec framework sh -lc 'cd /app && python -m pytest tests -q'
 - 2026-10-07T12:42:48Z created by qwen@qwen-code (source: .agents/plans/softpax-upstream-roadmap.md, Slice 6; queued after the Slice 4 task)
 - 2026-10-07T18:04:53Z claimed by qwen@qwen-code (attempt 1)
 - 2026-10-07T18:04:53Z scope note by qwen@qwen-code: the Done-when's "`.agents -> .claude`" is the inverse of the owner's 2026-10-07 ruling (`.claude -> .agents`); the ruling wins, so any symlink generated will point `.claude` at `.agents`. Increment 1 (this commit): the two catalog skills `tests-in-container` and `craft-engine-pitfalls` under `engine/cli/agent_catalog/skills/`, with `tests/test_agent_catalog.py` updated (13 passed). Remaining: coordination kit, integration points, environment guard hook, generated pre-commit/CI/VS Code, and the single-AGENTS.md-with-symlinks layout in the scaffolder/skeleton
+- 2026-10-07T18:15:18Z resolved by qwen@qwen-code (resolutions/p2-20261007-124248-slice-6-agent-workspace.resolution.md): the two catalog skills (d828d43), the coordination kit + integration points (f5a5cef) and the environment guard/pre-commit/CI/VS Code files landed; the single-directory layout had already landed in p2-20261007-085101. Full suite green on SQLite (2155/68) and PostgreSQL (2218/5); ruff, engine-boundary, language, backlog and board gates clean
