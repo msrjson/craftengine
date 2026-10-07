@@ -6,9 +6,10 @@ priority: 2
 autonomous: true
 blocked_by: none
 max_attempts: 2
-attempts: 0
+attempts: 1
+claimed_by: qwen@qwen-code
 created_at: 2026-10-07T08:51:00Z
-updated_at: 2026-10-07T08:51:00Z
+updated_at: 2026-10-07T16:21:03Z
 source: dead-code audit 2026-10-07 + owner ruling 2026-10-07 (.agents is the single physical directory)
 touches:
   - data/.agents/
@@ -63,3 +64,6 @@ what the scaffolder writes is a separate task (the `agent:install` one).
 ## History
 
 - 2026-10-07T08:51:00Z created by qwen@qwen-code (source: dead-code audit 2026-10-07 + owner ruling)
+- 2026-10-07T16:20:51Z claimed by qwen@qwen-code (attempt 1)
+- 2026-10-07T16:20:51Z scope note by qwen@qwen-code: data/.claude content moved into data/.agents (the 128-byte rules/AGENTS.md stub replaced by the real contract); data/.claude is now a relative symlink to .agents, tracked like the workspace root's; data/AGENTS.md writes .agents/...
+- 2026-10-07T16:21:03Z resolved by qwen@qwen-code (resolutions/p2-20261007-085100-data-context-has-two-agent-directories.resolution.md)
