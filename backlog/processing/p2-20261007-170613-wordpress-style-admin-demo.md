@@ -9,7 +9,7 @@ max_attempts: 2
 attempts: 1
 claimed_by: qwen@qwen-code
 created_at: 2026-10-07T17:06:13Z
-updated_at: 2026-10-07T19:12:26Z
+updated_at: 2026-10-07T19:15:53Z
 source: owner decision 2026-10-07 (in session)
 touches:
   - data-demo/app/
@@ -52,7 +52,7 @@ carry translation keys in en/pt-BR/es, and the demo suite stays green:
 - [x] Slice 3 - Posts (list + editor).
 - [x] Slice 4 - Pages (list + editor).
 - [x] Slice 5 - Users (list, add, roles), reusing the RBAC admin.
-- [ ] Slice 6 - Media (library + upload) on the storage layer.
+- [x] Slice 6 - Media (library + upload) on the storage layer.
 - [ ] Slice 7 - Menus (navigation) and Settings.
 - [ ] Each slice's History carries `created_at`/`finished_at`, and every `dev.py`
       friction becomes a board FINDING that names the command and the fix.
@@ -86,3 +86,4 @@ sh .agents/scripts/rehearse-demo.sh
 - 2026-10-07T19:06:51Z slice 3 landed by qwen@qwen-code: a new `posts` module (repository/service/controller/views, forward-only migration, soft deletes) with a list and an editor plus a publish/draft toggle, exposed on the proxy as `posts`; the dashboard's Quick Draft was corrected to create a post draft (WordPress semantics) and refreshes to the post list. Demo suite 77 passed on SQLite and PostgreSQL (rehearse-demo.sh, engine 4.7.0 r00027), data-demo commits 1e1d839 and 2119597; posts installed and activated in the live demo. Slices 4-7 (Pages, Users, Media, Menus/Settings) remain
 - 2026-10-07T19:09:16Z slice 4 landed by qwen@qwen-code: a new `pages` module mirroring posts (list, editor, publish/draft), exposed on the proxy as `pages` with its own dashboard card; demo suite 84 passed on SQLite and PostgreSQL (rehearse-demo.sh, engine 4.7.0 r00027), data-demo commit f144bfe; pages installed and activated in the live demo. Slices 5-7 (Users, Media, Menus/Settings) remain
 - 2026-10-07T19:12:26Z slice 5 landed by qwen@qwen-code: an admin-only `users` module (list, add and role assignment) reusing the RBAC models (User, Role, role_user pivot); creation goes through User.create so the password is hashed, input is validated with a unique email, and role gating is proven by tests (guest redirects, a plain user cannot reach the screen). Demo suite 92 passed on SQLite and PostgreSQL (rehearse-demo.sh, engine 4.7.0 r00027), data-demo commit 7ff1f4d; users installed and activated in the live demo. Slices 6-7 (Media, Menus/Settings) remain
+- 2026-10-07T19:15:53Z slice 6 landed by qwen@qwen-code: a `media` module that stores uploads on the storage layer (public disk) and serves them back through a route; it validates the extension and the size itself because the request input bag does not carry files, keeps rows soft-deleted, and shows image thumbnails. Demo suite 98 passed on SQLite and PostgreSQL (rehearse-demo.sh, engine 4.7.0 r00027), data-demo commit 97a8034; media installed and activated in the live demo. Slice 7 (Menus/Settings) remains
