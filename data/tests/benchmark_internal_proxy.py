@@ -18,6 +18,11 @@ inside the application container:
 
     docker exec framework sh -lc 'cd /app && python tests/benchmark_internal_proxy.py'
     docker exec framework sh -lc 'cd /app && python tests/benchmark_internal_proxy.py --seconds 3 --clients 1 --clients 64 --json /tmp/proxy.json'
+
+The database and the server are chosen on the command line: `--database sqlite`
+(throwaway, the default) or `--database pgsql` (an isolated `craft_*` database
+that is created if absent and never dropped), and `--workers N` to serve from N
+uvicorn worker processes instead of one in-process server.
 """
 # Craft Framework
 # Copyright (c) 2026 Antonio Santos <snarthost@gmail.com>
@@ -43,8 +48,30 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 
-_DATABASE = os.path.join(tempfile.mkdtemp(prefix="craft-proxy-bench-"), "bench.sqlite")
-os.environ.update({"DB_CONNECTION": "sqlite", "DB_DATABASE": _DATABASE, "APP_DEBUG": "false"})
+
+def _option(name: str, default: str) -> str:
+    """Read a `--name value` option before argparse runs.
+
+    The database environment has to be set before `bootstrap.app` is imported
+    (the config resolves it at import), so the few options that choose the
+    database are read straight from `sys.argv` here.
+    """
+    if name in sys.argv:
+        index = sys.argv.index(name)
+        if index + 1 < len(sys.argv):
+            return sys.argv[index + 1]
+    return default
+
+
+DATABASE_KIND = _option("--database", "sqlite").lower()
+DATABASE_NAME = _option("--database-name", "craft_proxy_bench")
+if DATABASE_KIND == "pgsql":
+    if not DATABASE_NAME.startswith("craft_"):
+        raise SystemExit("benchmark: --database-name must start with 'craft_' (never a shared database)")
+    os.environ.update({"DB_CONNECTION": "pgsql", "DB_DATABASE": DATABASE_NAME, "APP_DEBUG": "false"})
+else:
+    _SQLITE_FILE = os.path.join(tempfile.mkdtemp(prefix="craft-proxy-bench-"), "bench.sqlite")
+    os.environ.update({"DB_CONNECTION": "sqlite", "DB_DATABASE": _SQLITE_FILE, "APP_DEBUG": "false"})
 
 import uvicorn  # noqa: E402
 from starlette.testclient import TestClient  # noqa: E402
@@ -56,12 +83,33 @@ from craft.migrations.migrator import Migrator  # noqa: E402
 REQUEST_TIMEOUT_SECONDS = 10.0
 
 
-class BillingService:
-    """Module B: one small database read, then a plain result."""
+def ensure_isolated_pgsql_database() -> None:
+    """Create the isolated benchmark database when it is missing.
 
-    def generate_invoice(self, order_id: int) -> dict:
-        DB.select("SELECT 1")
-        return {"order_id": order_id, "amount_cents": 12900, "currency": "BRL"}
+    Never touches a shared database: the name must start with `craft_`, and if
+    it already exists the helper leaves it alone (no drop, no truncate).
+    """
+    import psycopg2
+
+    maintenance = os.environ.get("DB_DATABASE_MAINTENANCE", "postgres")
+    connection = psycopg2.connect(
+        host=os.environ.get("DB_HOST", "db"),
+        port=os.environ.get("DB_PORT", "5432"),
+        user=os.environ["DB_USERNAME"],
+        password=os.environ["DB_PASSWORD"],
+        dbname=maintenance,
+    )
+    connection.autocommit = True
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT 1 FROM pg_database WHERE datname = %s", (DATABASE_NAME,))
+            if cursor.fetchone() is None:
+                cursor.execute(f'CREATE DATABASE "{DATABASE_NAME}"')
+    finally:
+        connection.close()
+
+
+from tests.bench_proxy_app import BillingService, register_routes  # noqa: E402
 
 
 # -- the server ---------------------------------------------------------------
@@ -86,40 +134,37 @@ def start_server(port: int) -> uvicorn.Server:
     return server
 
 
-_loopback = threading.local()
+def start_worker_processes(port: int, workers: int):
+    """Serve the real kernel from `workers` uvicorn worker processes.
 
+    A single `uvicorn.Server` runs in one process; more than one worker is only
+    honoured by the uvicorn CLI, which forks. The processes share the port and
+    answer together, which is what a real deployment does.
+    """
+    import subprocess
 
-def _loopback_get(port: int, path: str) -> dict:
-    """Module A reaching module B over HTTP, on a per-thread keep-alive connection."""
-    if getattr(_loopback, "connection", None) is None:
-        _loopback.connection = http.client.HTTPConnection("127.0.0.1", port, timeout=REQUEST_TIMEOUT_SECONDS)
-    try:
-        _loopback.connection.request("GET", path)
-        return json.loads(_loopback.connection.getresponse().read())
-    except (OSError, http.client.HTTPException, ValueError):
-        _loopback.connection = None
-        raise
-
-
-def register_routes(port: int) -> None:
-    """Expose module B and add module A's two ways of reaching it."""
-    app.bind(BillingService)
-    proxy = app.make("proxy")
-    if "bench.billing" not in proxy.exposed():
-        proxy.expose("bench.billing", BillingService, {"generate_invoice"})
-
-    def billing(request: Any) -> dict:
-        return app.make(BillingService).generate_invoice(int(request.query_params.get("order_id", 1)))
-
-    def checkout_proxy(request: Any) -> dict:
-        return proxy.call("bench.billing", "generate_invoice", 7)
-
-    def checkout_loopback(request: Any) -> dict:
-        return _loopback_get(port, "/bench/billing?order_id=7")
-
-    Route.get("/bench/billing", billing).name("bench.billing")
-    Route.get("/bench/checkout-proxy", checkout_proxy).name("bench.checkout.proxy")
-    Route.get("/bench/checkout-loopback", checkout_loopback).name("bench.checkout.loopback")
+    child_environment = dict(os.environ)
+    child_environment["CRAFT_PROXY_BENCH_PORT"] = str(port)
+    process = subprocess.Popen(
+        [
+            sys.executable, "-m", "uvicorn", "tests.bench_proxy_app:application",
+            "--host", "127.0.0.1", "--port", str(port),
+            "--workers", str(workers), "--log-level", "error",
+        ],
+        cwd=ROOT,
+        env=child_environment,
+    )
+    deadline = time.monotonic() + 30
+    while time.monotonic() < deadline:
+        try:
+            with socket.create_connection(("127.0.0.1", port), timeout=0.5):
+                return process
+        except OSError:
+            if process.poll() is not None:
+                raise RuntimeError("BENCH_WORKERS_EXITED_EARLY")
+            time.sleep(0.1)
+    process.terminate()
+    raise RuntimeError("BENCH_WORKERS_DID_NOT_START")
 
 
 # -- statistics ---------------------------------------------------------------
@@ -269,7 +314,7 @@ def print_request_row(row: dict) -> None:
     )
 
 
-def environment() -> dict:
+def environment(workers: int = 1) -> dict:
     """What the numbers were measured on."""
     import anyio
     import anyio.to_thread
@@ -277,13 +322,15 @@ def environment() -> dict:
     async def thread_pool_tokens() -> float:
         return anyio.to_thread.current_default_thread_limiter().total_tokens
 
+    database = f"sqlite file (throwaway)" if DATABASE_KIND != "pgsql" else f"postgresql ({DATABASE_NAME}, isolated)"
     return {
         "python": platform.python_version(),
         "machine": platform.machine(),
         "cpus": os.cpu_count(),
         "uvicorn": uvicorn.__version__,
+        "workers": workers,
         "thread_pool_tokens": anyio.run(thread_pool_tokens),
-        "database": "sqlite file (throwaway)",
+        "database": database,
     }
 
 
@@ -292,13 +339,20 @@ def main(argv: list[str] | None = None) -> dict:
     parser.add_argument("--seconds", type=float, default=5.0, help="duration of each load scenario")
     parser.add_argument("--clients", type=int, action="append", help="concurrency level; repeat to sweep")
     parser.add_argument("--scale", type=int, default=1000, help="iterations multiplier for per-call costs")
+    parser.add_argument("--workers", type=int, default=1, help="uvicorn worker processes (1 = in-process)")
+    parser.add_argument("--database", choices=("sqlite", "pgsql"), default=DATABASE_KIND,
+                        help="database the server runs against; pgsql needs an isolated craft_* database")
+    parser.add_argument("--database-name", default=DATABASE_NAME, help="isolated PostgreSQL database name")
     parser.add_argument("--json", help="write the results to this file")
     args = parser.parse_args(argv)
 
+    if DATABASE_KIND == "pgsql":
+        ensure_isolated_pgsql_database()
     Migrator(app).run()
     port = _free_port()
     register_routes(port)
-    server = start_server(port)
+    workers = max(1, args.workers)
+    server = start_worker_processes(port, workers) if workers > 1 else start_server(port)
     try:
         costs = per_call_costs(port, args.scale)
         print_call_costs(costs)
@@ -306,8 +360,15 @@ def main(argv: list[str] | None = None) -> dict:
         print(f"{'route':<10}{'clients':>8}{'req/s':>10}{'p50':>10}{'p95':>10}{'p99':>10}{'failures':>9}")
         requests = end_to_end(port, args.clients or [1, 8, 32, 64], args.seconds)
     finally:
-        server.should_exit = True
-    result = {"environment": environment(), "per_call": costs, "end_to_end": requests}
+        if workers > 1:
+            server.terminate()
+            try:
+                server.wait(timeout=10)
+            except Exception:
+                server.kill()
+        else:
+            server.should_exit = True
+    result = {"environment": environment(workers), "per_call": costs, "end_to_end": requests}
     if args.json:
         with open(args.json, "w", encoding="utf-8") as handle:
             json.dump(result, handle, indent=2)

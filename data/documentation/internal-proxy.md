@@ -203,8 +203,16 @@ worker. The proxy holds one worker per request.
 ```bash
 python tests/benchmark_internal_proxy.py --json proxy-benchmark.json
 python tools/render_benchmark_charts.py proxy-benchmark.json
+
+# the same, against an isolated PostgreSQL database and two worker processes
+python tests/benchmark_internal_proxy.py --database pgsql --workers 2 --json proxy-benchmark-pgsql.json
 ```
 
+`--database` picks `sqlite` (a throwaway file, the default) or `pgsql` (an
+isolated `craft_*` database, created if absent and never dropped); `--workers`
+serves from that many uvicorn worker processes instead of one in-process server.
 Absolute numbers move with hardware, database and worker count. The ratios and
-the deadlock at twice the pool size come from the architecture.
+the deadlock at twice the pool size come from the architecture, and they hold on
+PostgreSQL and with several workers — see
+`reports/20261007-internal-proxy-benchmark-postgres-and-workers.md`.
 

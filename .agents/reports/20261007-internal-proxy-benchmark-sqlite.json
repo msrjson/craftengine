@@ -1,0 +1,104 @@
+{
+  "environment": {
+    "python": "3.14.7",
+    "machine": "x86_64",
+    "cpus": 8,
+    "uvicorn": "0.53.0",
+    "workers": 1,
+    "thread_pool_tokens": 40,
+    "database": "sqlite file (throwaway)"
+  },
+  "per_call": {
+    "direct_method_call": {
+      "calls": 2000,
+      "failures": 0,
+      "per_second": 79196.9,
+      "mean_us": 12.37,
+      "p50_us": 10.09,
+      "p95_us": 18.79,
+      "p99_us": 24.5
+    },
+    "proxy_call": {
+      "calls": 2000,
+      "failures": 0,
+      "per_second": 53642.7,
+      "mean_us": 18.38,
+      "p50_us": 18.06,
+      "p95_us": 19.06,
+      "p99_us": 25.6
+    },
+    "proxy_dispatch": {
+      "calls": 2000,
+      "failures": 0,
+      "per_second": 63742.5,
+      "mean_us": 15.42,
+      "p50_us": 15.01,
+      "p95_us": 16.98,
+      "p99_us": 28.07
+    },
+    "kernel_in_process_asgi": {
+      "calls": 50,
+      "failures": 0,
+      "per_second": 331.8,
+      "mean_us": 3013.0,
+      "p50_us": 2531.6,
+      "p95_us": 3816.16,
+      "p99_us": 21038.66
+    },
+    "http_over_tcp_keepalive": {
+      "calls": 100,
+      "failures": 0,
+      "per_second": 1309.9,
+      "mean_us": 762.82,
+      "p50_us": 739.66,
+      "p95_us": 860.94,
+      "p99_us": 1542.66
+    }
+  },
+  "end_to_end": [
+    {
+      "route": "proxy",
+      "clients": 1,
+      "calls": 1245,
+      "failures": 0,
+      "per_second": 1244.2,
+      "mean_us": 802.7,
+      "p50_us": 783.47,
+      "p95_us": 944.98,
+      "p99_us": 1486.19
+    },
+    {
+      "route": "loopback",
+      "clients": 1,
+      "calls": 686,
+      "failures": 0,
+      "per_second": 685.6,
+      "mean_us": 1457.5,
+      "p50_us": 1434.49,
+      "p95_us": 1666.62,
+      "p99_us": 1946.43
+    },
+    {
+      "route": "proxy",
+      "clients": 8,
+      "calls": 1497,
+      "failures": 0,
+      "per_second": 1489.8,
+      "mean_us": 5356.6,
+      "p50_us": 5097.75,
+      "p95_us": 8121.77,
+      "p99_us": 10581.84
+    },
+    {
+      "route": "loopback",
+      "clients": 8,
+      "calls": 730,
+      "failures": 0,
+      "per_second": 721.9,
+      "mean_us": 11032.07,
+      "p50_us": 10623.86,
+      "p95_us": 15329.58,
+      "p99_us": 20931.65
+    }
+  ]
+}

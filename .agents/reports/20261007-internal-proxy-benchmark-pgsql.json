@@ -1,0 +1,100 @@
+{
+  "environment": {
+    "python": "3.14.7",
+    "machine": "x86_64",
+    "cpus": 8,
+    "uvicorn": "0.53.0",
+    "workers": 1,
+    "thread_pool_tokens": 40,
+    "database": "postgresql (craft_proxy_bench, isolated)"
+  },
+  "per_call": {
+    "direct_method_call": {
+      "calls": 2000,
+      "failures": 0,
+      "per_second": 8268.4,
+      "mean_us": 120.52,
+      "p50_us": 112.25,
+      "p95_us": 155.48,
+      "p99_us": 228.77
+    },
+    "proxy_call": {
+      "calls": 2000,
+      "failures": 0,
+      "per_second": 6514.7,
+      "mean_us": 152.97,
+      "p50_us": 134.6,
+      "p95_us": 238.37,
+      "p99_us": 322.48
+    },
+    "proxy_dispatch": {
+      "calls": 2000,
+      "failures": 0,
+      "per_second": 6261.9,
+      "mean_us": 159.12,
+      "p50_us": 145.55,
+      "p95_us": 254.3,
+      "p99_us": 310.89
+    },
+    "kernel_in_process_asgi": {
+      "calls": 50,
+      "failures": 0,
+      "per_second": 335.6,
+      "mean_us": 2979.08,
+      "p50_us": 2633.79,
+      "p95_us": 3877.04,
+      "p99_us": 13844.68
+    },
+    "http_over_tcp_keepalive": {
+      "calls": 100,
+      "failures": 0,
+      "per_second": 984.8,
+      "mean_us": 1014.89,
+      "p50_us": 988.62,
+      "p95_us": 1327.54,
+      "p99_us": 1617.0
+    }
+  },
+  "end_to_end": [
+    {
+      "route": "proxy",
+      "clients": 1,
+      "calls": 954,
+      "failures": 0,
+      "per_second": 953.2,
+      "mean_us": 1047.96,
+      "p50_us": 1022.66,
+      "p95_us": 1364.42,
+      "p99_us": 1544.33
+    },
+    {
+      "route": "loopback",
+      "clients": 1,
+      "calls": 540,
+      "failures": 0,
+      "per_second": 539.9,
+      "mean_us": 1850.84,
+      "p50_us": 1793.33,
+      "p95_us": 2285.41,
+      "p99_us": 2750.08
+    },
+    {
+      "route": "proxy",
+      "clients": 8,
+      "calls": 1200,
+      "failures": 0,
+      "per_second": 1195.2,
+      "mean_us": 6674.87,
+      "p50_us": 6439.43,
+      "p95_us": 9971.4,
+      "p99_us": 12366.61
+    },
+    {
+      "route": "loopback",
+      "clients": 8,
+      "calls": 0,
+      "failures": 8,
+      "per_second": 0.0
+    }
+  ]
+}
