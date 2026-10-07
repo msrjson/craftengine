@@ -23,7 +23,7 @@ import inspect
 import os
 import re
 from dataclasses import asdict, dataclass
-from typing import Any, Callable, Iterable, List
+from typing import Any, Callable, Dict, Iterable, List
 
 ERROR = "error"
 WARNING = "warning"
@@ -55,6 +55,10 @@ CATALOG = {
     "ROUTE_ACTION_NOT_FOUND": (
         "{controller} has no method {method}. Closest: {closest}.",
         "Add the method or point the route at an existing one.",
+    ),
+    "ROUTE_NAME_DUPLICATE": (
+        "{count} routes share the name {name}; url_for() resolves to one of them.",
+        "Give each route a unique name in routes/*.py.",
     ),
     "IDENTITY_MODEL_NOT_CONFIGURED": ("{detail}", "Correct the dotted path in config/auth.py, or run craft make:auth."),
     "USER_MODEL_NOT_AUTHORIZABLE": (
@@ -145,6 +149,19 @@ def check_routes(app: Any, kernel: Any) -> Iterable[Finding]:
         except KeyError as exc:
             yield _finding(ERROR, "ROUTE_MIDDLEWARE_INVALID", where, detail=_plain(exc))
         yield from _check_action(route.action, where)
+    yield from _check_route_names(app)
+
+
+def _check_route_names(app: Any) -> Iterable[Finding]:
+    """A name two routes share makes `url_for` resolve to whichever registered last."""
+    places: Dict[str, List[str]] = {}
+    for route in app.make("router").application_routes():
+        name = getattr(route, "_name", None)
+        if name:
+            places.setdefault(name, []).append(" ".join(("|".join(route.methods), route.uri)))
+    for name, seen in sorted(places.items()):
+        if len(seen) > 1:
+            yield _finding(WARNING, "ROUTE_NAME_DUPLICATE", name, name=name, count=len(seen), routes="; ".join(seen))
 
 
 def _check_action(action: Any, where: str) -> Iterable[Finding]:

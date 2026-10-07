@@ -874,6 +874,30 @@ def route_list(
     echo(f"{len(routes)} route(s).")
 
 
+@route_app.command("check")
+def route_check(
+    as_json: bool = typer.Option(False, "--json", help="Print the findings as JSON."),
+) -> None:
+    """Resolve every route's middleware and action; fail when a route is broken."""
+    from bootstrap.app import kernel
+    from engine.support import doctor as checks
+
+    findings = list(checks.check_routes(get_app(), kernel))
+    if as_json:
+        echo(json.dumps([finding.to_dict() for finding in findings], indent=2))
+    else:
+        for finding in findings:
+            colour = "red" if finding.level == checks.ERROR else "yellow"
+            echo(" ".join((finding.level.upper(), finding.code, finding.where)), colour)
+            echo("    " + finding.message())
+            echo("    fix: " + finding.fix(), "cyan")
+    errors = sum(1 for finding in findings if finding.level == checks.ERROR)
+    if not as_json:
+        echo(checks.summary(len(findings), errors), "red" if errors else "green")
+    if errors:
+        raise typer.Exit(code=1)
+
+
 # -- docs -----------------------------------------------------------------------
 
 @docs_app.command("build")

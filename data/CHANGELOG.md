@@ -20,6 +20,11 @@ full policy (categories to use, what counts as security-relevant, how
 
 ### Added
 
+- `route:check`: resolves every route's middleware and action and fails on a
+  route defect, and reports two routes sharing a name - which silently makes
+  `url_for()` resolve to whichever registered last - as a doctor warning.
+  `check_routes` (`engine/support/doctor.py`) gained the duplicate-name check,
+  so `dev.py doctor` reports it too.
 - `release:sync` / `release:status` and a `VERSION` file (Slice 3 of the
   upstream roadmap). `release:sync` applies the pending migrations and runs the
   release seeders under the migrator's advisory lock, then records one
