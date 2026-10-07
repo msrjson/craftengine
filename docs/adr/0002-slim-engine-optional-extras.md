@@ -1,6 +1,9 @@
 # ADR 0002 — The engine is slim: non-core subsystems become optional extras
 
-- **Status:** accepted (owner, 2026-09-25); not yet implemented
+- **Status:** accepted (owner, 2026-09-25); step 0 implemented — dependency
+  hygiene shipped in v4.2.0-r00020 (`ad63fb5`) and the lazy `security` /
+  firewall imports on 2026-10-07 (`fe4a6a4`); steps 1-6 pending. Updated
+  2026-10-07.
 - **Date:** 2026-09-25
 - **Supersedes:** nothing; follows ADR 0001
 - **Scope:** which subsystems a project gets by default, how the rest are
@@ -35,7 +38,8 @@ Facts that shape the decision:
 3. `pillow` is required by every HTTP application by accident:
    `engine/http/middleware.py:961` imports the firewall at module level, which
    runs `engine/security/__init__.py`, which imports the captcha eagerly, which
-   imports `PIL` at the top of `engine/security/captcha.py`.
+   imports `PIL` at the top of `engine/security/captcha.py`. (Step 0 removed
+   this accident: the firewall import is lazy now.)
 4. The project's `PluginManager` discovers `plugins/<slug>/plugin.py` inside
    a *project* and keeps state in the database (`engine/plugins/manager.py`).
    It is not a vehicle for engine subsystems.
@@ -78,6 +82,10 @@ Facts that shape the decision:
 | 5 | Datagrid (491): deprecate the re-export in `engine/http/__init__.py` | import path | - |
 | 6 | Media (732) + Captcha (144) together; `pillow` becomes the `media` extra | NR-05 names `Image` | -2 providers, -1 core dependency |
 | - | Firewall, Honeypot, AntiSpam | only after amending NR-05/NR-06 | - |
+
+**Landed so far:** step 0 — dependency hygiene in v4.2.0-r00020 (`ad63fb5`,
+2026-09-26) and the lazy `security/__init__.py` / firewall re-export in
+`fe4a6a4` (2026-10-07). Steps 1-6 remain.
 
 After steps 0-6: 24 -> 17 default providers, 35 -> 27 container keys, 14 -> 10
 core dependencies (9 if `cryptography` follows Vault into an extra), about
