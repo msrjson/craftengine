@@ -1,7 +1,7 @@
 # Multi-stage production Dockerfile for the Craft framework
 
 # --- Stage 1: Builder ---
-FROM python:3.14-slim as builder
+FROM python:3.14-slim AS builder
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1
@@ -21,19 +21,23 @@ RUN pip install --no-cache-dir --prefix=/install . \
     && pip install --no-cache-dir --prefix=/install uvicorn[standard] gunicorn psycopg[binary]
 
 # --- Stage 2: Production Final Image ---
-FROM python:3.14-slim as production
+FROM python:3.14-slim AS production
 
+# The image ships a HEALTHCHECK against /health, so the probe routes must be on:
+# off by default, they would make every container report unhealthy.
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONPATH=/app \
     APP_ENV=production \
-    APP_DEBUG=false
+    APP_DEBUG=false \
+    HEALTH_ROUTES_ENABLED=true
 
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
     libpq5 \
     curl \
+    tzdata \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy installed dependencies from builder
@@ -46,15 +50,26 @@ COPY . .
 RUN mkdir -p storage/app/public storage/framework/cache storage/framework/sessions storage/logs \
     && chmod -R 775 storage bootstrap/cache 2>/dev/null || true
 
-# Create non-root system user for production security
-RUN addgroup --system dev && adduser --system --group dev \
-    && chown -R dev:dev /app
+# Create a non-root system user with a real HOME. Some libraries cache under
+# `~`; a system user with no home fails at runtime with a permission error that
+# never appears at build time.
+RUN addgroup --system dev && adduser --system --group --home /home/dev dev \
+    && mkdir -p /home/dev \
+    && chown -R dev:dev /app /home/dev \
+    && chmod +x /app/docker/entrypoint.sh
+
+ENV HOME=/home/dev
 
 USER dev
 
 EXPOSE 8000
 
-# Production Entrypoint: apply pending migrations only (never `migrate fresh`,
-# which drops data), then run Gunicorn with Uvicorn ASGI Workers pointing to
-# public.index:application.
-CMD ["sh", "-c", "python dev.py migrate && gunicorn -w 4 -k uvicorn.workers.UvicornWorker public.index:application --bind 0.0.0.0:8000"]
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
+    CMD curl -fsS http://localhost:8000/health || exit 1
+
+# The entrypoint synchronizes the release first - pending migrations plus the
+# release seeders, idempotent and under an advisory lock, never `migrate fresh`,
+# which drops data - then hands off to Gunicorn with Uvicorn ASGI workers
+# pointing at public.index:application.
+ENTRYPOINT ["/app/docker/entrypoint.sh"]
+CMD ["gunicorn", "-w", "4", "-k", "uvicorn.workers.UvicornWorker", "public.index:application", "--bind", "0.0.0.0:8000"]

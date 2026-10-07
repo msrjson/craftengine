@@ -1,0 +1,38 @@
+# What the runtime image does not need. The build context is `data/`.
+#
+# Secrets and local state must never enter an image layer: an image is pushed
+# and pulled, and a `.env` baked into a layer stays in its history even if a
+# later layer removes the file.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.sqlite
+*.sqlite3
+*.db
+
+# Local tooling and caches.
+.git
+.gitignore
+.venv
+venv
+__pycache__
+*.py[cod]
+.pytest_cache
+.ruff_cache
+.coverage
+htmlcov
+*.egg-info
+
+# Tests are not shipped in the runtime image; they run in CI and the framework
+# container instead.
+tests/
+craft.code-workspace
+.vscode
+
+# Local storage and compiled assets are produced at runtime, not baked in.
+storage/app/**
+storage/framework/**
+storage/logs/**
+public/build/**

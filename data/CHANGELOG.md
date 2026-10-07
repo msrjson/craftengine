@@ -39,6 +39,11 @@ full policy (categories to use, what counts as security-relevant, how
 
 ### Changed
 
+- The production image synchronizes its own release. `docker/entrypoint.sh` runs
+  `release:sync` (migrations plus seeders, idempotent, never `migrate fresh`)
+  before starting the server; `Dockerfile.prod` installs `tzdata`, gives the
+  non-root user a real `HOME`, adds a `HEALTHCHECK` against `/health`, and
+  `data/.dockerignore` keeps secrets, tests and local caches out of every layer.
 - `config/database.py` and the project skeleton no longer carry the inert
   `disposable_databases` key. `is_disposable_database()` returns false
   unconditionally, so no name, no `_test` suffix and no in-memory database ever

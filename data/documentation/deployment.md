@@ -14,7 +14,9 @@ Work through this before the first production request.
 - [ ] `SESSION_SECURE_COOKIE=true` — the cookie becomes HTTPS-only.
 - [ ] Serve `public/` as the web root. `storage/`, `.env`, `app/` and `config/`
       must not be reachable over HTTP.
-- [ ] `python dev.py migrate` — never `migrate:fresh`, which drops everything.
+- [ ] `python dev.py release:sync` — applies the migrations and runs the release
+      seeders, then records the release; never `migrate:fresh`, which drops
+      everything.
 - [ ] Confirm `python dev.py db ping` succeeds as the deploy user.
 - [ ] Set up a queue worker if you dispatch jobs.
 
@@ -134,8 +136,14 @@ cleanly; see [Rolling deploys](#rolling-deploys).
 ## Migrations on deploy
 
 ```bash
-python dev.py migrate
+python dev.py release:sync
 ```
+
+`release:sync` applies the pending migrations and runs the release seeders in one
+step, then appends a `release_syncs` row recording the version and what ran. It
+refuses to run when the `VERSION` file disagrees with the running code, so a
+stale image fails the boot instead of migrating the node from code nobody can
+name (see [Release synchronization](release.md)).
 
 It is idempotent: already-applied migrations are skipped, and on PostgreSQL it
 takes an advisory lock first, so every container in a deployment can run the
