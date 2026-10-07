@@ -20,23 +20,60 @@ from typing import Any, Dict, Iterator, List, Optional
 
 
 class MessageBag:
-    """Convenient container for validation error messages."""
+    """Convenient container for validation error messages.
+
+    Every entry carries a stable `code` and its translation `message_key` next
+    to the rendered text, so an API client can branch on the rule that failed
+    without matching a translated string. `add()` records all three; the string
+    APIs (`first()`, `all()`, `to_dict()`) are unchanged for templates and for
+    callers written before the structured form existed.
+    """
 
     def __init__(self, messages: Optional[Dict[str, List[str]]] = None):
         self._messages: Dict[str, List[str]] = {}
+        self._structured: Dict[str, List[Dict[str, Any]]] = {}
         if messages:
             for key, val in messages.items():
                 if isinstance(val, list):
-                    self._messages[key] = list(val)
+                    values = list(val)
                 elif isinstance(val, (str, bytes)):
-                    self._messages[key] = [str(val)]
+                    values = [str(val)]
                 elif val is not None:
-                    self._messages[key] = [str(val)]
+                    values = [str(val)]
+                else:
+                    values = []
+                for value in values:
+                    self.add(key, str(value))
 
-    def add(self, key: str, message: str) -> MessageBag:
-        """Add an error message for the given key."""
+    def add(
+        self,
+        key: str,
+        message: str,
+        code: Optional[str] = None,
+        message_key: Optional[str] = None,
+        params: Optional[Dict[str, Any]] = None,
+    ) -> MessageBag:
+        """Add an error, with the stable code and translation key that produced it."""
         self._messages.setdefault(key, []).append(message)
+        self._structured.setdefault(key, []).append({
+            "code": code or "",
+            "message_key": message_key or "",
+            "message": message,
+            "params": dict(params or {}),
+        })
         return self
+
+    def errors(self) -> Dict[str, List[Dict[str, Any]]]:
+        """Return `{field: [{code, message_key, message, params}, ...]}`.
+
+        The shape an API client consumes: `code` is the rule (`required`,
+        `email`, ...), `message_key` is `validation.<code>` and `message` is
+        the same text `first()` returns.
+        """
+        return {
+            key: [dict(entry) for entry in entries]
+            for key, entries in self._structured.items() if entries
+        }
 
     def setdefault(self, key: str, default: Any = None) -> Any:
         """Dict-compatible setdefault."""

@@ -20,6 +20,12 @@ full policy (categories to use, what counts as security-relevant, how
 
 ### Added
 
+- Validation errors carry a stable `code` and `message_key` (Slice 4 of the
+  upstream roadmap). `MessageBag.errors()` returns
+  `{field: [{code, message_key, message, params}]}`, and a `ValidationException`
+  served over HTTP adds them under `error_details` beside the unchanged
+  `errors` map of strings, so a client branches on the rule instead of matching
+  translated copy.
 - `Route.fallback(uri, action, methods=None)` (Slice 4 of the upstream
   roadmap): a catch-all route matched only after every specific one, whatever
   order it was registered in. The kernel sorts the route table with fallbacks

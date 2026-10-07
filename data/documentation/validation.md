@@ -129,6 +129,19 @@ validator.error_messages()  # flat list
 validator.validated()       # validated subset, or raises
 ```
 
+Every failure also carries the rule that produced it, so a client that consumes
+JSON branches on a stable code instead of on a translated string:
+
+```python
+validator.errors.errors()
+# {"email": [{"code": "email", "message_key": "validation.email",
+#             "message": "Enter a valid email address.", "params": {"field": "email"}}]}
+```
+
+A validation `ValidationException` surfaced over HTTP adds the same detail to
+its payload under `error_details`, beside the `errors` map of strings that has
+always been there.
+
 ## Custom messages
 
 ```python

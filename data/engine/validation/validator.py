@@ -43,6 +43,7 @@ HTML_TAG_RE = re.compile(r"<[^>]+>")
 IMAGE_EXTENSIONS = {"jpg", "jpeg", "png", "gif", "webp", "svg", "bmp", "ico", "tiff"}
 
 from engine.validation.error_bag import MessageBag, ViewErrorBag
+from engine.validation.messages import KEY_PREFIX
 
 Rules = Dict[str, Union[str, List[Any]]]
 
@@ -153,8 +154,12 @@ class Validator:
                     passed = callback(field, value, args, self)
                     if not passed:
                         if default_msg:
-                            self.errors.setdefault(field, []).append(
-                                self.messages.get(".".join((field, name))) or default_msg
+                            self.errors.add(
+                                field,
+                                self.messages.get(".".join((field, name))) or default_msg,
+                                code=name,
+                                message_key=KEY_PREFIX + name,
+                                params={"field": field},
                             )
                         else:
                             self._add_error(field, name, code="invalid")
@@ -171,15 +176,22 @@ class Validator:
 
         A message the caller gave for `field.rule` or `field` wins; otherwise
         the text is the translation key `validation.<code>` (`code` defaults
-        to the rule), formatted with `field` and `params`.
+        to the rule), formatted with `field` and `params`. The stable `code`
+        and its `message_key` are recorded alongside the text, so an API client
+        branches on the rule and never on a translated string.
         """
-        custom = self.messages.get(".".join((field, rule))) or self.messages.get(field)
-        if custom:
-            self.errors.setdefault(field, []).append(custom)
-            return
         from engine.validation.messages import message
 
-        self.errors.setdefault(field, []).append(message(code or rule, field=field, **params))
+        resolved = code or rule
+        custom = self.messages.get(".".join((field, rule))) or self.messages.get(field)
+        text = custom or message(resolved, field=field, **params)
+        self.errors.add(
+            field,
+            text,
+            code=resolved,
+            message_key=KEY_PREFIX + resolved,
+            params={"field": field, **params},
+        )
 
     # -- presence --------------------------------------------------------------
 
@@ -630,7 +642,11 @@ class Validator:
         if self.fails():
             from engine.exceptions.handler import ValidationException
 
-            raise ValidationException(self.errors.to_dict())
+            error = ValidationException(self.errors.to_dict())
+            # The same failures, each with its stable code and message_key, so a
+            # client that consumes JSON can branch on the rule.
+            error.error_details = self.errors.errors()
+            raise error
         return {k: self.data[k] for k in self.rules if k in self.data}
 
     def validate(self) -> Dict[str, Any]:

@@ -188,6 +188,11 @@ class ExceptionHandler:
             payload["message_key"] = message_key
         if isinstance(exception, ValidationException):
             payload["errors"] = exception.errors
+            details = getattr(exception, "error_details", None)
+            if details:
+                # Each failure with its stable code and message_key, so a client
+                # branches on the rule instead of on a translated string.
+                payload["error_details"] = details
         # A trace belongs to a *failure*. A 403 or a 404 is the framework
         # working: the visitor asked for something they may not have, and
         # answering that with a stack dump is noise at best and a map of the
