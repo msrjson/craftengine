@@ -12,11 +12,11 @@
 
 ## 0. Adoption in three steps
 
-| Step | Action | Artifact in this repository |
-| --- | --- | --- |
-| 1 | Fill in §1 (Project Profile) and commit this file | `.agents/rules/LANGUAGE_AND_I18N_STANDARD.md` (this file — the single canonical copy) |
-| 2 | Put the short contract where every agent loads it | `.claude/rules/AGENTS.md`; `.agents/rules/AGENTS.md` points to it |
-| 3 | Install the gate and wire it to pre-commit + CI | `data/tools/lint_language.py`, `data/language-standard.toml`, `data/language-standard.views.toml`, `data/.pre-commit-config.yaml`, `.github/workflows/deploy.yml` |
+| Step | Action | Artifact |
+|---|---|---|
+| 1 | Fill in §1 (Project Profile) and commit this file | `docs/standards/LANGUAGE_AND_I18N.md` |
+| 2 | Copy the short contract to the repository root | `AGENTS.md` → symlink `CLAUDE.md`, `.cursorrules` |
+| 3 | Install the gate and wire it to pre-commit + CI | `tools/lint_language.py`, `language-standard.toml` |
 
 Steps 1 and 2 alone do not work. A standard without a blocking check is a
 suggestion, and both humans and language models drift back to the language of the
@@ -24,61 +24,25 @@ conversation as soon as the context gets long. **The exit code is the standard.*
 
 ---
 
-## 1. Project Profile — Craft Engine
+## 1. Project Profile — fill this in
 
 | Setting | Value | Used by |
-| --- | --- | --- |
-| Team / conversation language | `pt-BR` | denylist selection in the gate |
+|---|---|---|
+| Team / conversation language | `<pt-BR>` | denylist selection in the gate |
 | Code language | **English (en-US)** — non-negotiable | everything |
-| Source locale for translation keys | `en` | catalog integrity check |
-| Supported locales | `en`, `pt`, `pt-BR`, `es` (`APP_LOCALES`, `data/config/app.py`) | translator, CI |
-| Fallback locale | `en` (`APP_FALLBACK_LOCALE`) | translator |
-| Primary stack | Python 3.14 / Starlette; MVC with an autowired container, Active Record ORM, PostgreSQL | naming table §4 |
-| Translation storage | **hybrid** — `translations` table first, `resources/lang/catalog.json` and `config/lang.py` behind it | §7.2 |
-| Translation cache | **none — see the gap below** | §7.2 |
-| Translator entry point | `__(key, locale=None, **params)` from `craft.support` (`engine/support/translation.py::translate`) | gate config |
-| Key format | `<domain>.<entity_or_screen>.<element>[.<state>]` | gate config |
-| Scan roots | `config`, `routes` today; widened per §10 — counts in `data/language-standard.toml` | gate config |
-| Exempt paths (localized copy) | `*/lang/*`, `*/locales/*`, `*/translations/*`, `*Translation*Seeder*`, `*/tools/lint_language.py` | gate config |
+| Source locale for translation keys | `<en-US>` | catalog integrity check |
+| Supported locales | `<en-US, pt-BR, es-ES>` | translator, CI |
+| Fallback locale | `<en-US>` | translator |
+| Primary stack | `<language / framework>` | naming table §4 |
+| Translation storage | `<database \| files \| hybrid>` | §7.2 |
+| Translation cache | `<Redis \| in-memory \| CDN \| none>` | §7.2 |
+| Translator entry point | `<TranslationService.get(key, locale, **params)>` | gate config |
+| Key format | `<domain>.<entity>.<element>[.<state>]` | gate config |
+| Scan roots | `<src, app, tests>` | gate config |
+| Exempt paths (localized copy) | `<lang/, locales/, translations/>` | gate config |
 
-Everything the gate needs from this table lives in `data/language-standard.toml`
-and `data/language-standard.views.toml`. The linter carries no project knowledge.
-
-### Where this project does not yet meet the standard
-
-Recorded here rather than quietly tolerated, because §12 forbids informal
-exemptions. Each line is work, not a waiver.
-
-1. **No bundle cache (§7.2).** `translate()` issues one `SELECT` per key per step
-   of the locale chain, with no cache at any layer. §7.2 forbids this in bold:
-   the cache unit must be the whole locale bundle, invalidated by version bump.
-   This is the highest-severity gap — it is a load problem, not a copy problem.
-2. **Two key vocabularies.** `resources/lang/catalog.json` is canonical: 75
-   `dot.case` keys, complete across all four locales, zero gaps. The views and
-   `database/seeders/TranslationSeeder.py` still use the legacy flat vocabulary
-   (`login`, `recent_posts`). LANG-D flags these as those paths enter scope;
-   migrate under §10.1 with a deprecated alias for one release.
-3. **Hardcoded copy in `app/` and `resources/views/`.** Real R2 violations —
-   panel headings, controller error lists, view text nodes. Counted in
-   `data/language-standard.toml`.
-4. **Errors carry sentences, not codes (§8).** Boot- and request-time failures
-   raise `ValueError`/`TenantIsolationUnavailable` with English prose. Where the
-   audience is an operator reading a stack trace this is acceptable and stays;
-   where it reaches a user it needs `code` + `message_key`.
-5. **Two template globs, two configs.** Views are `*.forge.py`: a template DSL
-   carrying a `.py` suffix. One config cannot classify them as templates without
-   the Python pass failing them all as LANG-E, so the gate runs twice. Documented
-   in `data/language-standard.views.toml`.
-
-### One change to the gate
-
-`_has_foreign_letters()` replaced four `ord(char) > 127` checks. LANG-A now fires
-on non-ASCII **letters** only; typographic punctuation and symbols are
-language-neutral and pass. Rationale: this repository holds 783 em dashes in
-idiomatic English prose against roughly 80 accented characters, so the original
-rule reported ~97% false positives — a gate engineers learn to ignore is not a
-gate. `ascii_only = true` restores the strict behaviour. This is a config knob,
-not project knowledge, so the "never edited per project" rule still holds.
+Everything the gate needs from this table lives in `language-standard.toml`. The
+linter itself carries no project knowledge and is never edited per project.
 
 ---
 

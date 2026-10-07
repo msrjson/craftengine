@@ -15,8 +15,8 @@ handoff file format, and the rules every agent follows.
 | Channel | Where | Carries | Lifetime |
 |---|---|---|---|
 | **Backlog queue** | `backlog/` | *What* to do: one task per file, its state is its directory | until the task is `done` or `failed` |
-| **Handoff** | `.claude/handoffs/` | *Where someone stopped*: the state of work in progress, passed from one agent to another | one file per event, never edited after `done` |
-| **Board** | `.claude/team/board.md` | *What is happening now*, for **every** tool: CLAIM, RELEASE, BLOCKER, FINDING, RED-TEST, TEST-RUN, HANDOVER, DONE, RULE, ACK | append-only, committed |
+| **Handoff** | `.agents/handoffs/` | *Where someone stopped*: the state of work in progress, passed from one agent to another | one file per event, never edited after `done` |
+| **Board** | `.agents/team/board.md` | *What is happening now*, for **every** tool: CLAIM, RELEASE, BLOCKER, FINDING, RED-TEST, TEST-RUN, HANDOVER, DONE, RULE, ACK | append-only, committed |
 | **Live team bus** | `team` MCP server (`team_post`, `team_inbox`, `team_claim`) | the same live notes, faster, for tools that have the MCP server | the session; nothing durable lives only here |
 
 The board exists because not every tool has the MCP bus: Codex and Cursor read
@@ -27,7 +27,7 @@ to them, so anything another tool must see goes to the board.
 
 | Tool | Agent name on the board | Instructions | Live channel | Gates run by |
 |---|---|---|---|---|
-| Claude Code | `claude@claude-code` | `CLAUDE.md` -> `AGENTS.md`, `.claude/` | bus + board | hooks (automatic) |
+| Claude Code | `claude@claude-code` | `CLAUDE.md` -> `AGENTS.md`, `.agents/` | bus + board | hooks (automatic) |
 | Gemini CLI | `gemini@gemini-cli` | `GEMINI.md` -> `AGENTS.md` | bus + board | the agent, before "done" |
 | Antigravity | `gemini@antigravity` | `GEMINI.md` -> `AGENTS.md`, `.agents/` | board | the agent, before "done" |
 | Codex | `gpt@codex` | `AGENTS.md` | board | the agent, before "done" |
@@ -44,7 +44,7 @@ and board gates for every tool that commits.
 ```text
 2026-10-04T17:00Z | from: gpt@codex | to: all | CLAIM | data/engine/http/kernel.py, data/tests/test_kernel_lifecycle.py until 18:00Z (task p2-20261004-161338)
 2026-10-04T17:05Z | from: claude@claude-code | to: gpt@codex | ACK | your CLAIM on kernel.py; I stay out of it
-2026-10-04T17:40Z | from: gpt@codex | to: all | DONE | kernel copy fix, commit 1a2b3c4; handoff .claude/handoffs/20261004-1740-codex-to-claude-module-disabled-review.md
+2026-10-04T17:40Z | from: gpt@codex | to: all | DONE | kernel copy fix, commit 1a2b3c4; handoff .agents/handoffs/20261004-1740-codex-to-claude-module-disabled-review.md
 2026-10-04T17:40Z | from: gpt@codex | to: all | RELEASE | kernel.py, test_kernel_lifecycle.py
 ```
 
@@ -56,7 +56,7 @@ and board gates for every tool that commits.
 Rule of thumb:
 
 - A new piece of work, or work nobody has started -> a **backlog task**
-  (`.claude/rules/BACKLOG_QUEUE_STANDARD.md`, `backlog/README.md`).
+  (`.agents/rules/BACKLOG_QUEUE_STANDARD.md`, `backlog/README.md`).
 - Work someone started and another agent must continue, review or validate ->
   a **handoff** that names the task it belongs to.
 - "I am editing these paths right now" or "your change broke X" -> the **bus**,
@@ -77,12 +77,12 @@ Do not write a handoff just to route work onward: no relay chains. Depth is one
 ## File
 
 ```text
-.claude/handoffs/YYYYMMDD-HHMM-<from>-to-<to>-<slug>.md
+.agents/handoffs/YYYYMMDD-HHMM-<from>-to-<to>-<slug>.md
 ```
 
 - `YYYYMMDD-HHMM` is UTC; `<from>` and `<to>` are `claude`, `gemini`, `qwen`,
   `local` or `owner`; `<slug>` is short lowercase kebab-case English.
-- Start from `.claude/handoffs/TEMPLATE.md`. The helper CLI `handoff`
+- Start from `.agents/handoffs/TEMPLATE.md`. The helper CLI `handoff`
   (`handoff new <from> <to> <slug>`) writes the same file.
 - Committed, so it is English like every other artifact. The conversation with
   the owner stays in pt-BR.
@@ -133,7 +133,7 @@ Name the backlog task the work belongs to in **Context pointers**, by file name
 |---|---|---|
 | Claude | `/passagem <to> <slug>` | `/retomar [file]` |
 | Gemini, Qwen | `/passagem <to> <slug>` | `/retomar [file]` |
-| Codex, Cursor, Antigravity | copy `.claude/handoffs/TEMPLATE.md` | read the file named in a board `HANDOVER` line |
+| Codex, Cursor, Antigravity | copy `.agents/handoffs/TEMPLATE.md` | read the file named in a board `HANDOVER` line |
 | Shell | `handoff new <from> <to> <slug>` | `handoff list`, `handoff claim <file> <agent>`, `handoff done <file>` |
 
 `/handoff` is a different thing: delivery to a client. It is not agent-to-agent
@@ -146,7 +146,7 @@ independent review:
 
 ```text
 backlog/processing/p2-20261004-161338-module-disabled-hardcoded-copy.md    the task (what)
-.claude/handoffs/20261004-1700-claude-to-gemini-module-disabled-review.md  the handoff (where Claude stopped)
+.agents/handoffs/20261004-1700-claude-to-gemini-module-disabled-review.md  the handoff (where Claude stopped)
 team_post to=gemini "review handoff 20261004-1700 when free"               the live nudge
 ```
 

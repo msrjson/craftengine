@@ -18,8 +18,9 @@ venv/
 .ruff_cache/
 .mypy_cache/
 
-# Tool-local agent state (tool-owned content lives under .claude/; AGENTS.md §0.1)
+# Tool-local agent state (agent content lives under .agents/; AGENTS.md §0.1)
 .qwen/
+settings.local.json
 
 # Storage / Databases
 data/storage/logs/*
@@ -39,7 +40,7 @@ data/storage/app/*
 *.pem
 
 # Third-party repository kept locally as a learning reference
-.claude/Project Reference/
+.agents/Project Reference/
 
 # The craftengine.org presentation site is its own private repository
 # (msrjson/craftengine.org), kept here so the bound DigitalOcean app and its

@@ -4,7 +4,7 @@
 worker, Cursor or VS Code agents, and humans.
 **Status:** active and mandatory. A violation is a defect, never a style choice.
 **Operating manual:** `backlog/README.md` (how to pick, claim, resolve, fail).
-**Gate:** `python3 .claude/rules/lint_backlog.py` - must exit 0.
+**Gate:** `python3 .agents/rules/lint_backlog.py` - must exit 0.
 
 This file states the rules; the README explains the procedure. When the two
 disagree, this file wins and the README is fixed in the same change.
@@ -146,8 +146,8 @@ or gate. Those stay with the owner (`AGENTS.md`, NR-02, NR-03).
 | `BQ-DEL` | a task file deleted from the queue (with `--staged`) |
 
 ```bash
-python3 .claude/rules/lint_backlog.py            # whole queue
-python3 .claude/rules/lint_backlog.py --staged   # queue + staged deletions and History rewrites
+python3 .agents/rules/lint_backlog.py            # whole queue
+python3 .agents/rules/lint_backlog.py --staged   # queue + staged deletions and History rewrites
 ```
 
 The Git hook lives in `.githooks/pre-commit`; enable it once per clone with

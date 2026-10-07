@@ -4,10 +4,10 @@ The work queue for autonomous agents. Every open item is one Markdown file; its
 directory is its state. An agent needs nothing but this file and the task file
 to pick up, execute and close a task.
 
-**Mandatory.** The rules are in `.claude/rules/BACKLOG_QUEUE_STANDARD.md`
+**Mandatory.** The rules are in `.agents/rules/BACKLOG_QUEUE_STANDARD.md`
 (BQ-01 to BQ-11); this file is the procedure that follows them. The gate
-`python3 .claude/rules/lint_backlog.py` must exit 0 after every change to the
-queue. It runs automatically as a Claude Code hook (`.claude/settings.json`) and
+`python3 .agents/rules/lint_backlog.py` must exit 0 after every change to the
+queue. It runs automatically as a Claude Code hook (`.agents/settings.json`) and
 as the Git `pre-commit` (`.githooks/pre-commit`; enable once per clone with
 `git config core.hooksPath .githooks`). Never bypass it.
 
@@ -24,7 +24,7 @@ backlog/
 
 `docs/backlog.md` keeps the history of items closed before this queue existed
 and the `Done automatically` log. Agent-to-agent passing of a task in progress
-still goes through `.claude/handoffs/` (see [`handoff.md`](../handoff.md)); the queue says *what* to do, a handoff
+still goes through `.agents/handoffs/` (see [`handoff.md`](../handoff.md)); the queue says *what* to do, a handoff
 says *where someone stopped*.
 
 ---
@@ -121,7 +121,7 @@ After the move, increment `attempts`, set `claimed_by: <agent>` and
 
 - Re-check the **Evidence** first. If the problem no longer exists, resolve the
   task as `obsolete` (step 4) instead of changing code.
-- Follow the project rules: `AGENTS.md`, `data/AGENTS.md`, `.claude/rules/`.
+- Follow the project rules: `AGENTS.md`, `data/AGENTS.md`, `.agents/rules/`.
 - Tests count only when run in the `framework` container (`docker compose up -d`
   if it is down): `docker exec framework sh -lc 'cd /app && python -m pytest tests/<file>.py -q'`.
   `data/.env` sets `APP_URL` to port 9000, so a full-suite run reproduces CI

@@ -25,7 +25,7 @@ This standard defines the non-negotiable contract to prevent regressions across 
 Before cutting or publishing any release, the verification pipeline MUST pass with zero errors:
 1. **Unit & Integration Tests**: `python -m pytest tests` must execute with 100% pass rate.
 2. **Linter Gate**: `ruff check engine` must execute with zero lint or structural violations.
-3. **Language Standard Gate**: `python .claude/rules/lint_language.py --config language-standard.toml` must pass clean.
+3. **Language Standard Gate**: `python .agents/rules/lint_language.py --config language-standard.toml` must pass clean.
 4. **Non-Regression Verification**: `tests/test_release_non_regression.py` must pass, validating version synchronization, facade integrity, and database safety invariants.
 
 ### NR-04 — Immutable Changelog & Traceability Contract
@@ -60,5 +60,5 @@ Agents and maintainers must verify each check prior to tagging a release:
 - [ ] `CHANGELOG.md` has `## [X.Y.Z] rNNNNN — YYYY-MM-DD` and a fresh `## [Unreleased]`.
 - [ ] `ruff check engine` outputs `All checks passed!`.
 - [ ] `python -m pytest tests` outputs all passed with zero failures.
-- [ ] `python .claude/rules/lint_language.py --config language-standard.toml` outputs `Language standard: clean.`.
+- [ ] `python .agents/rules/lint_language.py --config language-standard.toml` outputs `Language standard: clean.`.
 - [ ] No raw destructive SQL commands or drop table statements in code.

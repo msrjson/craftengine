@@ -5,7 +5,7 @@
 **Test:** `data/tests/test_engine_boundary.py`.
 
 This file is project-owned on purpose: the shared governance files under
-`.claude/rules/` are re-provisioned from a global source and would lose a
+`.agents/rules/` are re-provisioned from a global source and would lose a
 section added to them.
 
 ## Rules

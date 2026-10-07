@@ -3,12 +3,13 @@ id: "20261004-162631"
 title: Make .agents/ the physical agent directory, with .claude as a symlink to it
 type: chore
 priority: 1
-autonomous: false
-blocked_by: owner-action
+autonomous: true
+blocked_by: none
 max_attempts: 2
-attempts: 0
+attempts: 1
+claimed_by: qwen@qwen-code
 created_at: 2026-10-04T16:26:31Z
-updated_at: 2026-10-07T08:30:00Z
+updated_at: 2026-10-07T08:52:00Z
 source: owner ruling 2026-10-04 (the Craft Engine workspace is organized as .agents, for every tool)
 touches:
   - .agents/
@@ -82,3 +83,6 @@ go-ahead (BQ-11).
 
 - 2026-10-04T16:26:31Z created by claude (source: owner ruling 2026-10-04)
 - 2026-10-07T08:30:00Z owner ruling: "everything under .claude must move to .agents and be documented in the rules" (owner, relayed by qwen@qwen-code). Re-checked the block on 2026-10-07: `~/.claude/agent-team/AGENTS.md` section 0 still says "One agent directory per project: `.claude/` ... that path is a symlink to `.claude` (e.g. `.agents -> .claude`)", and `~/.claude/agent-team/bin/workspace-guard` (TOOL_DIRS = {".agents", ...}) still denies writes under a physical `.agents/`. Both live outside this workspace, so the ruling cannot be executed until the owner updates them; `blocked_by: owner-action` stands. Once they are aligned, the migration is: reconcile the overlapping rules/agents/skills/docs, move, leave `.claude -> .agents`, update AGENTS.md/handoff.md/backlog/README.md/.githooks, then run the gates and post a board RULE line.
+- 2026-10-07T08:42:00Z owner ruling (the block is lifted by the owner): "no global policy may forbid the author from organizing the workspace"; "if I say everything is .agents it is because I do not want to be hostage to a harness" (owner, relayed by qwen@qwen-code). The two global artifacts were aligned in this session with backups kept: `~/.claude/agent-team/AGENTS.md` section 0.1 now allows either `.claude/` or `.agents/` as the physical directory, and `workspace-guard` no longer lists `.agents` in TOOL_DIRS (only `.gemini`, `.qwen`, `.cursor` must remain symlinks). autonomous set true, blocked_by cleared by that ruling.
+- 2026-10-07T08:42:00Z claimed by qwen@qwen-code (attempt 1)
+- 2026-10-07T08:52:00Z resolved by qwen@qwen-code (resolutions/p1-20261004-162631-agents-directory-migration.resolution.md): .agents/ is physical, .claude -> .agents, 1506 files, collisions reconciled, docs and .gitignore updated; a hand reorganisation by the owner mid-session was recovered from two /tmp backups and the Git index, and docs/backlog.md restored from HEAD

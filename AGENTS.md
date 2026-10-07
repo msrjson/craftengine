@@ -14,17 +14,18 @@ agent may own them.
 
 | Tool | Reads | Live channel |
 |---|---|---|
-| Claude Code | `CLAUDE.md` -> this file, `.claude/` (settings, hooks, skills, commands) | `team` MCP bus and the board |
+| Claude Code | `CLAUDE.md` -> this file, `.agents/` (settings, hooks, skills, commands) | `team` MCP bus and the board |
 | Gemini CLI / Antigravity | `GEMINI.md` -> this file, `.agents/` | `team` MCP bus and the board |
 | Codex | `AGENTS.md` (this file) | the board |
 | Cursor | `AGENTS.md`, `.cursorrules` -> this file | the board |
 | Qwen Code | `QWEN.md` -> this file | `team` MCP bus and the board |
 | local worker (Ollama) | handoffs `to: local` | handoff `## Result` |
 
-The agent directory is being consolidated into `.agents/`, with `.claude` as a
-symlink to it (owner ruling 2026-10-04; see
-`backlog/pending/*-agents-directory-migration.md`). Until that lands, rules live
-in `.claude/rules/`; paths written as `.claude/...` keep working afterwards.
+The agent material lives in `.agents/` — vendor-neutral, so no agent or harness
+owns this workspace (owner ruling 2026-10-07). `.claude` is a symlink to it, and
+rules, hooks, skills and commands are read through it; a path written as
+`.claude/...` resolves to the same file. `.qwen/` is the only other tool-owned
+path and is ignored. The migration is recorded in `backlog/`.
 
 ## Three contexts - validate only the one you changed
 
@@ -58,14 +59,14 @@ over or picking someone's up:
 | Channel | Where | Carries |
 |---|---|---|
 | Backlog queue | `backlog/` | **what** to do |
-| Handoff | `.claude/handoffs/` | **where someone stopped** |
-| Board | `.claude/team/board.md` | **what is happening now**: claims, releases, blockers, findings |
+| Handoff | `.agents/handoffs/` | **where someone stopped** |
+| Board | `.agents/team/board.md` | **what is happening now**: claims, releases, blockers, findings |
 | `team` MCP bus | tools that have it | the same live notes, faster; anything durable also goes to the board |
 
 **The board is mandatory for every tool**, because Codex and Cursor have no
 MCP bus. Before editing shared paths, append a `CLAIM` line; append `RELEASE`
 when done; read the board's tail at the start of every task. It is append-only
-and checked by `python3 .claude/rules/lint_board.py`.
+and checked by `python3 .agents/rules/lint_board.py`.
 
 ## Database safety - absolute
 
@@ -91,7 +92,7 @@ handoffs or the board.
 ## Backlog queue - mandatory
 
 All open work is a task file under `backlog/`. Before creating, picking,
-claiming, editing or closing a task, read `.claude/rules/BACKLOG_QUEUE_STANDARD.md`
+claiming, editing or closing a task, read `.agents/rules/BACKLOG_QUEUE_STANDARD.md`
 (the rules, BQ-01 to BQ-11) and `backlog/README.md` (the procedure). In short:
 the directory is the state; every file is named and stamped with its UTC
 creation time; History is append-only; tasks are never deleted or renamed;
@@ -102,10 +103,10 @@ claim only by `mv` into `processing/`; execute only `autonomous: true` with
 
 | Gate | Checks | Runs |
 |---|---|---|
-| `python3 .claude/rules/lint_backlog.py` | the backlog queue | Claude hook, Git `pre-commit` |
-| `python3 .claude/rules/lint_board.py` | the board: format, append-only | Claude hook, Git `pre-commit` |
+| `python3 .agents/rules/lint_backlog.py` | the backlog queue | Claude hook, Git `pre-commit` |
+| `python3 .agents/rules/lint_board.py` | the board: format, append-only | Claude hook, Git `pre-commit` |
 | `cd data && python tools/check_engine_boundary.py` | the engine never imports the application | CI |
-| `cd data && python3 ../.claude/rules/lint_language.py --config language-standard.toml` | English code, no hardcoded copy | Claude hook, CI |
+| `cd data && python3 ../.agents/rules/lint_language.py --config language-standard.toml` | English code, no hardcoded copy | Claude hook, CI |
 
 Tools without hooks (Codex, Cursor, Antigravity) run the gates themselves
 before declaring work done. Enable the Git hook once per clone:

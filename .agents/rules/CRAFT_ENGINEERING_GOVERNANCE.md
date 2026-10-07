@@ -7,8 +7,8 @@ every project loads. This document is the Craft-scoped layer on top of it. Where
 both speak, this one is more specific and wins; where they conflict, the conflict
 is a bug in one of them and gets fixed, not worked around.
 
-**Gates:** `python .claude/rules/lint_language.py` and
-`python .claude/rules/lint_structure.py`. Both must exit 0.
+**Gates:** `python .agents/rules/lint_language.py` and
+`python .agents/rules/lint_structure.py`. Both must exit 0.
 
 ---
 
@@ -210,8 +210,8 @@ key with fewer than three rows is unfinished — you translate, not a human
 
 ## 10. Definition of done
 
-- [ ] `python .claude/rules/lint_language.py` exits 0
-- [ ] `python .claude/rules/lint_structure.py` exits 0
+- [ ] `python .agents/rules/lint_language.py` exits 0
+- [ ] `python .agents/rules/lint_structure.py` exits 0
 - [ ] **Line caps:** no controller over 150 lines, no service over 300
 - [ ] **Layer purity:** zero queries in controllers or services, zero markup in Python
 - [ ] **Ecosystem:** CRUD through the CRUD Builder, views through Forge, services
