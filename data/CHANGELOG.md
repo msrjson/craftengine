@@ -32,6 +32,12 @@ full policy (categories to use, what counts as security-relevant, how
 
 ### Fixed
 
+- An unknown AI driver now fails loudly instead of answering from the mock.
+  `AI_DEFAULT_DRIVER=claude` (or any name `AIManager` did not ship) silently
+  returned `MockAIDriver`, so an application configured for a real provider
+  received fabricated answers with no error. `AIManager.driver()` raises
+  `MisconfigurationError` (`AI_DRIVER_UNKNOWN`) naming the configured drivers;
+  custom drivers still register through `AI.set_driver()`.
 - `translations` now enforces one row per `(key, locale)` through a forward-only
   unique index. The table was created without it while its own seeders already
   pre-checked for an existing row, and `_fetch_bundle` kept whichever duplicate

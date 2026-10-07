@@ -24,7 +24,7 @@ from craft.facades import Route, DB, Auth
 from craft.orm.model import Model
 ```
 
-**1,500+ tests**, validated on SQLite, PostgreSQL, and Python 3.14.
+**1900+ tests**, validated on SQLite, PostgreSQL, and Python 3.14.
 
 > New here - or an AI agent picking this up? Read [`AGENTS.md`](AGENTS.md)
 > first, then [`CRAFT_ENGINE.md`](CRAFT_ENGINE.md) for what the engine

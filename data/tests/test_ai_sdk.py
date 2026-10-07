@@ -62,3 +62,14 @@ class TestAISDK:
         assert len(result.steps) == 2
         assert result.steps[0].tool_outputs["sample_calculator"] == 35
         assert result.final_response == "The answer is 35."
+
+
+class TestUnknownDriverIsRefused:
+    """An unknown driver name fails loudly instead of answering from the mock."""
+
+    def test_chat_with_an_unknown_driver_raises(self):
+        from craft.exceptions.handler import MisconfigurationError
+
+        with pytest.raises(MisconfigurationError) as excinfo:
+            AI.chat([{"role": "user", "content": "hi"}], driver="not-a-driver")
+        assert excinfo.value.code == "AI_DRIVER_UNKNOWN"

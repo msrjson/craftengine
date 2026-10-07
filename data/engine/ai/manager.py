@@ -20,6 +20,7 @@ from engine.ai.contracts import AIDriver, AIResponse, EmbeddingResponse
 from engine.ai.drivers.gemini import GeminiAIDriver
 from engine.ai.drivers.mock import MockAIDriver
 from engine.ai.drivers.openai import OpenAIDriver
+from engine.exceptions.handler import MisconfigurationError
 
 
 class AIManager:
@@ -58,8 +59,13 @@ class AIManager:
         elif driver_name == "mock":
             instance = MockAIDriver(driver_config)
         else:
-            # Fallback to mock driver if unknown
-            instance = MockAIDriver(driver_config)
+            # Never degrade to the mock: an app configured for a real provider
+            # must not receive fabricated answers with no error.
+            raise MisconfigurationError(
+                "AI_DRIVER_UNKNOWN",
+                name=driver_name,
+                drivers=", ".join(sorted(cfg.get("drivers", {}))) or "none",
+            )
 
         self._drivers[driver_name] = instance
         return instance

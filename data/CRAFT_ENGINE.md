@@ -44,7 +44,7 @@ into the framework's own Forge directive dialect (`engine/view/forge.py`).
 | `modules/`, `plugins/` | Module state and the deprecated legacy plugin loader |
 | `security/` | WAF / IDS firewall, Honeypot traps, Login audit logs, Brute-force cooldowns, Captcha, PQC, Throttling, Security headers |
 | `media/` | Fluent Image manipulation, WebP/AVIF compression, Watermarking, Video metadata & thumbnails, DB media tracking |
-| `ai/` | Unified AI SDK (Gemini, OpenAI, Claude, Ollama, Mock), Embeddings, Multi-turn Autonomous Agents |
+| `ai/` | Unified AI SDK (Gemini, OpenAI, Mock; a custom driver registers through `AI.set_driver`), Embeddings, Multi-turn Autonomous Agents |
 | `agents/` | Model Context Protocol (MCP) Server, Declarative Agent Tools with RBAC security guards |
 | `resources/` | JSON transformers for API output |
 | `cli/` | The `dev` console, including 14 generators, full CRUD builder, firewall/security tools |

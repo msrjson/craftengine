@@ -22,6 +22,11 @@ import difflib
 from typing import Any, Iterable
 
 CATALOG = {
+    "AI_DRIVER_UNKNOWN": (
+        "AI driver {name} is not one this engine ships and none was registered under that "
+        "name. Configured: {drivers}. Point `ai.default` (config/ai.py) at one of them, or "
+        "register the driver with `AI.set_driver(name, instance)`."
+    ),
     "CONFIG_KEY_MISSING": (
         "Configuration key {key} does not exist. Closest: {closest}. "
         "Keys are <file>.<MODULE_ATTRIBUTE>, e.g. app.APP_DEBUG."

@@ -8,7 +8,7 @@ blocked_by: owner-action
 max_attempts: 2
 attempts: 0
 created_at: 2026-10-04T16:26:31Z
-updated_at: 2026-10-04T16:26:31Z
+updated_at: 2026-10-07T08:30:00Z
 source: owner ruling 2026-10-04 (the Craft Engine workspace is organized as .agents, for every tool)
 touches:
   - .agents/
@@ -81,3 +81,4 @@ go-ahead (BQ-11).
 ## History
 
 - 2026-10-04T16:26:31Z created by claude (source: owner ruling 2026-10-04)
+- 2026-10-07T08:30:00Z owner ruling: "everything under .claude must move to .agents and be documented in the rules" (owner, relayed by qwen@qwen-code). Re-checked the block on 2026-10-07: `~/.claude/agent-team/AGENTS.md` section 0 still says "One agent directory per project: `.claude/` ... that path is a symlink to `.claude` (e.g. `.agents -> .claude`)", and `~/.claude/agent-team/bin/workspace-guard` (TOOL_DIRS = {".agents", ...}) still denies writes under a physical `.agents/`. Both live outside this workspace, so the ruling cannot be executed until the owner updates them; `blocked_by: owner-action` stands. Once they are aligned, the migration is: reconcile the overlapping rules/agents/skills/docs, move, leave `.claude -> .agents`, update AGENTS.md/handoff.md/backlog/README.md/.githooks, then run the gates and post a board RULE line.
