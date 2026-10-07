@@ -112,7 +112,10 @@ class TestAgentScaffolder:
         assert os.path.exists(files["llms_full_docs"])
         assert os.path.exists(files["agents_md"])
         assert os.path.exists(files["project_agents"])
-        assert os.path.exists(files["agents_pointer"])
+        # one physical agent directory; `.claude` is a symlink to it
+        assert os.path.islink(os.path.join(base_dir, ".claude"))
+        assert os.path.exists(os.path.join(base_dir, ".claude", "rules", "AGENTS.md"))
+        assert os.path.exists(os.path.join(base_dir, ".agents", "agents", "code-reviewer.md"))
         assert os.path.exists(os.path.join(base_dir, ".claude", "agents", "code-reviewer.md"))
         assert len(result["catalog"]["skill"]) > 0
 

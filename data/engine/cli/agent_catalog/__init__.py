@@ -31,7 +31,18 @@ KIND_DIRECTORIES: dict[str, str] = {
     "reference": "references",
 }
 
-DEFAULT_TARGET_DIR = ".claude"
+DEFAULT_TARGET_DIR = ".agents"
+
+
+class LegacyAgentDirectoryError(FileExistsError):
+    """Raised when a project still carries a physical `.claude/` directory.
+
+    The engine keeps one physical agent directory. A physical `.claude/` is the
+    legacy layout; it is refused rather than merged blindly, so the operator
+    migrates it and `.claude` becomes a symlink to the single directory.
+    """
+
+    code = "AGENT_LEGACY_DIRECTORY"
 
 
 class UnknownCatalogEntryError(LookupError):
@@ -144,6 +155,45 @@ def _copy(entry: CatalogEntry, destination: Path) -> None:
     shutil.copyfile(entry.source, destination)
 
 
+def ensure_layout(base_path: str, target_dir: str = DEFAULT_TARGET_DIR) -> str:
+    """Create the single agent directory and keep `.claude` a symlink to it.
+
+    One physical agent directory per project: the catalog lands in `target_dir`
+    and `.claude` is a symlink so a harness that insists on that path still
+    finds the files. A legacy physical `.claude/` is refused, never merged, so
+    the operator migrates it first.
+
+    Args:
+        base_path: The project root.
+        target_dir: The agent directory, relative to `base_path`.
+
+    Returns:
+        The absolute path of the agent directory.
+
+    Raises:
+        LegacyAgentDirectoryError: If `.claude` exists as a real directory.
+    """
+    root = Path(base_path)
+    link = root / ".claude"
+    legacy = target_dir != ".claude" and link.exists() and not link.is_symlink()
+    if legacy:
+        raise LegacyAgentDirectoryError(
+            f"{link} is a physical directory; this project keeps its agent files in "
+            f"{target_dir}. Move the contents of {link} into {target_dir}, then replace "
+            f"{link} with a symlink to {target_dir} and run the command again."
+        )
+    target = root / target_dir
+    target.mkdir(parents=True, exist_ok=True)
+    if target_dir != ".claude" and not link.is_symlink():
+        try:
+            link.symlink_to(target_dir, target_is_directory=True)
+        except OSError:
+            # Filesystems without symlink support still get the catalog in
+            # `target_dir`; only the `.claude` convenience link is skipped.
+            pass
+    return str(target)
+
+
 def install(
     base_path: str,
     names: Iterable[str] | None = None,
@@ -154,7 +204,9 @@ def install(
 
     Shared references are always installed with any selection, because the
     agents and skills link to them. Conflicts are checked before anything is
-    written, so a refused install leaves the project untouched.
+    written, so a refused install leaves the project untouched. The layout is
+    fixed first (`ensure_layout`): `.claude` becomes a symlink to the single
+    agent directory, and a legacy physical `.claude/` is refused.
 
     Args:
         base_path: The project root.
@@ -167,7 +219,8 @@ def install(
 
     Raises:
         UnknownCatalogEntryError: If a name matches no agent, skill or command.
-        FileExistsError: If an entry already exists and `force` is False.
+        FileExistsError: If an entry already exists and `force` is False, or if a
+            legacy physical `.claude/` directory is present.
     """
     root = Path(base_path)
     selected = _select(names)
@@ -175,6 +228,7 @@ def install(
     existing = [str(path) for entry, path in planned if path.exists() and entry.kind != "reference"]
     if existing and not force:
         raise FileExistsError(existing[0])
+    ensure_layout(base_path, target_dir)
     installed: dict[str, list[str]] = {kind: [] for kind in KIND_DIRECTORIES}
     for entry, destination in planned:
         _copy(entry, destination)

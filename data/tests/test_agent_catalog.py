@@ -1,5 +1,6 @@
 """Tests for the installable agent catalog and its `dev.py agent:*` commands."""
 
+import os
 from pathlib import Path
 
 import pytest
@@ -62,8 +63,8 @@ class TestCatalogInstall:
     def test_install_by_name_copies_entry_and_shared_references(self, tmp_path):
         installed = agent_catalog.install(str(tmp_path), ["code-reviewer", "test-driven-development"])
 
-        assert (tmp_path / ".claude" / "agents" / "code-reviewer.md").is_file()
-        assert (tmp_path / ".claude" / "skills" / "test-driven-development" / "SKILL.md").is_file()
+        assert (tmp_path / ".agents" / "agents" / "code-reviewer.md").is_file()
+        assert (tmp_path / ".agents" / "skills" / "test-driven-development" / "SKILL.md").is_file()
         assert len(installed["agent"]) == 1 and len(installed["skill"]) == 1
         assert len(installed["reference"]) == len(agent_catalog.list_entries("reference"))
 
@@ -73,16 +74,35 @@ class TestCatalogInstall:
         assert {Path(p).stem for p in installed["command"]} == EXPECTED_COMMANDS
         assert {Path(p).name for p in installed["skill"]} == EXPECTED_SKILLS
 
+    def test_install_keeps_claude_as_a_symlink_to_the_single_directory(self, tmp_path):
+        agent_catalog.install(str(tmp_path), ["ship"])
+
+        link = tmp_path / ".claude"
+        assert link.is_symlink()
+        assert os.readlink(link) == ".agents"
+        assert (link / "commands" / "ship.md").is_file()
+
+    def test_a_legacy_physical_claude_directory_is_refused(self, tmp_path):
+        legacy = tmp_path / ".claude"
+        (legacy / "rules").mkdir(parents=True)
+        (legacy / "rules" / "AGENTS.md").write_text("legacy layout", encoding="utf-8")
+
+        with pytest.raises(agent_catalog.LegacyAgentDirectoryError):
+            agent_catalog.install(str(tmp_path), ["ship"])
+
+        assert not (tmp_path / ".agents").exists()
+        assert (legacy / "rules" / "AGENTS.md").read_text(encoding="utf-8") == "legacy layout"
+
     def test_unknown_name_is_rejected_before_writing(self, tmp_path):
         with pytest.raises(agent_catalog.UnknownCatalogEntryError) as exc:
             agent_catalog.install(str(tmp_path), ["code-reviewer", "no-such-agent"])
 
         assert exc.value.names == ["no-such-agent"]
-        assert not (tmp_path / ".claude").exists()
+        assert not (tmp_path / ".agents").exists()
 
     def test_existing_entry_requires_force(self, tmp_path):
         agent_catalog.install(str(tmp_path), ["ship"])
-        target = tmp_path / ".claude" / "commands" / "ship.md"
+        target = tmp_path / ".agents" / "commands" / "ship.md"
         target.write_text("local edit", encoding="utf-8")
 
         with pytest.raises(FileExistsError):
@@ -106,4 +126,4 @@ class TestAgentCommands:
         assert CliRunner().invoke(cli, ["agent", "install"]).exit_code == 1
         result = CliRunner().invoke(cli, ["agent", "install", "security-auditor"])
         assert result.exit_code == 0
-        assert (tmp_path / ".claude" / "agents" / "security-auditor.md").is_file()
+        assert (tmp_path / ".agents" / "agents" / "security-auditor.md").is_file()

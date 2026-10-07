@@ -6,9 +6,10 @@ priority: 2
 autonomous: true
 blocked_by: none
 max_attempts: 2
-attempts: 0
+attempts: 1
+claimed_by: qwen@qwen-code
 created_at: 2026-10-07T08:51:01Z
-updated_at: 2026-10-07T08:51:01Z
+updated_at: 2026-10-07T16:34:29Z
 source: dead-code audit 2026-10-07 + owner ruling 2026-10-07 (.agents everywhere)
 touches:
   - data/engine/cli/agent_scaffolder.py
@@ -63,3 +64,6 @@ the files. No public API break (NR-05).
 ## History
 
 - 2026-10-07T08:51:01Z created by qwen@qwen-code (source: dead-code audit 2026-10-07 + owner ruling)
+- 2026-10-07T16:30:00Z claimed by qwen@qwen-code (attempt 1)
+- 2026-10-07T16:30:00Z scope note by qwen@qwen-code (owner authorised the extra paths): the install target lives in engine/cli/agent_catalog/__init__.py (DEFAULT_TARGET_DIR, used by dev.py agent:install at engine/cli/app.py:1987), outside the declared touches; that file and tests/test_cli_auth_and_agent.py were edited with the owner's authorisation to meet this task's Done-when
+- 2026-10-07T16:34:29Z resolved by qwen@qwen-code (resolutions/p2-20261007-085101-agent-install-writes-dot-claude.resolution.md)

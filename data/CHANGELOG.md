@@ -118,6 +118,13 @@ full policy (categories to use, what counts as security-relevant, how
 
 ### Changed
 
+- `agent:install` and `agent:scaffold` now write the agent catalog into
+  `.agents/` — the single physical agent directory — and keep `.claude` a symlink
+  to it, so a harness that insists on its own path still loads
+  `.claude/rules/AGENTS.md`. A project that still carries a physical `.claude/`
+  is refused with `AGENT_LEGACY_DIRECTORY` instead of being given a second
+  directory; `agent:scaffold` writes the contract at `.agents/rules/AGENTS.md`
+  and no longer writes the pointer stub.
 - The production image synchronizes its own release. `docker/entrypoint.sh` runs
   `release:sync` (migrations plus seeders, idempotent, never `migrate fresh`)
   before starting the server; `Dockerfile.prod` installs `tzdata`, gives the

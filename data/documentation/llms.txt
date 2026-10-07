@@ -22,7 +22,7 @@
 - `python dev.py make:auth` — Scaffold the User model and migration, sign-in, registration, sign-out and their Forge templates.
 - `python dev.py make:admin` — Scaffold role, permission and group management under `/admin`, with its models and migration.
 - `python dev.py agent:scaffold` — Bootstrap AI agent context files (.cursorrules, llms.txt, AGENTS.md).
-- `python dev.py agent:list` / `python dev.py agent:install <name>... | --all` — Install development agents, skills and commands into `.claude/`.
+- `python dev.py agent:list` / `python dev.py agent:install <name>... | --all` — Install development agents, skills and commands into `.agents/`.
 
 ## Documentation Links
 - [Complete Architecture Guide](llms-full.txt)

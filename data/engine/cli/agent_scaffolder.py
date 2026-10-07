@@ -4,9 +4,9 @@ AgentScaffolder: AI agent discovery and integration scaffolding for Craft Engine
 Category: Core Framework (CLI).
 Relations:
   - Invoked from `dev.py agent:scaffold` (`engine/cli/app.py`).
-  - Generates `.cursorrules`, `AGENTS.md`, `.claude/rules/AGENTS.md`,
-    `.agents/rules/AGENTS.md`, `llms.txt`, and `llms-full.txt`.
-  - Installs the development agent catalog (`engine/cli/agent_catalog/`) into `.claude/`.
+  - Generates `.cursorrules`, `AGENTS.md`, `.agents/rules/AGENTS.md`, `llms.txt`
+    and `llms-full.txt`, and keeps `.claude` a symlink to `.agents`.
+  - Installs the development agent catalog (`engine/cli/agent_catalog/`) into `.agents/`.
 References:
   - Guide: `documentation/ai_agents.md`
 """
@@ -118,7 +118,7 @@ def llms_txt_content() -> str:
 - `python dev.py make:auth` — Scaffold the User model and migration, sign-in, registration, sign-out and their Forge templates.
 - `python dev.py make:admin` — Scaffold role, permission and group management under `/admin`, with its models and migration.
 - `python dev.py agent:scaffold` — Bootstrap AI agent context files (.cursorrules, llms.txt, AGENTS.md).
-- `python dev.py agent:list` / `python dev.py agent:install <name>... | --all` — Install development agents, skills and commands into `.claude/`.
+- `python dev.py agent:list` / `python dev.py agent:install <name>... | --all` — Install development agents, skills and commands into `.agents/`.
 
 ## Documentation Links
 - [Complete Architecture Guide](llms-full.txt)
@@ -267,7 +267,7 @@ Craft Engine includes a built-in zero-dependency AntiSpam system:
 def agents_md_content() -> str:
     return """# AGENTS.md — Contract for every contributor, human or model
 
-> Loaded automatically by every AI coding agent session (.claude/rules/AGENTS.md).
+> Loaded automatically by every AI coding agent session (.agents/rules/AGENTS.md).
 > Full rationale: `LANGUAGE_AND_I18N_STANDARD.md` and `CRAFT_ENGINEERING_GOVERNANCE.md`.
 
 **Stack:** Craft Engine (Python 3.14+, Starlette ASGI) · **Team language:** pt-BR · **Code language:** English
@@ -315,7 +315,7 @@ proposing a URL.
   route; roles, permissions, groups, or Gate authorize privileged actions.
 - Preserve all database data. Never reset, wipe, drop, truncate, or physically
   delete records, including in tests and seeders.
-- Read `.claude/rules/AGENTS.md` when present. Keep code and documentation in
+- Read `.agents/rules/AGENTS.md` when present. Keep code and documentation in
   English, update `CHANGELOG.md`, and run relevant verification gates.
 """
 
@@ -352,20 +352,17 @@ def scaffold_agent_stack(base_path: str, force: bool = False) -> Dict[str, Any]:
     _write_file(llms_full_docs, llms_full_txt_content(), force=force)
     result["files"]["llms_full_docs"] = llms_full_docs
 
-    # 4. .claude/rules/AGENTS.md
-    claude_agents_md = os.path.join(base_path, ".claude", "rules", "AGENTS.md")
-    if not os.path.exists(claude_agents_md) or force:
-        _write_file(claude_agents_md, agents_md_content(), force=force)
-    result["files"]["agents_md"] = claude_agents_md
+    # 4. `.agents/rules/AGENTS.md` — the single contract. `ensure_layout` also
+    #    makes `.claude` a symlink to `.agents`, so a harness that insists on
+    #    `.claude/rules/AGENTS.md` still finds it; a legacy physical `.claude/`
+    #    is refused here, before anything else is written.
+    agent_catalog.ensure_layout(base_path)
+    agents_md = os.path.join(base_path, ".agents", "rules", "AGENTS.md")
+    if not os.path.exists(agents_md) or force:
+        _write_file(agents_md, agents_md_content(), force=force)
+    result["files"]["agents_md"] = agents_md
 
-    # 5. .agents/rules/AGENTS.md pointer
-    agents_pointer = os.path.join(base_path, ".agents", "rules", "AGENTS.md")
-    pointer_content = "# AGENTS.md\n\nThe contract is a single file, loaded automatically by every Claude Code session:\n\n> **`.claude/rules/AGENTS.md`**\n"
-    if not os.path.exists(agents_pointer) or force:
-        _write_file(agents_pointer, pointer_content, force=force)
-    result["files"]["agents_pointer"] = agents_pointer
-
-    # 6. Development agents, skills, commands and references in .claude/
+    # 5. Development agents, skills, commands and references in .agents/
     result["catalog"] = agent_catalog.install(base_path, force=force)
 
     return result
