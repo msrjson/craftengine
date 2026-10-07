@@ -11,11 +11,29 @@ from engine.http.router import Router
 from engine.support.doctor import check_route_actions
 
 
+class _Kernel:
+    """A stub kernel that knows a set of middleware aliases."""
+
+    def __init__(self, known):
+        self._known = set(known)
+
+    def resolve_route_middleware(self, entries):
+        for entry in entries:
+            if isinstance(entry, str) and entry not in self._known:
+                raise KeyError(entry)
+        return list(entries)
+
+
 class _App:
-    def __init__(self, router):
+    def __init__(self, router, kernel=None):
         self._router = router
+        self._kernel = kernel
 
     def make(self, key):
+        if key == "kernel":
+            if self._kernel is None:
+                raise KeyError("kernel")
+            return self._kernel
         return self._router
 
 
@@ -24,8 +42,8 @@ class _Controller:
         return None
 
 
-def _invoke(monkeypatch, router):
-    monkeypatch.setattr(cli_module, "get_app", lambda: _App(router))
+def _invoke(monkeypatch, router, kernel=None):
+    monkeypatch.setattr(cli_module, "get_app", lambda: _App(router, kernel))
     return CliRunner().invoke(cli, ["route", "check"])
 
 
@@ -64,3 +82,22 @@ def test_the_command_fails_on_a_broken_action(monkeypatch):
 
     assert result.exit_code == 1
     assert "ROUTE_ACTION_NOT_FOUND" in result.output
+
+
+def test_a_bad_middleware_alias_is_reported_and_fails_the_command(monkeypatch):
+    router = Router()
+    router.get("/a", [_Controller, "index"]).middleware("authh").name("a")
+
+    result = _invoke(monkeypatch, router, _Kernel({"auth"}))
+
+    assert result.exit_code == 1
+    assert "ROUTE_MIDDLEWARE_INVALID" in result.output
+
+
+def test_a_known_middleware_alias_passes(monkeypatch):
+    router = Router()
+    router.get("/a", [_Controller, "index"]).middleware("auth").name("a")
+
+    result = _invoke(monkeypatch, router, _Kernel({"auth"}))
+
+    assert result.exit_code == 0, result.output

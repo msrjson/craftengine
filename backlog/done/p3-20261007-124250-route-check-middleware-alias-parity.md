@@ -6,9 +6,10 @@ priority: 3
 autonomous: true
 blocked_by: none
 max_attempts: 2
-attempts: 0
+attempts: 1
+claimed_by: qwen@qwen-code
 created_at: 2026-10-07T12:42:50Z
-updated_at: 2026-10-07T12:42:50Z
+updated_at: 2026-10-07T18:29:30Z
 source: commit 634687a (route:check engine-boundary fix), follow-up
 touches:
   - data/bootstrap/app.py
@@ -66,3 +67,6 @@ SoftPax `route:check`, which resolves middleware.
 ## History
 
 - 2026-10-07T12:42:50Z created by qwen@qwen-code (source: follow-up of commit 634687a)
+- 2026-10-07T18:28:39Z claimed by qwen@qwen-code (attempt 1)
+- 2026-10-07T18:28:39Z scope note by qwen@qwen-code: bound the kernel in the container (`app.instance("kernel", kernel)` in `bootstrap/app.py` and the skeleton stub); `route:check` now resolves it via `get_app().make("kernel")` and runs `check_routes` (middleware + actions), falling back to `check_route_actions` when no kernel is bound; two route:check tests cover a bad alias (exit 1) and a good one
+- 2026-10-07T18:29:30Z resolved by qwen@qwen-code (resolutions/p3-20261007-124250-route-check-middleware-alias-parity.resolution.md): route:check 6 passed; engine-boundary 0 new findings; full SQLite 2158 passed/68 skipped; gates clean

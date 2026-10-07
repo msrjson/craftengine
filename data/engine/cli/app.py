@@ -882,14 +882,21 @@ def route_list(
 def route_check(
     as_json: bool = typer.Option(False, "--json", help="Print the findings as JSON."),
 ) -> None:
-    """Resolve every route's action and name; fail when a route is broken.
+    """Resolve every route's middleware, action and name; fail when one is broken.
 
-    Middleware aliases are resolved by `dev.py doctor` instead: that needs the
-    kernel, and the engine must not import `bootstrap.app`.
+    The kernel is taken from the container (`app.make("kernel")`), so middleware
+    aliases are resolved here too — the engine never imports `bootstrap.app`. A
+    project that does not bind the kernel still gets the action and name checks.
     """
     from engine.support import doctor as checks
 
-    findings = list(checks.check_route_actions(get_app()))
+    app = get_app()
+    try:
+        kernel = app.make("kernel")
+    except Exception:
+        findings = list(checks.check_route_actions(app))
+    else:
+        findings = list(checks.check_routes(app, kernel))
     if as_json:
         echo(json.dumps([finding.to_dict() for finding in findings], indent=2))
     else:

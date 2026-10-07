@@ -63,6 +63,11 @@ from craft.http.middleware import (
 
 kernel = Kernel(app)
 
+# Bind the kernel so the engine reaches it through the container instead of
+# importing this module: the engine never imports the application, and
+# `route:check` resolves middleware aliases through `app.make("kernel")`.
+app.instance("kernel", kernel)
+
 # Order matters: the session must exist before the locale can be remembered in
 # it, before CSRF verification, and before the user is resolved from it.
 # SecurityHeaders goes early so every response - including error responses

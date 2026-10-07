@@ -53,6 +53,10 @@ from craft.http.middleware import (  # noqa: E402
 
 kernel = Kernel(app)
 
+# Bind the kernel so the engine reaches it through the container, never by
+# importing this module.
+app.instance("kernel", kernel)
+
 # Order matters: the session must exist before the locale can be remembered in
 # it, before CSRF verification, and before the user is resolved from it.
 # SecurityHeaders goes early so every response, including error responses

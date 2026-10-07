@@ -20,6 +20,10 @@ full policy (categories to use, what counts as security-relevant, how
 
 ### Added
 
+- The kernel is bound in the container (`app.make("kernel")`, in `bootstrap/app.py`
+  and the project skeleton), so `route:check` resolves route middleware aliases
+  again and exits 1 on a misspelled one — without the engine importing
+  `bootstrap.app`.
 - `engine upgrade` and `engine update` print a "project files to review" note
   when a release declares one, using a `Project files:` line in its changelog
   section. A release that expects a project file changed (a new extension root, a
