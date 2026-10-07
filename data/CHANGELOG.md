@@ -20,6 +20,11 @@ full policy (categories to use, what counts as security-relevant, how
 
 ### Added
 
+- The agent catalog gains two skills (Slice 6 of the upstream roadmap):
+  `tests-in-container` (a test counts as evidence only from the application
+  container) and `craft-engine-pitfalls` (the recurring traps — assuming
+  framework parity, forward-only data, relations as methods, the engine
+  boundary, and `.agents/`).
 - The mutual TLS channel plugin ships: `plugins/mtls/`. `ssl_context()` returns a
   client TLS context from a certificate and key without the private key durably
   touching disk (a `0600` temporary file, deleted in the same block, cached by

@@ -6,9 +6,10 @@ priority: 2
 autonomous: true
 blocked_by: none
 max_attempts: 2
-attempts: 0
+attempts: 1
+claimed_by: qwen@qwen-code
 created_at: 2026-10-07T12:42:48Z
-updated_at: 2026-10-07T12:42:48Z
+updated_at: 2026-10-07T18:04:53Z
 source: .agents/plans/softpax-upstream-roadmap.md, Slice 6
 touches:
   - data/engine/cli/agent_scaffolder.py
@@ -66,3 +67,5 @@ docker exec framework sh -lc 'cd /app && python -m pytest tests -q'
 ## History
 
 - 2026-10-07T12:42:48Z created by qwen@qwen-code (source: .agents/plans/softpax-upstream-roadmap.md, Slice 6; queued after the Slice 4 task)
+- 2026-10-07T18:04:53Z claimed by qwen@qwen-code (attempt 1)
+- 2026-10-07T18:04:53Z scope note by qwen@qwen-code: the Done-when's "`.agents -> .claude`" is the inverse of the owner's 2026-10-07 ruling (`.claude -> .agents`); the ruling wins, so any symlink generated will point `.claude` at `.agents`. Increment 1 (this commit): the two catalog skills `tests-in-container` and `craft-engine-pitfalls` under `engine/cli/agent_catalog/skills/`, with `tests/test_agent_catalog.py` updated (13 passed). Remaining: coordination kit, integration points, environment guard hook, generated pre-commit/CI/VS Code, and the single-AGENTS.md-with-symlinks layout in the scaffolder/skeleton
