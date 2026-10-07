@@ -6,9 +6,10 @@ priority: 2
 autonomous: true
 blocked_by: none
 max_attempts: 2
-attempts: 0
+attempts: 1
+claimed_by: qwen@qwen-code
 created_at: 2026-10-05T09:55:31Z
-updated_at: 2026-10-05T10:54:46Z
+updated_at: 2026-10-07T18:49:19Z
 source: owner request 2026-10-05: extension model (modules, plugins, themes) with fault isolation and a management panel; plan approved in session
 touches:
   - data-demo/app/modules/extension_manager/
@@ -25,9 +26,9 @@ Operators can manage extensions only from the CLI; the owner wants a low-frictio
 
 ## Done when
 
-- [ ] The panel is itself a module: it lists modules, plugins and themes with version, state and health, and installs, activates, deactivates, uninstalls and selects the theme through `ExtensionManager`.
-- [ ] Protected by authentication and an administrator check, CSRF on every action, every string a key in en, pt-BR and es.
-- [ ] A refused action (missing dependency, active dependent) is shown with its reason.
+- [x] The panel is itself a module: it lists modules, plugins and themes with version, state and health, and installs, activates, deactivates, uninstalls and selects the theme through `ExtensionManager`.
+- [x] Protected by authentication and an administrator check, CSRF on every action, every string a key in en, pt-BR and es.
+- [x] A refused action (missing dependency, active dependent) is shown with its reason.
 
 ## Verify
 
@@ -48,3 +49,5 @@ Slice 10 of 10 of the extension model. Owner rulings 2026-10-05: one manifest wi
 - 2026-10-05T10:01:15Z owner ruling: data/ stays the slim framework, so the panel is a module of data-demo/; blocked with the CRM demo task until the owner decides how data-demo consumes the engine (owner, relayed by claude@claude-code)
 - 2026-10-05T10:29:04Z owner ruling: data-demo installs the engine from the canonical Git remote pinned to a tag; nothing is pushed before the owner reviews. Blocked on the owner cutting and pushing the release with the extension model (owner, relayed by claude@claude-code)
 - 2026-10-05T10:54:46Z owner ruling: release v4.4.0-r00022 published and craftengine-demo created; build the demo now (autonomous true, blocked_by none) (owner, relayed by claude@claude-code)
+- 2026-10-07T18:49:19Z claimed by qwen@qwen-code (attempt 1; owner authorised crossing the data-demo/ claim of p2-20261005-095553, dev version)
+- 2026-10-07T18:49:19Z resolved by qwen@qwen-code: the panel already exists as the `extension_manager` module of data-demo (delivered under p2-20261005-095553) with every Done-when criterion; verified, closed in done/ (resolutions/p2-20261005-095531-extension-manager-panel.resolution.md)
