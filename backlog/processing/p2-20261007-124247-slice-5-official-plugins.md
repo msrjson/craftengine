@@ -9,7 +9,7 @@ max_attempts: 2
 attempts: 1
 claimed_by: qwen@qwen-code
 created_at: 2026-10-07T12:42:47Z
-updated_at: 2026-10-07T17:31:06Z
+updated_at: 2026-10-07T17:34:10Z
 source: .agents/plans/softpax-upstream-roadmap.md, Slice 5
 touches:
   - data/plugins/
@@ -72,3 +72,4 @@ cd data && python tools/check_engine_boundary.py
 - 2026-10-07T17:18:00Z scope note by qwen@qwen-code: landing the slice item by item, starting with the hash-chained audit trail (migration on auth_audit_logs + HoneypotService chain), which needs no new dependency and no owner sizing; the money/legal items (XLSX, PKCS#12, e-signature) will be split into an owner-decision task before implementation, per this task's Notes
 - 2026-10-07T17:27:49Z progress by qwen@qwen-code (item 2): the brazil_validator official plugin landed under data/plugins/ as a legacy PluginManager plugin (PLUGIN dict + register(app)) - CPF, legacy and 2026-alphanumeric CNPJ, Inscricao Estadual for all 27 states (SINTEGRA), RG, and CEP/phone/CNAE/address normalizers; results carry error_code + message_key only, no user-facing copy; 31 tests, full SQLite 2111 passed/68 skipped, gates clean. Item 1 (hash-chained audit trail) landed earlier at commit 7ee3981
 - 2026-10-07T17:31:06Z progress by qwen@qwen-code (item 3): the cookieless SEO plugin landed under data/plugins/seo/ - server-side slugification, canonical URLs, head metadata and a title/body audit, reading and writing no cookie; improvement suggestions are message keys, not copy; 11 tests, full SQLite 2122 passed/68 skipped, ruff/engine-boundary/language gates clean
+- 2026-10-07T17:34:10Z progress by qwen@qwen-code (item 4): the PIX BR Code plugin landed under data/plugins/pix/ - Pix.brcode builds a static or dynamic EMV payload (PIX GUI, key, merchant name/city, optional amount and txid, CRC16) and Pix.verify recomputes the checksum of a payload it did not build; 11 tests including the CRC16/CCITT-FALSE check value 0x29B1; full SQLite 2133 passed/68 skipped; gates clean

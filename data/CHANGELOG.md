@@ -20,6 +20,10 @@ full policy (categories to use, what counts as security-relevant, how
 
 ### Added
 
+- The PIX BR Code plugin ships: `plugins/pix/`. `Pix.brcode()` builds a static or
+  dynamic PIX charge as an EMV payload (PIX GUI, key, merchant name and city,
+  optional amount, txid and the CRC16 checksum), and `Pix.verify()` recomputes
+  the checksum of a payload it did not build, so a corrupted code is refused.
 - The cookieless SEO plugin ships: `plugins/seo/`. A `Seo` service that
   slugifies titles, builds canonical URLs and `<head>` metadata, and audits a
   page's title and body — all server-side, reading and writing no cookie.
