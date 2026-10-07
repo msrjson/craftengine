@@ -58,13 +58,43 @@ class Store:
     def flush(self) -> None:
         raise NotImplementedError
 
+    def flush_prefix(self, prefix: str) -> None:
+        """Drop every key starting with `prefix`.
+
+        A tag-style invalidation: cache a page under `page:1`, `page:2` … and
+        flush the `page:` prefix after one edit instead of the whole store.
+        """
+        raise NotImplementedError
+
 
 class ArrayStore(Store):
     """In-memory store — the default, and the store used during tests."""
 
-    def __init__(self) -> None:
+    def __init__(self, max_entries: Optional[int] = None) -> None:
         self._items: Dict[str, tuple] = {}
         self._lock = threading.Lock()
+        #: 0 (or None) means unbounded; over the bound the oldest entry is dropped.
+        self.max_entries = int(max_entries or 0)
+
+    def _evict(self) -> None:
+        """Keep the store within its bound: expired entries first, then the oldest.
+
+        Called with the lock held. A long-lived worker that caches per key
+        without a TTL would otherwise grow this dict for the life of the
+        process. The oldest entry going is a cache miss, never an error.
+        """
+        if not self.max_entries or len(self._items) <= self.max_entries:
+            return
+        now = time.time()
+        expired = [
+            name
+            for name, (_, expires_at) in self._items.items()
+            if expires_at is not None and expires_at < now
+        ]
+        for name in expired:
+            del self._items[name]
+        while len(self._items) > self.max_entries:
+            del self._items[next(iter(self._items))]
 
     def get(self, key: str) -> Any:
         with self._lock:
@@ -80,6 +110,7 @@ class ArrayStore(Store):
     def put(self, key: str, value: Any, ttl: Optional[int] = None) -> None:
         with self._lock:
             self._items[key] = (value, time.time() + ttl if ttl else None)
+            self._evict()
 
     def add(self, key: str, value: Any, ttl: Optional[int] = None) -> bool:
         with self._lock:
@@ -89,6 +120,7 @@ class ArrayStore(Store):
                 if expires_at is None or expires_at >= time.time():
                     return False
             self._items[key] = (value, time.time() + ttl if ttl else None)
+            self._evict()
             return True
 
     def expires_in(self, key: str) -> Optional[float]:
@@ -106,6 +138,11 @@ class ArrayStore(Store):
     def flush(self) -> None:
         with self._lock:
             self._items.clear()
+
+    def flush_prefix(self, prefix: str) -> None:
+        with self._lock:
+            for name in [key for key in self._items if key.startswith(prefix)]:
+                del self._items[name]
 
 
 class FileStore(Store):
@@ -146,7 +183,7 @@ class FileStore(Store):
         return remaining if remaining > 0 else None
 
     def put(self, key: str, value: Any, ttl: Optional[int] = None) -> None:
-        payload = {"value": value, "expires_at": time.time() + ttl if ttl else None}
+        payload = {"key": key, "value": value, "expires_at": time.time() + ttl if ttl else None}
         try:
             with open(self._path(key), "w", encoding="utf-8") as handle:
                 json.dump(payload, handle)
@@ -168,7 +205,7 @@ class FileStore(Store):
             except OSError:
                 pass
 
-        payload = {"value": value, "expires_at": time.time() + ttl if ttl else None}
+        payload = {"key": key, "value": value, "expires_at": time.time() + ttl if ttl else None}
         try:
             descriptor = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
         except FileExistsError:
@@ -197,6 +234,27 @@ class FileStore(Store):
             if name.endswith(".cache"):
                 try:
                     os.remove(os.path.join(self.directory, name))
+                except OSError:
+                    pass
+
+    def flush_prefix(self, prefix: str) -> None:
+        # The filename is a hash, so the original key is read back from the
+        # payload. Entries written before this field existed simply do not match
+        # and are left alone.
+        if not os.path.isdir(self.directory):
+            return
+        for name in os.listdir(self.directory):
+            if not name.endswith(".cache"):
+                continue
+            path = os.path.join(self.directory, name)
+            try:
+                with open(path, "r", encoding="utf-8") as handle:
+                    payload = json.load(handle)
+            except (json.JSONDecodeError, OSError):
+                continue
+            if str(payload.get("key", "")).startswith(prefix):
+                try:
+                    os.remove(path)
                 except OSError:
                     pass
 
@@ -241,6 +299,10 @@ class RedisStore(Store):
     def flush(self) -> None:
         self.client.flushdb()
 
+    def flush_prefix(self, prefix: str) -> None:
+        for key in self.client.scan_iter(match=prefix + "*"):
+            self.client.delete(key)
+
 
 class CacheManager:
     """Resolves the configured store and exposes the cache API."""
@@ -265,6 +327,13 @@ class CacheManager:
 
         driver = (config.get("cache.default", "array") if config else "array") or "array"
         driver = str(driver).lower()
+
+        max_entries = 0
+        if config:
+            try:
+                max_entries = int(config.get("cache.stores.memory.max_entries", 0) or 0)
+            except (TypeError, ValueError):
+                max_entries = 0
 
         if driver == "file":
             base_path = getattr(self.app, "base_path", os.getcwd())
@@ -293,7 +362,7 @@ class CacheManager:
                     "per-process.",
                     exc_info=True,
                 )
-                return ArrayStore()
+                return ArrayStore(max_entries)
 
         if driver not in ("memory", "array"):
             # An unrecognised driver used to become in-memory with no signal,
@@ -303,7 +372,7 @@ class CacheManager:
                 "Known drivers: memory, file, redis.", driver,
             )
 
-        return ArrayStore()
+        return ArrayStore(max_entries)
 
     # -- public API ------------------------------------------------------------
 
@@ -337,6 +406,14 @@ class CacheManager:
 
     def flush(self) -> None:
         self.store.flush()
+
+    def flush_prefix(self, prefix: str) -> None:
+        """Drop every key under `prefix` - a tag-style invalidation.
+
+        Cache each page as `page:<id>` and flush `page:` after one edit, rather
+        than flushing the whole store and losing unrelated entries.
+        """
+        self.store.flush_prefix(prefix)
 
     def remember(self, key: str, ttl: Optional[int], callback: Callable[[], Any]) -> Any:
         cached = self.store.get(key)

@@ -10,6 +10,9 @@ default = env("CACHE_DRIVER", "memory")
 stores = {
     "memory": {
         "driver": "memory",
+        # The in-process store is bounded so a long-lived worker cannot grow it
+        # without limit. 0 means unbounded; over the bound the oldest entry goes.
+        "max_entries": env("CACHE_MEMORY_MAX_ENTRIES", 1000),
     },
     "file": {
         "driver": "file",

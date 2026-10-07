@@ -20,11 +20,19 @@ full policy (categories to use, what counts as security-relevant, how
 
 ### Added
 
-- `route:check`: resolves every route's middleware and action and fails on a
-  route defect, and reports two routes sharing a name - which silently makes
-  `url_for()` resolve to whichever registered last - as a doctor warning.
-  `check_routes` (`engine/support/doctor.py`) gained the duplicate-name check,
-  so `dev.py doctor` reports it too.
+- The in-memory cache store is bounded, and every store can be flushed by key
+  prefix. `ArrayStore(max_entries=...)` (default `CACHE_MEMORY_MAX_ENTRIES`,
+  1000; `0` is unbounded) drops expired entries first and then the oldest, so a
+  long-lived worker caching per key cannot grow the dict without limit;
+  `Cache.flush_prefix("page:")` drops only the keys under a prefix instead of
+  the whole store, implemented for the memory, file and redis stores.
+- `route:check`: resolves every route's action and fails on a route defect, and
+  reports two routes sharing a name - which silently makes `url_for()` resolve
+  to whichever registered last - as a doctor warning. Middleware aliases are
+  still resolved by `dev.py doctor` (that needs the kernel, which the engine
+  must not import); `check_route_actions`/`check_routes`
+  (`engine/support/doctor.py`) share the action and name checks, so `doctor`
+  reports duplicate names too.
 - `release:sync` / `release:status` and a `VERSION` file (Slice 3 of the
   upstream roadmap). `release:sync` applies the pending migrations and runs the
   release seeders under the migrator's advisory lock, then records one
