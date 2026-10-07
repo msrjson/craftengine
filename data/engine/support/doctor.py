@@ -141,13 +141,20 @@ def run_all(app: Any, kernel: Any, base_path: str) -> List[Finding]:
 # -- routes ------------------------------------------------------------------------
 
 def check_routes(app: Any, kernel: Any) -> Iterable[Finding]:
-    """Resolve every route's middleware and confirm every action method exists."""
+    """Resolve every route's middleware, then check actions and names."""
     for route in app.make("router").application_routes():
         where = " ".join(("|".join(route.methods), route.uri))
         try:
             kernel.resolve_route_middleware(route.middleware_list)
         except KeyError as exc:
             yield _finding(ERROR, "ROUTE_MIDDLEWARE_INVALID", where, detail=_plain(exc))
+    yield from check_route_actions(app)
+
+
+def check_route_actions(app: Any) -> Iterable[Finding]:
+    """The route checks that need no kernel: every action exists, names unique."""
+    for route in app.make("router").application_routes():
+        where = " ".join(("|".join(route.methods), route.uri))
         yield from _check_action(route.action, where)
     yield from _check_route_names(app)
 

@@ -878,11 +878,14 @@ def route_list(
 def route_check(
     as_json: bool = typer.Option(False, "--json", help="Print the findings as JSON."),
 ) -> None:
-    """Resolve every route's middleware and action; fail when a route is broken."""
-    from bootstrap.app import kernel
+    """Resolve every route's action and name; fail when a route is broken.
+
+    Middleware aliases are resolved by `dev.py doctor` instead: that needs the
+    kernel, and the engine must not import `bootstrap.app`.
+    """
     from engine.support import doctor as checks
 
-    findings = list(checks.check_routes(get_app(), kernel))
+    findings = list(checks.check_route_actions(get_app()))
     if as_json:
         echo(json.dumps([finding.to_dict() for finding in findings], indent=2))
     else:
