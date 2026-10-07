@@ -20,6 +20,10 @@ full policy (categories to use, what counts as security-relevant, how
 
 ### Added
 
+- The document seal plugin ships: `plugins/document_seal/`. `DocumentSeal.seal()`
+  returns a tamper-evident digest of a document's bytes (SHA-256, or an HMAC when
+  a key is given) and `verify()` recomputes it, so any change to the document is
+  detected.
 - The PIX BR Code plugin ships: `plugins/pix/`. `Pix.brcode()` builds a static or
   dynamic PIX charge as an EMV payload (PIX GUI, key, merchant name and city,
   optional amount, txid and the CRC16 checksum), and `Pix.verify()` recomputes
