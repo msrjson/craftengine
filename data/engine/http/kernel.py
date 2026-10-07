@@ -578,8 +578,13 @@ class Kernel:
 
         # The application's own routes come first and win an exact clash with a
         # module route, whatever order things loaded in; the clash is logged,
-        # never resolved silently by registration order.
-        ordered = sorted(router.application_routes(), key=lambda entry: entry._module is not None)
+        # never resolved silently by registration order. A fallback route is
+        # always last: placed by registration order, its catch-all would shadow
+        # every route that came after it.
+        ordered = sorted(
+            router.application_routes(),
+            key=lambda entry: (entry.is_fallback, entry._module is not None),
+        )
         claimed: set = set()
         for r in ordered:
             endpoint = self._create_endpoint(r.action, r._module, r.middleware_list, route_uri=r.uri)

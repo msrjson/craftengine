@@ -20,6 +20,11 @@ full policy (categories to use, what counts as security-relevant, how
 
 ### Added
 
+- `Route.fallback(uri, action, methods=None)` (Slice 4 of the upstream
+  roadmap): a catch-all route matched only after every specific one, whatever
+  order it was registered in. The kernel sorts the route table with fallbacks
+  last, so a `/{path:path}` fallback cannot shadow the routes declared after
+  it; `RouteEntry.describe()` reports `fallback`.
 - `data:audit` (Slice 4 of the upstream roadmap): a read-only audit of the live
   database for rows that already break the schema's promises - a foreign key
   pointing at a parent row that is not there (`FOREIGN_KEY_ORPHANED`), and a

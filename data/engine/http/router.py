@@ -48,6 +48,10 @@ class RouteEntry:
         #: True when `action` is an ASGI sub-application mounted on a prefix
         #: rather than an endpoint, which is how static assets are served.
         self.is_mount: bool = False
+        #: True for a catch-all route, which must be matched only after every
+        #: specific route. A fallback registered before `/posts/{id}` would
+        #: otherwise shadow it, so the kernel places these last.
+        self.is_fallback: bool = False
 
     def name(self, name: str) -> 'RouteEntry':
         self._name = f"{self.name_prefix}{name}"
@@ -80,6 +84,7 @@ class RouteEntry:
             "origin": self.origin,
             "provider": self.provider,
             "mount": self.is_mount,
+            "fallback": self.is_fallback,
         }
 
 
@@ -179,6 +184,29 @@ class Router:
 
     def delete(self, uri: str, action: Any) -> RouteEntry:
         return self.add_route("DELETE", uri, action)
+
+    def fallback(
+        self,
+        uri: str,
+        action: Any,
+        methods: Optional[Union[str, List[str]]] = None,
+    ) -> RouteEntry:
+        """Register a catch-all route, matched only after every specific one.
+
+        A fallback answers whatever no other route claimed - a single-page
+        app's index, a friendly 404, a per-tenant resolver. It is registered
+        like any route but flagged, and the kernel builds the table with every
+        fallback last: placed by registration order, a catch-all would shadow
+        the routes that come after it.
+
+        Args:
+            uri: The catch-all path, typically `"/{path:path}"`.
+            action: The controller action or callable, as any route takes.
+            methods: The HTTP methods it answers; defaults to `GET` and `HEAD`.
+        """
+        entry = self.add_route(methods or ["GET", "HEAD"], uri, action)
+        entry.is_fallback = True
+        return entry
 
     def group(self, callback: Callable, prefix: str = "", middleware: Optional[Union[str, List[str]]] = None, name: str = "") -> None:
         group_attrs = {}

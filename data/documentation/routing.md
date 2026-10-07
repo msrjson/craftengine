@@ -125,3 +125,19 @@ The resource mapper registers the following routes:
 The resource mapper registers `PUT` only for updates — register a `Route.patch(...)` route yourself if you also want `PATCH`. Parameters use `{id}`, so the action signature is `def update(self, request, id)`.
 
 Use `Route.api_resource` to exclude `create` and `edit` routes when mapping REST APIs.
+
+## Fallback Routes
+
+A fallback catches whatever no other route claimed — a single-page app's index,
+a friendly 404, a per-tenant resolver:
+
+```python
+Route.fallback("/{path:path}", SpaController.index)
+```
+
+It is registered like any route but always matched last, whatever order it was
+registered in. A catch-all placed by registration order would shadow every
+route declared after it, so the kernel builds the route table with the fallbacks
+at the end. `Route.fallback(path, action, methods)` defaults to `GET` and
+`HEAD`; pass methods explicitly for a fallback that must answer writes too.
+
