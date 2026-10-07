@@ -20,6 +20,12 @@ full policy (categories to use, what counts as security-relevant, how
 
 ### Added
 
+- The sign-in audit log is now hash-chained (Slice 5 of the upstream roadmap).
+  `auth_audit_logs` gains `previous_hash` and `chain_hash` (forward-only
+  migration `2026_10_07_000006_add_hash_chain_to_auth_audit_logs.py`), and
+  `HoneypotService` links each row to the one before it, so recomputing the
+  chain proves no sign-in record was edited, reordered or removed. A change to
+  any field breaks the digest the next row points at.
 - Mail failover and quotas (Slice 4 of the upstream roadmap). A mailer may name
   a `fallback` (one name or a list) and a `quota` (`limit` per `window`
   seconds, `per_tenant` to count each tenant separately). A mailer that fails,

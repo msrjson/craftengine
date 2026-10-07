@@ -53,6 +53,33 @@ def _unique_cidr() -> tuple[str, str]:
     return f"{prefix}.0/24", f"{prefix}.42"
 
 
+def _created_at_str(honeypot: HoneypotService, row: dict) -> str:
+    """Return a row's `created_at` in the exact string form the chain hashed.
+
+    SQLite returns the stored string; a real PostgreSQL `timestamp` comes back
+    as a `datetime`, so it is formatted back the same way before recomputing.
+    """
+    value = row["created_at"]
+    if isinstance(value, str):
+        return value
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=timezone.utc)
+    return honeypot._format_time(value)
+
+
+def _chain_hash_of(honeypot: HoneypotService, row: dict, **overrides) -> str:
+    fields = {
+        "ip": row["ip_address"],
+        "username": row["username"],
+        "user_agent": row["user_agent"] or "",
+        "result": row["result"],
+        "reason": row["reason"] or "",
+        "created_at": _created_at_str(honeypot, row),
+    }
+    fields.update(overrides)
+    return honeypot._entry_hash(row["previous_hash"], **fields)
+
+
 def test_honeypot_target_detection():
     honeypot = HoneypotService(app)
     assert honeypot.is_honeypot_target("admin") is True
@@ -371,3 +398,33 @@ def test_a_failure_inside_the_window_still_accumulates():
     now_str = honeypot._format_time(datetime.now(timezone.utc))
     attempts = honeypot._atomic_increment_cooldown(ip, "ip", now_str)
     assert attempts == 3, "a failure inside the window must add to the existing streak"
+
+
+# -- Slice 5: hash-chained audit trail -----------------------------------------
+
+
+def test_each_audit_row_links_to_the_row_before_it():
+    honeypot = HoneypotService(app)
+    ip = _unique_ip()
+    honeypot.record_attempt(ip=ip, username="alice@example.com", success=False)
+    honeypot.record_attempt(ip=ip, username="alice@example.com", success=True)
+
+    rows = DB.table("auth_audit_logs").where("ip_address", ip).order_by("id", "asc").get()
+    assert len(rows) == 2
+
+    first, second = rows[0], rows[1]
+    assert second["previous_hash"] == first["chain_hash"], "a row must link to the one before it"
+    assert second["previous_hash"] != HoneypotService.GENESIS_HASH
+    for row in rows:
+        assert row["chain_hash"] == _chain_hash_of(honeypot, row)
+
+
+def test_an_audit_row_cannot_be_changed_without_breaking_its_hash():
+    honeypot = HoneypotService(app)
+    ip = _unique_ip()
+    honeypot.record_attempt(ip=ip, username="bob@example.com", success=False)
+
+    row = DB.table("auth_audit_logs").where("ip_address", ip).order_by("id", "desc").first()
+    assert row["chain_hash"] == _chain_hash_of(honeypot, row)
+    tampered = _chain_hash_of(honeypot, row, username="someone-else@example.com")
+    assert tampered != row["chain_hash"], "changing any field must change the digest"

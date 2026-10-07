@@ -70,6 +70,82 @@ class HoneypotService:
         """
         return hashlib.sha256(username.encode("utf-8")).hexdigest()
 
+    # -- audit chain -----------------------------------------------------------
+
+    #: `previous_hash` of the first row in the chain.
+    GENESIS_HASH: str = "0" * 64
+
+    @staticmethod
+    def _entry_hash(
+        previous: str,
+        *,
+        ip: str,
+        username: str,
+        user_agent: str,
+        result: str,
+        reason: str,
+        created_at: str,
+    ) -> str:
+        """Digest of one audit row together with the row before it.
+
+        Fields are joined with a NUL byte, which none of them can contain, so
+        two different rows cannot collide by shifting a separator into a value.
+        Any single change to a field — or to `previous_hash` — changes the
+        digest, and the next row's `previous_hash` no longer matches.
+        """
+        payload = "\x00".join([previous, ip, username, user_agent, result, reason, created_at])
+        return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+    def _last_chain_hash(self, db: Any) -> str:
+        """Return the newest audit row's `chain_hash`, or the genesis value."""
+        try:
+            row = db.table("auth_audit_logs").order_by("id", "desc").limit(1).first()
+        except Exception:
+            row = None
+        if row and row.get("chain_hash"):
+            return row["chain_hash"]
+        return self.GENESIS_HASH
+
+    def _append_audit_log(
+        self,
+        db: Any,
+        *,
+        ip: str,
+        username: str,
+        user_agent: str,
+        result: str,
+        reason: str,
+        created_at: str,
+    ) -> None:
+        """Insert one audit row, linked to the previous row's hash.
+
+        The chain assumes a single writer: two truly concurrent inserts could
+        read the same `previous_hash` and fork it, which a chain check reports
+        rather than hides. A database that has not run the chain migration yet
+        still gets its audit row, unchained — the chain starts once the columns
+        exist.
+        """
+        entry = {
+            "ip_address": ip,
+            "username": username,
+            "user_agent": user_agent,
+            "result": result,
+            "reason": reason,
+            "created_at": created_at,
+        }
+        try:
+            previous = self._last_chain_hash(db)
+            db.table("auth_audit_logs").insert({
+                **entry,
+                "previous_hash": previous,
+                "chain_hash": self._entry_hash(
+                    previous, ip=ip, username=username, user_agent=user_agent,
+                    result=result, reason=reason, created_at=created_at,
+                ),
+            })
+        except Exception:
+            db.table("auth_audit_logs").insert(entry)
+
     def _parse_time(self, val: Any) -> Optional[datetime]:
         if isinstance(val, datetime):
             return val if val.tzinfo is not None else val.replace(tzinfo=timezone.utc)
@@ -126,14 +202,15 @@ class HoneypotService:
         # 1. Honeypot Trap Trigger
         if self.is_honeypot_target(clean_user):
             try:
-                db.table("auth_audit_logs").insert({
-                    "ip_address": ip,
-                    "username": clean_user,
-                    "user_agent": ua_string,
-                    "result": "HONEYPOT",
-                    "reason": "ABUSED_USERNAME_TRAP",
-                    "created_at": now_str,
-                })
+                self._append_audit_log(
+                    db,
+                    ip=ip,
+                    username=clean_user,
+                    user_agent=ua_string,
+                    result="HONEYPOT",
+                    reason="ABUSED_USERNAME_TRAP",
+                    created_at=now_str,
+                )
                 db.table("security_events").insert({
                     "ip_address": ip,
                     "event_type": "HONEYPOT_HIT",
@@ -165,14 +242,15 @@ class HoneypotService:
         final_reason = reason or ("AUTHENTICATED" if success else "INVALID_CREDENTIALS")
 
         try:
-            db.table("auth_audit_logs").insert({
-                "ip_address": ip,
-                "username": clean_user,
-                "user_agent": ua_string,
-                "result": result_status,
-                "reason": final_reason,
-                "created_at": now_str,
-            })
+            self._append_audit_log(
+                db,
+                ip=ip,
+                username=clean_user,
+                user_agent=ua_string,
+                result=result_status,
+                reason=final_reason,
+                created_at=now_str,
+            )
         except Exception:
             pass
 
