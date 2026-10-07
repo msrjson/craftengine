@@ -126,6 +126,17 @@ python dev.py queue work --once
 
 See [Queues and events](queues_events.md).
 
+## Outbox
+
+```bash
+python dev.py outbox relay
+python dev.py outbox relay --limit 500
+```
+
+Publishes the messages committed to the transactional outbox. Run it from a
+worker or a schedule; see
+[Transactional Outbox](queues_events.md#transactional-outbox).
+
 ## Cache
 
 ```bash

@@ -20,6 +20,14 @@ full policy (categories to use, what counts as security-relevant, how
 
 ### Added
 
+- A transactional outbox (Slice 4 of the upstream roadmap).
+  `Outbox().publish(topic, payload)` writes a message to `outbox_messages` on
+  the caller's own connection, inside their transaction, so a rollback discards
+  it and no event describes work that did not happen; `python dev.py outbox
+  relay` publishes the committed messages to handlers registered with
+  `Outbox.on(topic, handler)`. Delivery is at-least-once, a failing handler
+  backs off, and the message's tenant is bound while its handler runs. New
+  forward-only migration `2026_10_07_000005_create_outbox_table.py`.
 - A tenant-scoped storage disk, and key validation on every disk (Slice 4 of
   the upstream roadmap). A disk with `"tenant_scoped": true` (a `tenant` disk
   ships in `config/storage.py`) keeps each tenant's files under

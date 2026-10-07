@@ -37,6 +37,7 @@ make_app = typer.Typer(name="make", help="Generate framework classes.", no_args_
 migrate_app = typer.Typer(name="migrate", help="Run database migrations.", invoke_without_command=True)
 db_app = typer.Typer(name="db", help="Database utilities.", no_args_is_help=True)
 queue_app = typer.Typer(name="queue", help="Queue workers.", no_args_is_help=True)
+outbox_app = typer.Typer(name="outbox", help="Transactional outbox relay.", no_args_is_help=True)
 schedule_app = typer.Typer(name="schedule", help="Scheduled tasks.", no_args_is_help=True)
 route_app = typer.Typer(name="route", help="Routing utilities.", no_args_is_help=True)
 data_app = typer.Typer(name="data", help="Data integrity utilities.", no_args_is_help=True)
@@ -57,6 +58,7 @@ cli.add_typer(make_app)
 cli.add_typer(migrate_app)
 cli.add_typer(db_app)
 cli.add_typer(queue_app)
+cli.add_typer(outbox_app)
 cli.add_typer(schedule_app)
 cli.add_typer(route_app)
 cli.add_typer(data_app)
@@ -1162,6 +1164,23 @@ def queue_reclaim(
     """Free reservations held by workers that died mid-flight."""
     freed = get_app().make("queue").reclaim(retry_after)
     echo(f"Reclaimed {freed} job(s).", "green" if freed else "yellow")
+
+
+# -- outbox ---------------------------------------------------------------------
+
+@outbox_app.command("relay")
+def outbox_relay(
+    limit: int = typer.Option(100, help="Maximum messages to publish this run."),
+) -> None:
+    """Publish the messages committed to the transactional outbox.
+
+    Run it from a worker or a schedule; a handler that raises leaves its
+    message unpublished and schedules a retry with backoff.
+    """
+    from engine.events.outbox import Outbox
+
+    delivered = Outbox(get_app()).relay(limit)
+    echo(f"Published {delivered} message(s).", "green" if delivered else "yellow")
 
 
 # -- schedule -------------------------------------------------------------------

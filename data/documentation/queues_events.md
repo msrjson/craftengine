@@ -153,6 +153,37 @@ Give the supervisor a grace period longer than your slowest job
 Compose). A second `SIGTERM` exits immediately: the handler stands down as it
 fires, so an operator is never left with a process that ignores them.
 
+## Transactional Outbox
+
+An event raised after a database write can be lost or, worse, describe work
+that rolled back. The outbox writes the message in the same transaction as the
+change, and a relay publishes what committed:
+
+```python
+from craft.events.outbox import Outbox
+
+def place_order(request):
+    def work():
+        order = Order.create(request.input())
+        Outbox().publish("order.placed", {"order": order.id})
+    DB.transaction(work)
+
+Outbox.on("order.placed", lambda message: charge(message.payload["order"]))
+```
+
+A rollback discards the message with the rest of the transaction, so an event
+is never emitted for work that did not happen. Delivery is **at-least-once** —
+a relay that dies between publishing and marking the row sends it again, so a
+handler must be idempotent. Run the relay from a worker or a schedule:
+
+```bash
+python dev.py outbox relay
+```
+
+A handler that raises leaves its message unpublished with exponential backoff,
+so one bad message does not block the ones behind it. The message's tenant is
+bound while its handler runs.
+
 ## On PostgreSQL
 
 The queue claims jobs with `SELECT ... FOR UPDATE SKIP LOCKED`, backs off
