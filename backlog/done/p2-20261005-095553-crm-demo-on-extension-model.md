@@ -9,7 +9,7 @@ max_attempts: 2
 claimed_by: claude@claude-code
 attempts: 1
 created_at: 2026-10-05T09:55:53Z
-updated_at: 2026-10-05T10:54:46Z
+updated_at: 2026-10-07T18:57:24Z
 source: owner request 2026-10-05 (session), after the extension model plan
 touches:
   - data-demo/
@@ -29,9 +29,9 @@ The slim engine needs a complete, database-backed application that proves the ex
 - [x] Engine source: the canonical remote pinned to a tag, `git+https://github.com/msrjson/craftengine.git@<tag>` (owner ruling 2026-10-05).
 - [x] Publication: built and committed locally; the owner pushes after review (owner ruling 2026-10-05).
 - [x] Release v4.4.0-r00022 published (tag on 166741d) and public repository msrjson/craftengine-demo created (owner, 2026-10-05).
-- [ ] CRM modules (contacts, companies, deals, activities), one plugin, one theme and the extension manager panel, with migrations, seeders and three-locale keys.
-- [ ] The engine comes from the canonical Git remote, never copied from this workspace.
-- [ ] A failing CRM extension leaves the rest of the CRM serving (demonstrated by a test).
+- [x] CRM modules (contacts, companies, deals, activities), one plugin, one theme and the extension manager panel, with migrations, seeders and three-locale keys.
+- [x] The engine comes from the canonical Git remote, never copied from this workspace.
+- [x] A failing CRM extension leaves the rest of the CRM serving (demonstrated by a test).
 
 ## Verify
 
@@ -51,3 +51,4 @@ Owner request 2026-10-05: "framework slim + demo"; the demo is a complete applic
 - 2026-10-05T10:29:04Z owner ruling: data-demo installs the engine from the canonical Git remote pinned to a tag; nothing is pushed before the owner reviews. Blocked on the owner cutting and pushing the release with the extension model (owner, relayed by claude@claude-code)
 - 2026-10-05T10:54:46Z owner ruling: release v4.4.0-r00022 published and craftengine-demo created; build the demo now (autonomous true, blocked_by none) (owner, relayed by claude@claude-code)
 - 2026-10-05T10:54:46Z claimed by claude@claude-code (attempt 1)
+- 2026-10-07T18:57:24Z owner-authorised closure by qwen@qwen-code: the stale claim (claude, 2026-10-05) held every data-demo/ path and blocked the demo queue; the three remaining Done-when are met (modules/plugin/theme/panel present, lock pins the canonical remote v4.7.0-r00027, fault-isolation test green); resolved in done/ (resolutions/p2-20261005-095553-crm-demo-on-extension-model.resolution.md)
