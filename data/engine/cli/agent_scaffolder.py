@@ -320,6 +320,51 @@ proposing a URL.
 """
 
 
+def coordination_kit() -> Dict[str, str]:
+    """Return the coordination kit and integration points, keyed by relative path.
+
+    These are the files a project needs so several agents and sessions can work
+    together without sharing memory: an append-only board, a lessons ledger, the
+    handoff directory, a smoke journey, a validation manifest, the multi-session
+    guide and the `team-lead` agent. Every path lives under `.agents/`, the one
+    physical agent directory.
+    """
+    return {
+        ".agents/team/board.md": (
+            "# Team board - append-only\n\n"
+            "Newest at the END; never edit or delete a line. Format:\n"
+            "`YYYY-MM-DDTHH:MMZ | from: <agent>@<tool> | to: all|<agent> | KIND | message`\n\n"
+            "Kinds: CLAIM, RELEASE, BLOCKER, FINDING, RED-TEST, TEST-RUN, HANDOVER, DONE, RULE, ACK.\n"
+        ),
+        ".agents/lessons.md": (
+            "# Lessons\n\n"
+            "One line per mistake worth not repeating: what happened, why, and the rule it became.\n"
+        ),
+        ".agents/multi-session-coordination.md": (
+            "# Multi-session coordination\n\n"
+            "- One owner per path: CLAIM before editing, RELEASE when done.\n"
+            "- The board is the live channel; a handoff file is the durable one.\n"
+            "- Run tests in the container, never the host environment.\n"
+        ),
+        ".agents/handoffs/.gitkeep": "",
+        ".agents/journeys/smoke.json": (
+            '{\n  "name": "smoke",\n  "steps": [\n'
+            '    {"method": "GET", "path": "/health", "expect": 200}\n  ]\n}\n'
+        ),
+        ".agents/validation.json": (
+            '{\n  "container": "app",\n  "suite": "python -m pytest tests -q",\n'
+            '  "journeys": [".agents/journeys/smoke.json"]\n}\n'
+        ),
+        ".agents/agents/team-lead.md": (
+            "---\nname: team-lead\n"
+            "description: Coordinates several agents and sessions on one project through the board and handoffs.\n"
+            "---\n\n# Team lead\n\n"
+            "Read the board tail, claim paths before editing, release them after, and pass work through "
+            "handoff files. Never assume another agent saw your chat.\n"
+        ),
+    }
+
+
 def scaffold_agent_stack(base_path: str, force: bool = False) -> Dict[str, Any]:
     """Scaffold the AI Agent context files and development catalog."""
     result: Dict[str, Any] = {"files": {}}
@@ -364,5 +409,12 @@ def scaffold_agent_stack(base_path: str, force: bool = False) -> Dict[str, Any]:
 
     # 5. Development agents, skills, commands and references in .agents/
     result["catalog"] = agent_catalog.install(base_path, force=force)
+
+    # 6. Coordination kit and integration points under .agents/
+    for relative, content in coordination_kit().items():
+        destination = os.path.join(base_path, *relative.split("/"))
+        if not os.path.exists(destination) or force:
+            _write_file(destination, content, force=force)
+        result["files"][relative] = destination
 
     return result

@@ -119,6 +119,18 @@ class TestAgentScaffolder:
         assert os.path.exists(os.path.join(base_dir, ".claude", "agents", "code-reviewer.md"))
         assert len(result["catalog"]["skill"]) > 0
 
+        # the coordination kit and integration points (Slice 6)
+        for relative in (
+            ".agents/team/board.md",
+            ".agents/lessons.md",
+            ".agents/multi-session-coordination.md",
+            ".agents/agents/team-lead.md",
+            ".agents/handoffs/.gitkeep",
+            ".agents/journeys/smoke.json",
+            ".agents/validation.json",
+        ):
+            assert os.path.exists(os.path.join(base_dir, *relative.split("/"))), relative
+
         with open(files["cursorrules"], "r", encoding="utf-8") as f:
             rules = f.read()
             assert "Craft Engine" in rules

@@ -20,6 +20,10 @@ full policy (categories to use, what counts as security-relevant, how
 
 ### Added
 
+- `agent:scaffold` generates the coordination kit and integration points under
+  `.agents/` (Slice 6 of the upstream roadmap): an append-only `team/board.md`,
+  `lessons.md`, the `handoffs/` directory, `journeys/smoke.json` and
+  `validation.json`, `multi-session-coordination.md` and the `team-lead` agent.
 - The agent catalog gains two skills (Slice 6 of the upstream roadmap):
   `tests-in-container` (a test counts as evidence only from the application
   container) and `craft-engine-pitfalls` (the recurring traps — assuming
