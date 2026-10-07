@@ -28,7 +28,7 @@ quadrantChart
     "Masonite": [0.65, 0.42]
     "Ruby on Rails": [0.78, 0.35]
     "Laravel (PHP)": [0.92, 0.52]
-    "Craft Engine v3.20": [0.94, 0.92]
+    "Craft Engine v4.7": [0.94, 0.92]
 ```
 
 ---
@@ -49,7 +49,7 @@ xychart-beta
 
 ## 3. Comprehensive Framework Comparison Matrix
 
-| Capability / Dimension | Craft Engine (v3.20) | Django (Python) | FastAPI (Python) | Laravel (PHP) | Rails (Ruby) |
+| Capability / Dimension | Craft Engine (v4.7) | Django (Python) | FastAPI (Python) | Laravel (PHP) | Rails (Ruby) |
 | :--- | :---: | :---: | :---: | :---: | :---: |
 | **Language & AI Gravity** | **Python (Native)** | Python | Python | PHP | Ruby |
 | **Runtime Architecture** | **ASGI Native (Starlette)** | Hybrid (WSGI with partial async) | ASGI Native | Sync (Octane optional) | Sync (Falcon/Puma) |

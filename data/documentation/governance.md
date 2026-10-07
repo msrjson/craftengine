@@ -65,9 +65,9 @@ Standardize all Brazilian financial terms into official domain English:
 
 ## 5. Technology Stack Boundaries
 
-- **Backend Runtime:** 100% pure Python (3.10+) built strictly on the Craft Engine architecture.
-- **Typing & Linting:** Strict static typing (`typing` / `mypy` compliant) and PEP 8 formatting.
-- **Frontend Layer:** Vanilla or vendor static `.js` and `.css` assets only. **Zero TypeScript (`.ts`)** and **zero Node.js build pipelines**.
+- **Backend Runtime:** 100% pure Python (3.14+) built strictly on the Craft Engine architecture.
+- **Typing & Linting:** Type annotations (`typing`) and PEP 8 formatting, checked with `ruff`. The repository ships no mypy configuration, so `mypy` compliance is not a build gate.
+- **Frontend Layer:** JavaScript/TypeScript, React and a Node-based build are permitted for the UI (owner ruling 2026-09-17). The frontend holds no business rule, money decision, tenant resolution, authorization or data access; no Node.js runtime serves requests in place of the backend; built output is served as static assets and `node_modules`/build tooling never reach the production image.
 - **Multi-Tenant Safety:** All modules and plugins must be stateless and thread-safe, strictly isolating tenant data at the query and service layers.
 
 ---

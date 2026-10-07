@@ -18,6 +18,9 @@ venv/
 .ruff_cache/
 .mypy_cache/
 
+# Tool-local agent state (tool-owned content lives under .claude/; AGENTS.md §0.1)
+.qwen/
+
 # Storage / Databases
 data/storage/logs/*
 data/storage/framework/cache/*

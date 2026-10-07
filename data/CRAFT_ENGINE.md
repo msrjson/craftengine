@@ -13,17 +13,17 @@ from craft.facades import Route, DB, Auth, Cache, Queue, Event, Gate
 from craft.orm import Model
 ```
 
-Version 3.18.0 · **1200+ tests**, green on SQLite and on real PostgreSQL, Python
-3.14+ · MIT.
+Version 4.7.0 (r00027) · **1900+ tests**, green on SQLite and on real PostgreSQL,
+Python 3.14+ · MIT.
 
 ---
 
 ## What the engine actually contains
 
-Built **directly on Starlette**. There is no third-party ORM, no third-party
-template engine, no migration tool borrowed from elsewhere — the pieces below
-are the framework's own code, which is why they behave consistently with each
-other.
+Built **directly on Starlette**. There is no third-party ORM and no migration
+tool borrowed from elsewhere — those are the framework's own code, which is why
+they behave consistently with each other. The view layer is Jinja2, preprocessed
+into the framework's own Forge directive dialect (`engine/view/forge.py`).
 
 | Subsystem | What you get |
 |---|---|
@@ -230,15 +230,16 @@ python tools/loadtest.py http://127.0.0.1:8000/ --clients 1 --clients 50
 Being explicit here is the point — an agent that assumes these exist will write
 code that cannot work:
 
-- **No storage/filesystem abstraction.** No S3 driver. File handling is yours.
-- **No mail subsystem.** No SMTP anywhere in the codebase, which also means
-  there is no password-reset or email-verification flow.
 - **No API key manager** — bearer-token authentication works
   (`AuthenticateApiToken` + the `api_token` column), but issuing, rotating and
   rate-limiting keys per client is not built.
-- **No Redis queue driver.** `QUEUE_CONNECTION=redis` warns and falls back to
-  `database`; the Redis **cache** store, however, is real.
-- **No broadcasting or notification subsystem.**
+- **No email-verification or password-reset flow.** Mail delivery itself is real
+  (SMTP, log and array drivers under `engine/mail/drivers/`, no SES/Mailgun);
+  the account flows built on top of it are not.
+- **No notification subsystem.** Delivery to end users (email, SMS, push) is
+  yours. The `Broadcast` facade is in-process publish/subscribe over PostgreSQL
+  `LISTEN`/`NOTIFY` (`engine/queue/listener.py`), not a client-facing push
+  channel.
 - **Eager loading covers one level.** No `with_("posts.comments")`, no
   `collection.load()`, no `with_count()`.
 - **`remember me` is absent** from `Auth.attempt()` — it was removed rather

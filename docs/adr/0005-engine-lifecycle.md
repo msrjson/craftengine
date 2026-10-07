@@ -31,7 +31,9 @@ from accidental drift.
    hash of each file it changes. A vendored file that differs from the release
    and is covered by no patch is unregistered drift. `status` exits 1 when
    there is drift, and every move refuses while any remains.
-3. **Commands.** `craft engine adopt | status | patch | hotfix | update | upgrade`.
+3. **Commands.** `craft engine adopt | status | check | verify-command | patch |
+   hotfix | update | upgrade`. `check` caches the update notice the panel shows;
+   `verify-command` records the verification command a move runs.
    - `update` moves to the newest release on the same `major.minor` line.
    - `upgrade --to X.Y.Z` moves across minors and majors and refuses the same
      or an older version.

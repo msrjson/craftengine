@@ -1,6 +1,9 @@
 # ADR 0004 — One extension model: modules, plugins and themes
 
-- **Status:** accepted (owner, 2026-10-05)
+- **Status:** accepted (owner, 2026-10-05); amended 2026-10-06 — a fourth kind
+  (`connector`) and the ownership/update rules; see the amendments at the end of
+  this file. The title and decision 1 keep the original three-kind wording on
+  purpose: this document records the decision of 2026-10-05.
 - **Date:** 2026-10-05
 - **Follows:** ADR 0003
 - **Scope:** how an application grows without rebuilding the engine - what an
@@ -157,3 +160,20 @@ Owner requested correction and documentation of architecture gaps.
 
 The application-facing contract is documented in
 `data/documentation/architecture.md` and `data/documentation/extensions.md`.
+
+## Amendment 2026-10-07 — the compatibility managers are not adapters yet
+
+The consequences promised that `PluginManager` and `ModuleManager` would keep
+their public API as adapters over the extension store. Verified against the code
+on 2026-10-07:
+
+- `data/engine/plugins/manager.py` still runs its own hook-style registry and
+  persists state through the `plugins` table; it does not read the extension
+  store.
+- `data/engine/modules/manager.py` delegates only partially: it defers
+  availability and failure reporting to `engine.extensions` for slugs that are
+  extensions and keeps its own behaviour otherwise.
+
+The adapters are therefore in progress, not delivered. New extension code uses
+`ExtensionManager` and the `extensions` state table; the legacy managers remain
+compatibility paths.
