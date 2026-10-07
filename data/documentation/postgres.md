@@ -409,6 +409,27 @@ class Account(Model):
 Without a cast, a JSONB column arrives as a `dict` under PostgreSQL and a `str`
 under SQLite, and writing the `dict` back raises *can't adapt type 'dict'*.
 
+### Money
+
+`"money"` stores an exact amount and its currency as a JSON object
+(`{"amount": "10.00", "currency": "BRL"}`) and hands the attribute back as a
+`craft.support.money.Money`, so arithmetic is exact and never a float:
+
+```python
+from craft.support.money import Money
+
+class Invoice(Model):
+    __table__ = "invoices"
+    casts = {"total": "money"}      # or "money:EUR" to fix the currency
+
+invoice.total = Money("19.99") + Money("0.01")   # -> BRL 20.00
+invoice.total.currency                            # "BRL"
+```
+
+Adding or comparing two different currencies raises `CurrencyMismatch`; the
+amount is a `Decimal` quantized to the currency's minor unit (two places by
+default, none for `JPY` and friends).
+
 ### JSONB
 
 ```python

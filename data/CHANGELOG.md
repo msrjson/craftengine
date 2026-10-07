@@ -20,6 +20,12 @@ full policy (categories to use, what counts as security-relevant, how
 
 ### Added
 
+- A `Money` value type and its ORM cast (Slice 4 of the upstream roadmap).
+  `craft.support.money.Money` holds an exact `Decimal` amount in one currency,
+  quantized to that currency's minor unit, and refuses to add or compare two
+  currencies; `Model.casts = {"total": "money"}` (or `"money:EUR"`) round-trips
+  it through a JSON column, the amount travelling as a decimal string so it is
+  never turned into a float on the way.
 - The in-memory cache store is bounded, and every store can be flushed by key
   prefix. `ArrayStore(max_entries=...)` (default `CACHE_MEMORY_MAX_ENTRIES`,
   1000; `0` is unbounded) drops expired entries first and then the oldest, so a

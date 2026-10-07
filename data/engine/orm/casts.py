@@ -31,6 +31,8 @@ from __future__ import annotations
 import json
 from typing import Any, Protocol, runtime_checkable
 
+from engine.support.money import DEFAULT_CURRENCY, Money
+
 
 @runtime_checkable
 class Cast(Protocol):
@@ -138,6 +140,47 @@ class RangeCast:
         return f"[{'' if lower is None else lower},{'' if upper is None else upper})"
 
 
+class MoneyCast:
+    """`Money` <-> a JSON object `{"amount": "10.00", "currency": "BRL"}`.
+
+    The amount travels as a decimal string, never a JSON number: a JSON number
+    is a float on the wire, and a float round trip is exactly what a money type
+    exists to avoid. The cast argument sets the currency used when a stored
+    value carries none (``"money:EUR"``), defaulting to the framework default.
+    """
+
+    def __init__(self, currency: str | None = None):
+        self.currency = currency.upper() if currency else None
+
+    def hydrate(self, value: Any, driver: str) -> Any:
+        if value is None or isinstance(value, Money):
+            return value
+        if isinstance(value, (bytes, bytearray)):
+            value = value.decode()
+        if isinstance(value, str):
+            try:
+                value = json.loads(value)
+            except (TypeError, ValueError):
+                return Money(value, self.currency or DEFAULT_CURRENCY)
+        if isinstance(value, dict):
+            return Money.from_dict(value, default=self.currency)
+        return Money(value, self.currency or DEFAULT_CURRENCY)
+
+    def dehydrate(self, value: Any, driver: str) -> Any:
+        if value is None:
+            return None
+        if not isinstance(value, Money):
+            raise TypeError(
+                f"Expected Money on a money cast column, got {type(value).__name__}."
+            )
+        payload = value.to_dict()
+        if driver == "postgresql":
+            from psycopg2.extras import Json
+
+            return Json(payload)
+        return json.dumps(payload)
+
+
 class VectorCast:
     """`list[float]` <-> `vector(n)`, in pgvector's own literal form."""
 
@@ -171,6 +214,7 @@ CAST_ALIASES = {
     "json": JsonbCast,
     "array": ArrayCast,
     "vector": VectorCast,
+    "money": MoneyCast,
     "tsrange": lambda: RangeCast("tsrange"),
     "tstzrange": lambda: RangeCast("tstzrange"),
     "daterange": lambda: RangeCast("daterange"),
@@ -200,6 +244,7 @@ __all__ = [
     "CAST_ALIASES",
     "Cast",
     "JsonbCast",
+    "MoneyCast",
     "RangeCast",
     "VectorCast",
     "resolve_cast",
