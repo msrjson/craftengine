@@ -91,35 +91,45 @@ def clear_translation_cache() -> None:
     _reported_missing.clear()
 
 
+def _rows(app: Any, sql: str, params: list) -> Optional[list]:
+    """Run a read, or None when the query cannot run (offline, old schema)."""
+    try:
+        return app.make("db").statement(sql, params, read=True).fetchall()
+    except Exception:
+        return None
+
+
 def _fetch_bundle(app: Any, locale: str) -> Dict[str, str]:
     """Load every translation of `locale` in one query, tenant override applied.
 
     A row with the bound tenant's `tenant_id` wins over the global row that
     shares its `(key, locale)`; with no tenant bound, only the global rows are
-    read, so a single-tenant request pays nothing for the feature.
+    read, so a single-tenant request pays nothing for the feature. A database
+    whose `translations` table predates the `tenant_id` column - a project that
+    has not run the migration, a scaffold built before it - falls back to the
+    query without it rather than rendering every key as itself.
     """
     from engine.orm.tenancy import current_tenant_id
 
-    tenant = current_tenant_id()
-    try:
-        rows = app.make("db").statement(
-            "SELECT key, value, tenant_id FROM translations "
-            "WHERE locale = ? AND (tenant_id IS NULL OR tenant_id = ?)",
-            [locale, tenant],
-            read=True,
-        ).fetchall()
-    except Exception:
-        return {}  # DB offline or not yet migrated - fall back to config
+    rows = _rows(
+        app,
+        "SELECT key, value, tenant_id FROM translations "
+        "WHERE locale = ? AND (tenant_id IS NULL OR tenant_id = ?)",
+        [locale, current_tenant_id()],
+    )
+    if rows is None:
+        rows = _rows(app, "SELECT key, value FROM translations WHERE locale = ?", [locale]) or []
     bundle: Dict[str, str] = {}
     for row in rows:
         if not row["value"]:
             continue
         key = str(row["key"])
-        if row["tenant_id"] is None:
+        override = "tenant_id" in row and row["tenant_id"] is not None
+        if override:
+            bundle[key] = str(row["value"])
+        else:
             # Global row: keep it only if no override has claimed the key yet.
             bundle.setdefault(key, str(row["value"]))
-        else:
-            bundle[key] = str(row["value"])
     return bundle
 
 
@@ -127,16 +137,18 @@ def _fetch_one(app: Any, locale: str, key: str) -> Optional[str]:
     """Load one translation; used outside a request, where nothing is cached."""
     from engine.orm.tenancy import current_tenant_id
 
-    try:
-        row = app.make("db").statement(
-            "SELECT value FROM translations "
-            "WHERE key = ? AND locale = ? AND (tenant_id IS NULL OR tenant_id = ?) "
-            "ORDER BY tenant_id IS NULL ASC",
-            [key, locale, current_tenant_id()],
-            read=True,
-        ).fetchone()
-    except Exception:
-        return None  # DB offline or not yet migrated - fall back to config
+    rows = _rows(
+        app,
+        "SELECT value FROM translations "
+        "WHERE key = ? AND locale = ? AND (tenant_id IS NULL OR tenant_id = ?) "
+        "ORDER BY tenant_id IS NULL ASC",
+        [key, locale, current_tenant_id()],
+    )
+    if rows is None:
+        rows = _rows(
+            app, "SELECT value FROM translations WHERE key = ? AND locale = ?", [key, locale]
+        ) or []
+    row = rows[0] if rows else None
     return str(row["value"]) if row is not None and row["value"] else None
 
 
