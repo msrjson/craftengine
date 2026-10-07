@@ -50,3 +50,29 @@ Configured in `config/mail.py`:
 - `smtp`: Standard production SMTP delivery with TLS/SSL authentication.
 - `log`: Writes outgoing emails to the application logger (`storage/logs/craft.log`).
 - `array`: In-memory driver for rapid, deterministic testing (`Mail.set_default_mailer('array')`).
+
+## Failover and quotas
+
+A mailer can name a `fallback`, and one that fails or is over its quota hands
+the message to the next in the chain, so a single provider outage or cap does
+not lose the notification. A mailer may also carry a `quota`:
+
+```python
+# config/mail.py
+"mailers": {
+    "smtp": {
+        "transport": "smtp",
+        "fallback": ["smtp_backup", "log"],       # tried in order
+        "quota": {"limit": 5000, "window": 3600, "per_tenant": True},
+    },
+    "smtp_backup": {"transport": "smtp", "host": "backup.example.com"},
+    "log": {"transport": "log"},
+}
+```
+
+At most `limit` messages are sent per `window` seconds; `0` disables the quota.
+With `per_tenant` the count is kept for the bound tenant alone, so one tenant
+cannot spend another's. `Mail.to(...).send(...)` returns `True` only when a
+mailer accepted the message; when every mailer is over quota it returns `False`
+and logs why.
+

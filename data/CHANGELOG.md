@@ -20,6 +20,12 @@ full policy (categories to use, what counts as security-relevant, how
 
 ### Added
 
+- Mail failover and quotas (Slice 4 of the upstream roadmap). A mailer may name
+  a `fallback` (one name or a list) and a `quota` (`limit` per `window`
+  seconds, `per_tenant` to count each tenant separately). A mailer that fails,
+  raises, or is over its quota hands the message to the next in the chain, so a
+  provider outage or cap does not lose the notification; `send_mailable()`
+  returns True only when a mailer accepted the message.
 - A transactional outbox (Slice 4 of the upstream roadmap).
   `Outbox().publish(topic, payload)` writes a message to `outbox_messages` on
   the caller's own connection, inside their transaction, so a rollback discards
