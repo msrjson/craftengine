@@ -6,9 +6,10 @@ priority: 2
 autonomous: true
 blocked_by: none
 max_attempts: 2
-attempts: 0
+attempts: 1
+claimed_by: qwen@qwen-code
 created_at: 2026-10-06T20:07:27Z
-updated_at: 2026-10-06T20:07:27Z
+updated_at: 2026-10-07T09:05:00Z
 source: owner question in a session comparing Craft Engine with other frameworks
 touches:
   - data/documentation/
@@ -68,3 +69,5 @@ docker exec framework sh -lc 'cd /app && python -m pytest tests -q -k "proxy or 
 ## History
 
 - 2026-10-06T20:07:27Z created by claude (source: owner question in a session comparing Craft Engine with other frameworks)
+- 2026-10-07T08:55:00Z claimed by qwen@qwen-code (attempt 1)
+- 2026-10-07T09:05:00Z resolved by qwen@qwen-code (resolutions/p2-20261006-200727-document-deployment-behind-apache-nginx.resolution.md): new documentation/reverse-proxy.md (Apache + nginx, host requirements, TRUSTED_PROXY_HOPS, Host/APP_URL) linked from the docs index; 32 proxy/forwarded tests pass; docs only

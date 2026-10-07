@@ -62,6 +62,7 @@ scaling from a blog to multi-tenant, and what is not implemented yet? That is
 |---|---|
 | [Testing](testing.md) | Running the suite, fixtures, testing against PostgreSQL |
 | [Deployment](deployment.md) | Production checklist, Docker, health probes, rolling deploys, the connection budget |
+| [Behind a reverse proxy](reverse-proxy.md) | Apache and nginx in front of the ASGI process, forwarded headers, host requirements |
 | [Observability](observability.md) | Request correlation, structured logging, metrics, error reporting |
 
 ## Project resources
