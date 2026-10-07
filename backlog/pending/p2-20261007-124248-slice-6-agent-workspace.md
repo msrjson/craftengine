@@ -1,0 +1,68 @@
+---
+id: "20261007-124248"
+title: Implement Slice 6 of the SoftPax upstream roadmap (agent workspace scaffolding)
+type: feature
+priority: 2
+autonomous: true
+blocked_by: none
+max_attempts: 2
+attempts: 0
+created_at: 2026-10-07T12:42:48Z
+updated_at: 2026-10-07T12:42:48Z
+source: .agents/plans/softpax-upstream-roadmap.md, Slice 6
+touches:
+  - data/engine/cli/agent_scaffolder.py
+  - data/engine/cli/
+  - data/engine/cli/skeleton/
+  - data/tests/
+  - data/documentation/
+  - data/CHANGELOG.md
+---
+
+## Problem
+
+Slice 6 of the upstream roadmap ("Last-generation agent workspace") is not
+landed: a generated project gets duplicated instruction copies and none of the
+coordination kit, hooks, CI or catalog skills the slice names.
+
+## Evidence
+
+- `data/engine/cli/agent_scaffolder.py` writes `AGENTS.md` at the root *and*
+  `.claude/rules/AGENTS.md` with the same content, plus a pointer file - no
+  symlinks, so the copies drift.
+- No `.claude/team/board.md`, `multi-session-coordination.md` or `team-lead`
+  agent is generated.
+- No `journeys/smoke.json`, `validation.json`, `lessons.md` or `local-brief.md`
+  integration points; no Python environment guard hook; no generated
+  pre-commit, CI workflow or `.vscode/tasks.json`/`launch.json`.
+- `data/engine/cli/agent_catalog/skills/` has 25 skills, without
+  `tests-in-container` and `craft-engine-pitfalls`.
+
+## Done when
+
+- [ ] A generated project has one `AGENTS.md` and tool paths as symlinks
+  (`.agents -> .claude`), no duplicated content.
+- [ ] The coordination kit, integration points, environment guard hook, generated
+  pre-commit/CI/VS Code files and the two catalog skills exist and are covered
+  by tests.
+- [ ] Full suite green on SQLite and PostgreSQL in the framework container;
+  ruff, engine-boundary and language gates clean.
+
+## Verify
+
+```bash
+docker exec framework sh -lc 'cd /app && python -m pytest tests/test_project_scaffolder.py tests/test_application_engine_guard.py tests/test_agent_catalog.py -q'
+docker exec framework sh -lc 'cd /app && python -m pytest tests -q'
+```
+
+## Notes
+
+- The generated-project side follows `data/engine/cli/skeleton/`; a change there
+  is validated in the `framework` container and reaches a real project only
+  through `craft new`.
+- Related: p2-20261007-084616 (global .agents migration), p2-20261007-085101
+  (agent:install writes .claude) and p3-20261007-081500.
+
+## History
+
+- 2026-10-07T12:42:48Z created by qwen@qwen-code (source: .agents/plans/softpax-upstream-roadmap.md, Slice 6; queued after the Slice 4 task)
