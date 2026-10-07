@@ -20,6 +20,13 @@ full policy (categories to use, what counts as security-relevant, how
 
 ### Added
 
+- Per-tenant translation overrides (Slice 4 of the upstream roadmap). The
+  `translations` table gains a nullable `tenant_id`; a row carrying the bound
+  tenant's id wins over the global row with the same `(key, locale)`, and with
+  no tenant bound only the global rows are read. The `(key, locale)` unique
+  index is replaced by two partial indexes - one per global row, one per
+  `(tenant_id, key, locale)` - so an override and the global row can coexist.
+  New forward-only migration `2026_10_07_000004_add_tenant_id_to_translations.py`.
 - Validation errors carry a stable `code` and `message_key` (Slice 4 of the
   upstream roadmap). `MessageBag.errors()` returns
   `{field: [{code, message_key, message, params}]}`, and a `ValidationException`

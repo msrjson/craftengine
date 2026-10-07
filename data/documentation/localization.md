@@ -73,6 +73,19 @@ Translations are dynamically resolved per locale in the chain with a **database-
 | `login` | `pt-BR` | Entrar |
 | `login` | `pt` | Iniciar sessão |
 
+A row may also carry a `tenant_id`, and a tenant's row wins over the global row
+that shares its `(key, locale)` — a product name, a legal notice or a tax label
+that differs per tenant without a second table:
+
+| key | locale | value | tenant_id |
+|---|---|---|---|
+| `invoice.title` | `en` | Invoice | *(null — every tenant)* |
+| `invoice.title` | `en` | Tax invoice | `0f2b…` |
+
+With no tenant bound only the global rows are read, so a single-tenant request
+pays nothing for the override. The request-level bundle is cached per tenant as
+well as per locale, so one tenant never reads another's copy.
+
 Seed them in `database/seeders/TranslationSeeder.py`:
 
 ```bash

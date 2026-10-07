@@ -92,21 +92,48 @@ def clear_translation_cache() -> None:
 
 
 def _fetch_bundle(app: Any, locale: str) -> Dict[str, str]:
-    """Load every translation of `locale` in one query."""
+    """Load every translation of `locale` in one query, tenant override applied.
+
+    A row with the bound tenant's `tenant_id` wins over the global row that
+    shares its `(key, locale)`; with no tenant bound, only the global rows are
+    read, so a single-tenant request pays nothing for the feature.
+    """
+    from engine.orm.tenancy import current_tenant_id
+
+    tenant = current_tenant_id()
     try:
         rows = app.make("db").statement(
-            "SELECT key, value FROM translations WHERE locale = ?", [locale], read=True
+            "SELECT key, value, tenant_id FROM translations "
+            "WHERE locale = ? AND (tenant_id IS NULL OR tenant_id = ?)",
+            [locale, tenant],
+            read=True,
         ).fetchall()
     except Exception:
         return {}  # DB offline or not yet migrated - fall back to config
-    return {str(row["key"]): str(row["value"]) for row in rows if row["value"]}
+    bundle: Dict[str, str] = {}
+    for row in rows:
+        if not row["value"]:
+            continue
+        key = str(row["key"])
+        if row["tenant_id"] is None:
+            # Global row: keep it only if no override has claimed the key yet.
+            bundle.setdefault(key, str(row["value"]))
+        else:
+            bundle[key] = str(row["value"])
+    return bundle
 
 
 def _fetch_one(app: Any, locale: str, key: str) -> Optional[str]:
     """Load one translation; used outside a request, where nothing is cached."""
+    from engine.orm.tenancy import current_tenant_id
+
     try:
         row = app.make("db").statement(
-            "SELECT value FROM translations WHERE key = ? AND locale = ?", [key, locale], read=True
+            "SELECT value FROM translations "
+            "WHERE key = ? AND locale = ? AND (tenant_id IS NULL OR tenant_id = ?) "
+            "ORDER BY tenant_id IS NULL ASC",
+            [key, locale, current_tenant_id()],
+            read=True,
         ).fetchone()
     except Exception:
         return None  # DB offline or not yet migrated - fall back to config
@@ -116,17 +143,18 @@ def _fetch_one(app: Any, locale: str, key: str) -> Optional[str]:
 def _lookup(app: Any, locale: str, key: str) -> Optional[str]:
     """Return the stored translation of `key`, one bundle query per request.
 
-    The bundle lives in the request store, keyed by locale and tenant schema,
-    so an edited row shows in the next request and no tenant ever reads a
-    bundle loaded for another. Outside a request nothing is cached.
+    The bundle lives in the request store, keyed by locale, tenant schema and
+    bound tenant, so an edited row shows in the next request and no tenant ever
+    reads a bundle loaded for another.
     """
     from engine.container.application import Container
+    from engine.orm.tenancy import current_tenant_id
 
     store = Container.request_store()
     if store is None:
         return _fetch_one(app, locale, key)
     bundles = store.setdefault(_BUNDLES_SLOT, {})
-    slot = (locale, app.make("db").tenant_schema())
+    slot = (locale, app.make("db").tenant_schema(), current_tenant_id())
     if slot not in bundles:
         bundles[slot] = _fetch_bundle(app, locale)
     return bundles[slot].get(key)
