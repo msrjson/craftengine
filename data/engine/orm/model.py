@@ -59,8 +59,89 @@ def _table_exists(table: str) -> bool:
         return False
 
 
+#: The `Model` methods a relation declaration calls to build its relation. A
+#: method whose bytecode loads one of these names declares a relationship; that
+#: is how the descriptor below finds them without running them at class time.
+_RELATION_BUILDERS = ("has_many", "has_one", "belongs_to", "belongs_to_many")
+
+
+def _is_relation_declaration(value: Any) -> bool:
+    """Whether `value` is a model method that declares a relationship.
+
+    Relation methods are plain `def posts(self): return self.has_many(...)`
+    declarations, so the tell is the builder name the body loads. Running the
+    method to find out would run application code at class-definition time —
+    exactly what a class body must not do.
+    """
+    code = getattr(value, "__code__", None)
+    return bool(code) and any(name in code.co_names for name in _RELATION_BUILDERS)
+
+
+class _RelationAccessor:
+    """What `model.posts` is until it is called.
+
+    Reading a relation without calling it — `post.author.name` — used to reach
+    the bound method and die with `'function' object has no attribute 'name'`.
+    This makes the read explain the mistake instead: call the relation, or eager
+    load it. Calling the accessor is the normal path and builds the relation.
+    """
+
+    def __init__(self, func: Any, instance: Any, name: str):
+        self._func = func
+        self._instance = instance
+        self._name = name
+
+    def __call__(self, *args: Any, **kwargs: Any) -> Any:
+        return self._func(self._instance, *args, **kwargs)
+
+    def __getattr__(self, attribute: str) -> Any:
+        # Dunder probes (`__deepcopy__`, `__getstate__`, ...) must keep raising
+        # a plain AttributeError so the copy/pickle protocols fall through.
+        if attribute.startswith("__") and attribute.endswith("__"):
+            raise AttributeError(attribute)
+        from engine.support.diagnostics import describe
+
+        raise AttributeError(describe(
+            "MODEL_RELATION_NOT_CALLED",
+            model=type(self._instance).__name__, relation=self._name,
+        ))
+
+    def __repr__(self) -> str:
+        return f"<relation {type(self._instance).__name__}.{self._name} (call it)>"
+
+
+class _RelationMethod:
+    """Descriptor standing in for a relation method on the model class.
+
+    Read from the class it returns the plain function, so `with_()` and any
+    caller doing `Model.posts(model)` keeps working; read from an instance it
+    returns a callable accessor that explains a missing call.
+    """
+
+    def __init__(self, func: Any, name: str):
+        self.func = func
+        self.name = name
+
+    def __get__(self, instance: Any, owner: Optional[type] = None) -> Any:
+        if instance is None:
+            return self.func
+        return _RelationAccessor(self.func, instance, self.name)
+
+
 class Model:
     """Active Record Base Model."""
+
+    def __init_subclass__(cls, **kwargs: Any) -> None:
+        """Wrap every relation method the subclass declares.
+
+        Runs at class definition, before any instance exists, so a wrong read
+        (`post.author.name`) meets the hint from the first line, and only the
+        methods that actually declare a relation are wrapped.
+        """
+        super().__init_subclass__(**kwargs)
+        for name, value in list(vars(cls).items()):
+            if not isinstance(value, _RelationMethod) and _is_relation_declaration(value):
+                setattr(cls, name, _RelationMethod(value, name))
 
     __table__: Optional[str] = None
     #: Mass-assignable columns. Fail closed by default: an empty/undeclared

@@ -6,9 +6,10 @@ priority: 2
 autonomous: true
 blocked_by: none
 max_attempts: 2
-attempts: 0
+attempts: 1
+claimed_by: qwen@qwen-code
 created_at: 2026-10-03T22:31:23Z
-updated_at: 2026-10-03T22:31:23Z
+updated_at: 2026-10-07T16:16:11Z
 source: docs/backlog.md L6 (agent-resilience audit 2026-09-25)
 touches:
   - data/engine/orm/model.py
@@ -46,3 +47,6 @@ The test file name in Verify is a suggestion; use the existing relations test mo
 ## History
 
 - 2026-10-03T22:31:23Z created by claude (source: docs/backlog.md L6 (agent-resilience audit 2026-09-25); migrated from the single-file backlog)
+- 2026-10-07T16:09:49Z claimed by qwen@qwen-code (attempt 1)
+- 2026-10-07T16:09:49Z scope note by qwen@qwen-code: relation methods get a descriptor so the read without a call raises a MODEL_RELATION_NOT_CALLED hint; class access still yields the function for `with_()`
+- 2026-10-07T16:16:11Z resolved by qwen@qwen-code (resolutions/p2-20261003-223123-relation-read-as-property-hint.resolution.md)

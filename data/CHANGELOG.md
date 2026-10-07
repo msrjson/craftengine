@@ -142,6 +142,13 @@ full policy (categories to use, what counts as security-relevant, how
 
 ### Fixed
 
+- Reading a relationship without calling it now explains the mistake. Relation
+  methods (`def posts(self): return self.has_many(...)`) are wrapped by a
+  descriptor, so `post.author.name` raises `MODEL_RELATION_NOT_CALLED` naming the
+  relation, the call form (`post.author().first()`) and the eager-load form
+  (`Post.query().with_("author")`) instead of dying with `'function' object has
+  no attribute 'name'`. Calling the relation, and reading it from the class (what
+  `with_()` does), behave exactly as before.
 - An unknown AI driver now fails loudly instead of answering from the mock.
   `AI_DEFAULT_DRIVER=claude` (or any name `AIManager` did not ship) silently
   returned `MockAIDriver`, so an application configured for a real provider

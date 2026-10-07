@@ -320,6 +320,40 @@ class TestRelationships:
             container.instance("db", original)
 
 
+class TestRelationUsedAsAttribute:
+    """A relation read without calling it must explain the mistake.
+
+    `owner.gadgets.name` used to reach the bound method and die with
+    `'function' object has no attribute 'name'`, which tells an agent nothing
+    about the missing call or the eager-load alternative.
+    """
+
+    def test_the_hint_names_relation_call_and_eager_load(self):
+        owner = Owner.create({"name": "hint"})
+        with pytest.raises(AttributeError) as raised:
+            owner.gadgets.name
+        message = str(raised.value)
+        assert "Owner.gadgets" in message
+        assert "Owner.gadgets().first()" in message
+        assert 'with_("gadgets")' in message
+
+    def test_calling_the_relation_still_works(self):
+        owner = Owner.create({"name": "called"})
+        Gadget.create({"name": "a", "owner_id": owner.get_attribute("id")})
+        assert len(owner.gadgets().get()) == 1
+
+    def test_a_loaded_relation_resolves_from_the_cache(self):
+        owner = Owner.create({"name": "eager"})
+        Gadget.create({"name": "loaded", "owner_id": owner.get_attribute("id")})
+        loaded = Owner.where("id", owner.get_attribute("id")).with_("gadgets").first()
+        assert loaded.relation_loaded("gadgets") is True
+        assert [g.get_attribute("name") for g in loaded.gadgets().get()] == ["loaded"]
+
+    def test_a_plain_attribute_is_unaffected(self):
+        owner = Owner.create({"name": "plain"})
+        assert owner.name == "plain"
+
+
 class TestSoftDeletes:
     """On a SoftDeletes model, delete only stamps `deleted_at` and keeps the row.
 

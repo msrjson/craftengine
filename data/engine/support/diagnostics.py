@@ -73,6 +73,11 @@ CATALOG = {
     "MODEL_ATTRIBUTE_MISSING": (
         "{model} object has no attribute {name}. Closest: {closest}. Loaded columns: {columns}."
     ),
+    "MODEL_RELATION_NOT_CALLED": (
+        "{model}.{relation} is a relationship, not a loaded value. Call it to build the relation - "
+        "{model}.{relation}().first() for one row or {model}.{relation}().get() for many - or eager "
+        "load it up front with {model}.query().with_(\"{relation}\")."
+    ),
     "ROUTE_ACTION_NOT_FOUND": (
         "{controller} has no method {name}. Closest: {closest}. Public methods: {public}."
     ),
