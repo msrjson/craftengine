@@ -165,7 +165,7 @@ Craft Engine is optimized for autonomous AI coding agents (Cursor, Claude Code, 
 
 | Command | What it does |
 |---|---|
-| `agent:scaffold [-f]` | Bootstrap AI context files (`.cursorrules`, `llms.txt`, `llms-full.txt`, `.agents/mcp.json`) and install the whole agent catalog into `.claude/` |
+| `agent:scaffold [-f]` | Bootstrap AI context files (`.cursorrules`, `llms.txt`, `llms-full.txt`, `.agents/mcp.json`) and install the whole agent catalog into `.agents/` |
 | `agent:rules` | Alias for `agent:scaffold` |
 | `agent:list [--kind K]` | List catalog entries: `agent`, `skill`, `command`, `reference` |
 | `agent:install NAME... [-f]` | Install named agents, skills or commands (shared references always come along) |

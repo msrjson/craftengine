@@ -32,11 +32,14 @@ Craft Engine is designed from the ground up to be **AI-Native** and exceptionall
 ## ⚡ AI Ready Out-of-the-Box (Skills, Rules & Agents)
 
 Craft Engine is born **100% pre-configured** with all skills, rules, and agents necessary for a developer and autonomous AI agents:
-- `.claude/rules/AGENTS.md` & `.agents/rules/AGENTS.md` — Strict AI contributor contract (forward-only migrations, absolute data persistence, English codebase, zero hardcoded strings, zero guessing).
-- `.claude/skills/` — 25 complete development skills (spec-driven, TDD, security hardening, performance, incremental implementation).
-- `.claude/agents/` — 4 specialized agent roles (`code-reviewer`, `security-auditor`, `test-engineer`, `web-performance-auditor`).
-- `.claude/commands/` — 8 workflow commands (`/spec`, `/build`, `/test`, `/ship`, `/review-change`, `/code-simplify`, `/constraints`, `/webperf`).
+- `.agents/rules/AGENTS.md` — Strict AI contributor contract (forward-only migrations, absolute data persistence, English codebase, zero hardcoded strings, zero guessing).
+- `.agents/skills/` — 25 complete development skills (spec-driven, TDD, security hardening, performance, incremental implementation).
+- `.agents/agents/` — 4 specialized agent roles (`code-reviewer`, `security-auditor`, `test-engineer`, `web-performance-auditor`).
+- `.agents/commands/` — 8 workflow commands (`/spec`, `/build`, `/test`, `/ship`, `/review-change`, `/code-simplify`, `/constraints`, `/webperf`).
 - `.cursorrules` & `llms.txt` / `llms-full.txt` — Zero-friction context indexing.
+
+`.agents/` is the single physical agent directory; `.claude` is a symlink to it,
+so a harness that insists on its own path still finds the files.
 
 If you ever need to re-scaffold or re-sync agent rules and context, run:
 
@@ -48,8 +51,8 @@ This generates or refreshes:
 - `.cursorrules` — Directives for Cursor and IDE assistants, setting guidelines for file paths, facades, validation rules, and database safety.
 - `llms.txt` — Standard high-density overview of Craft Engine for LLMs.
 - `llms-full.txt` — Full API contracts and code examples.
-- `.claude/rules/AGENTS.md` & `.agents/rules/AGENTS.md` — Canonical AI governance contract.
-- `.claude/agents/`, `.claude/skills/`, `.claude/commands/`, `.claude/references/` — The full development agent catalog.
+- `.agents/rules/AGENTS.md` — Canonical AI governance contract.
+- `.agents/agents/`, `.agents/skills/`, `.agents/commands/`, `.agents/references/` — The full development agent catalog.
 
 ---
 
@@ -70,11 +73,11 @@ Three layers, each with one job:
 
 | Layer | What it is | Installed to |
 |---|---|---|
-| **Agent** | A role with one perspective and one report format | `.claude/agents/<name>.md` |
-| **Skill** | A workflow with steps and exit criteria | `.claude/skills/<name>/SKILL.md` |
-| **Command** | A user entry point that composes agents and skills | `.claude/commands/<name>.md` |
+| **Agent** | A role with one perspective and one report format | `.agents/agents/<name>.md` |
+| **Skill** | A workflow with steps and exit criteria | `.agents/skills/<name>/SKILL.md` |
+| **Command** | A user entry point that composes agents and skills | `.agents/commands/<name>.md` |
 
-Shared checklists (`.claude/references/`) are installed with any selection, because
+Shared checklists (`.agents/references/`) are installed with any selection, because
 agents and skills link to them. Agents never call other agents; commands orchestrate.
 
 ### Agents

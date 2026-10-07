@@ -6,9 +6,10 @@ priority: 3
 autonomous: true
 blocked_by: none
 max_attempts: 2
-attempts: 0
+attempts: 1
+claimed_by: qwen@qwen-code
 created_at: 2026-10-07T16:34:17Z
-updated_at: 2026-10-07T16:34:17Z
+updated_at: 2026-10-07T18:29:40Z
 source: found while closing p2-20261007-085101 (these docs sit outside its touches)
 touches:
   - data/documentation/ai_agents.md
@@ -53,3 +54,5 @@ scaffolder that the same task changed.
 ## History
 
 - 2026-10-07T16:34:17Z created by qwen@qwen-code (source: found while closing p2-20261007-085101; docs outside its touches)
+- 2026-10-07T18:29:23Z claimed by qwen@qwen-code (attempt 1)
+- 2026-10-07T18:29:40Z resolved by qwen@qwen-code (resolutions/p3-20261007-163417-ai-agents-docs-name-dot-claude.resolution.md): both docs now name `.agents/...` and describe `.claude` as a symlink; `grep -rn '\.claude'` over them returns only the deliberate symlink sentence
