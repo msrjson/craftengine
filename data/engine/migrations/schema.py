@@ -17,7 +17,7 @@ References:
 
 from __future__ import annotations
 
-from typing import Any, Callable, List, Optional
+from typing import Any, Callable, List, Optional, Tuple
 
 
 def _plural(word: str) -> str:
@@ -1365,6 +1365,63 @@ class SchemaBuilder:
             )
         rows = self.db.statement(sql, [table]).fetchall()
         return [row["column_name"] for row in rows]
+
+    def table_listing(self) -> List[str]:
+        """Every base table in the current schema, ordered by name."""
+        driver = getattr(self.db, "driver", "sqlite")
+        if driver == "sqlite":
+            rows = self.db.statement(
+                "SELECT name FROM sqlite_master "
+                "WHERE type = 'table' AND name NOT LIKE 'sqlite_%'"
+            ).fetchall()
+            return sorted(row["name"] for row in rows)
+        if driver == "postgresql":
+            sql = (
+                "SELECT table_name FROM information_schema.tables "
+                "WHERE table_schema = ANY (current_schemas(false)) "
+                "AND table_type = 'BASE TABLE'"
+            )
+        else:
+            sql = (
+                "SELECT table_name FROM information_schema.tables "
+                "WHERE table_schema = DATABASE() AND table_type = 'BASE TABLE'"
+            )
+        rows = self.db.statement(sql).fetchall()
+        return sorted(row["table_name"] for row in rows)
+
+    def foreign_keys(self, table: str) -> List[Tuple[str, str, str]]:
+        """The table's foreign keys as `(child_column, parent_table, parent_column)`.
+
+        A key with no explicit parent column - a SQLite reference to the
+        parent's primary key - is reported against `id`, the framework's own
+        convention for a primary key.
+        """
+        name = _assert_table(table)
+        driver = getattr(self.db, "driver", "sqlite")
+        if driver == "sqlite":
+            rows = self.db.statement(f'PRAGMA foreign_key_list("{name}")').fetchall()
+            return [(row["from"], row["table"], row.get("to") or "id") for row in rows]
+        if driver == "postgresql":
+            sql = (
+                "SELECT kcu.column_name AS child_column, "
+                "       ccu.table_name AS parent_table, "
+                "       ccu.column_name AS parent_column "
+                "FROM information_schema.table_constraints tc "
+                "JOIN information_schema.key_column_usage kcu "
+                "  ON tc.constraint_name = kcu.constraint_name "
+                " AND tc.table_schema = kcu.table_schema "
+                "JOIN information_schema.constraint_column_usage ccu "
+                "  ON ccu.constraint_name = tc.constraint_name "
+                " AND ccu.table_schema = tc.table_schema "
+                "WHERE tc.constraint_type = 'FOREIGN KEY' AND tc.table_name = ? "
+                "ORDER BY kcu.column_name"
+            )
+            rows = self.db.statement(sql, [name]).fetchall()
+            return [
+                (row["child_column"], row["parent_table"], row["parent_column"])
+                for row in rows
+            ]
+        return []
 
 
 # Module-level facade used by migration files: `from craft.migrations import Schema`

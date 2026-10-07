@@ -20,6 +20,13 @@ full policy (categories to use, what counts as security-relevant, how
 
 ### Added
 
+- `data:audit` (Slice 4 of the upstream roadmap): a read-only audit of the live
+  database for rows that already break the schema's promises - a foreign key
+  pointing at a parent row that is not there (`FOREIGN_KEY_ORPHANED`), and a
+  row in a table that carries `tenant_id` with none set (`TENANT_COLUMN_NULL`,
+  an error when multi-tenancy is on). Nothing is repaired; it exits 1 on an
+  error and prints with `--json`. `SchemaBuilder.table_listing()` and
+  `SchemaBuilder.foreign_keys()` expose the catalog introspection it uses.
 - An `Idempotency-Key` middleware (Slice 4 of the upstream roadmap), opt-in via
   `IDEMPOTENCY_ENABLED=true`. A write carrying the header has its response
   stored; a retry of the same key is replayed instead of running the handler

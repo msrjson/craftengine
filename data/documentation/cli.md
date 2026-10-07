@@ -101,6 +101,21 @@ The table shows the ordered global middleware stack plus each route's declared
 middleware. `--json` returns `global_middleware` and a `routes` array with
 `method`, `uri`, `name`, and `middleware` fields for tooling and agents.
 
+## Data
+
+```bash
+python dev.py data audit
+python dev.py data audit --json
+```
+
+`data:audit` reads the live database and reports rows that already break the
+schema's own promises: a foreign key that points at a parent row which is not
+there, and a row in a table that carries `tenant_id` with none set. It is
+read-only — nothing is repaired, because what to do with customer data is the
+owner's call — and it exits 1 when it finds an error, so it composes in a CI
+job. When multi-tenancy is on, a NULL `tenant_id` is an error rather than a
+warning.
+
 ## Queue
 
 ```bash

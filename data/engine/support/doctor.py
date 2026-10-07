@@ -85,6 +85,15 @@ CATALOG = {
         "Key {key} has no row for {locales}.",
         "Add the rows in a migration or seeder: en, pt-BR and es in the same change.",
     ),
+    "TENANT_COLUMN_NULL": (
+        "{count} row(s) in {table} have no tenant_id; a row outside every tenant leaks "
+        "across the boundary a query is meant to stay inside.",
+        "Backfill the column, then add a NOT NULL constraint in a forward-only migration.",
+    ),
+    "FOREIGN_KEY_ORPHANED": (
+        "{count} row(s) in {table}.{column} reference a {parent} row that does not exist.",
+        "Repair or remove the rows, or restore the missing parent; the relation is already broken.",
+    ),
 }
 
 
@@ -273,6 +282,101 @@ def check_translations(app: Any, base_path: str) -> Iterable[Finding]:
             yield _finding(WARNING, "TRANSLATION_MISSING", where, key=key, locales=", ".join(missing))
 
 
+# -- data audit --------------------------------------------------------------------
+
+def run_data_audit(app: Any) -> List[Finding]:
+    """Audit the live data: rows that already break the schema's own promises.
+
+    Read-only and separate from `run_all()`: these checks scan every row of
+    every table, which is right for an operator asking on demand and wrong for
+    a boot. Each check reports the table, the column and a count; nothing is
+    repaired, because what to do with a customer's data is the owner's call.
+    """
+    checks: List[Callable[[], Iterable[Finding]]] = [
+        lambda: check_tenant_integrity(app),
+        lambda: check_foreign_key_orphans(app),
+    ]
+    findings = [finding for check in checks for finding in check()]
+    return sorted(findings, key=lambda finding: finding.level != ERROR)
+
+
+def check_tenant_integrity(app: Any) -> Iterable[Finding]:
+    """Rows a tenant-scoped table left outside every tenant."""
+    schema = _schema_or_none(app)
+    if schema is None:
+        yield _finding(WARNING, "DATABASE_UNREACHABLE", "config/database.py")
+        return
+    tenanted = bool(app.make("config").get("framework.MULTI_TENANCY_ENABLED", False))
+    level = ERROR if tenanted else WARNING
+    for table in schema.table_listing():
+        if not schema.has_column(table, "tenant_id"):
+            continue
+        try:
+            count = int(app.make("db").table(table).where_null("tenant_id").count())
+        except Exception as exc:  # noqa: BLE001 - driver errors share no base class
+            del exc
+            continue
+        if count:
+            yield _finding(level, "TENANT_COLUMN_NULL", table, table=table, count=count)
+
+
+def check_foreign_key_orphans(app: Any) -> Iterable[Finding]:
+    """Rows whose foreign key points at a parent row that is not there."""
+    schema = _schema_or_none(app)
+    if schema is None:
+        return
+    db = app.make("db")
+    grammar = schema.grammar()
+    for table in schema.table_listing():
+        for column, parent, parent_column in schema.foreign_keys(table):
+            if not schema.has_table(parent):
+                continue
+            child_sql = _quoted(grammar, table)
+            child_col = _quoted(grammar, column)
+            parent_sql = _quoted(grammar, parent)
+            parent_col = _quoted(grammar, parent_column)
+            sql = (
+                f"SELECT COUNT(*) AS n FROM {child_sql} c "
+                f"WHERE c.{child_col} IS NOT NULL AND NOT EXISTS ("
+                f"SELECT 1 FROM {parent_sql} p WHERE p.{parent_col} = c.{child_col})"
+            )
+            try:
+                row = db.statement(sql).fetchone()
+            except Exception as exc:  # noqa: BLE001 - driver errors share no base class
+                del exc
+                continue
+            count = int(row["n"]) if row else 0
+            if count:
+                yield _finding(
+                    ERROR, "FOREIGN_KEY_ORPHANED", f"{table}.{column}",
+                    table=table, column=column, parent=parent, count=count,
+                )
+
+
+def _quoted(grammar: Any, identifier: str) -> str:
+    """Quote an identifier the schema gave us, after validating it.
+
+    The names come from the database's own catalog, but they are interpolated
+    into SQL rather than bound, so the allowlist applies all the same.
+    """
+    from engine.orm.query_builder import _assert_identifier
+
+    return grammar.wrap(_assert_identifier(identifier))
+
+
+def _schema_or_none(app: Any) -> Any:
+    """The schema builder, or None when the database cannot be reached."""
+    try:
+        schema = app.make("schema")
+        schema.table_listing()
+        return schema
+    except Exception as exc:  # noqa: BLE001 - driver errors share no base class
+        message = str(exc).lower()
+        if isinstance(exc, (KeyError, OSError, RuntimeError)) or "connect" in message or "could not" in message:
+            return None
+        raise
+
+
 # -- helpers -----------------------------------------------------------------------
 
 def _dotted(cls: type) -> str:
@@ -341,4 +445,4 @@ def summary(total: int, errors: int) -> str:
 SUMMARY = "{total} finding(s), {errors} error(s)."
 
 
-__all__ = ["CATALOG", "ENGINE_TABLES", "ERROR", "Finding", "SUMMARY", "WARNING", "run_all", "summary"]
+__all__ = ["CATALOG", "ENGINE_TABLES", "ERROR", "Finding", "SUMMARY", "WARNING", "run_all", "run_data_audit", "summary"]

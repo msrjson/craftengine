@@ -39,6 +39,7 @@ db_app = typer.Typer(name="db", help="Database utilities.", no_args_is_help=True
 queue_app = typer.Typer(name="queue", help="Queue workers.", no_args_is_help=True)
 schedule_app = typer.Typer(name="schedule", help="Scheduled tasks.", no_args_is_help=True)
 route_app = typer.Typer(name="route", help="Routing utilities.", no_args_is_help=True)
+data_app = typer.Typer(name="data", help="Data integrity utilities.", no_args_is_help=True)
 cache_app = typer.Typer(name="cache", help="Cache utilities.", no_args_is_help=True)
 plugin_app = typer.Typer(name="plugin", help="Plugin discovery and lifecycle.", no_args_is_help=True)
 role_app = typer.Typer(name="role", help="RBAC role management.", no_args_is_help=True)
@@ -58,6 +59,7 @@ cli.add_typer(db_app)
 cli.add_typer(queue_app)
 cli.add_typer(schedule_app)
 cli.add_typer(route_app)
+cli.add_typer(data_app)
 cli.add_typer(cache_app)
 cli.add_typer(plugin_app)
 cli.add_typer(role_app)
@@ -896,6 +898,34 @@ def route_check(
             echo("    fix: " + finding.fix(), "cyan")
     errors = sum(1 for finding in findings if finding.level == checks.ERROR)
     if not as_json:
+        echo(checks.summary(len(findings), errors), "red" if errors else "green")
+    if errors:
+        raise typer.Exit(code=1)
+
+
+# -- data -----------------------------------------------------------------------
+
+@data_app.command("audit")
+def data_audit(
+    as_json: bool = typer.Option(False, "--json", help="Print the findings as JSON."),
+) -> None:
+    """Report rows that already break the schema's promises, and exit 1 on an error.
+
+    Read-only: nothing is repaired. It scans every row of every table, so it
+    runs on demand rather than at boot.
+    """
+    from engine.support import doctor as checks
+
+    findings = checks.run_data_audit(get_app())
+    errors = sum(1 for finding in findings if finding.level == checks.ERROR)
+    if as_json:
+        echo(json.dumps([finding.to_dict() for finding in findings], indent=2))
+    else:
+        for finding in findings:
+            colour = "red" if finding.level == checks.ERROR else "yellow"
+            echo(" ".join((finding.level.upper(), finding.code, finding.where)), colour)
+            echo("    " + finding.message())
+            echo("    fix: " + finding.fix(), "cyan")
         echo(checks.summary(len(findings), errors), "red" if errors else "green")
     if errors:
         raise typer.Exit(code=1)
