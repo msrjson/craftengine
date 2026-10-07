@@ -20,6 +20,10 @@ full policy (categories to use, what counts as security-relevant, how
 
 ### Added
 
+- The cookieless SEO plugin ships: `plugins/seo/`. A `Seo` service that
+  slugifies titles, builds canonical URLs and `<head>` metadata, and audits a
+  page's title and body — all server-side, reading and writing no cookie.
+  Improvement suggestions come back as message keys, not sentences.
 - The first official plugin ships: `plugins/brazil_validator/` (Slice 5 of the
   upstream roadmap). A legacy `PluginManager` plugin that binds `BrazilValidator`
   in the container: CPF and RG, legacy and 2026-alphanumeric CNPJ, Inscrição
