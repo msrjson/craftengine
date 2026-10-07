@@ -100,6 +100,13 @@ METRICS_TOKEN = env("METRICS_TOKEN", "")
 # lock they race; with it, the second one waits and then finds nothing pending.
 MIGRATION_LOCK_TIMEOUT = env("MIGRATION_LOCK_TIMEOUT", 120)
 
+# PostgreSQL refuses to alter a column a materialized view depends on, so an
+# installation whose views were created outside the migrations cannot migrate.
+# With this on, the migrator drops every materialized view before the pending
+# batch and recreates it - indexes included - afterwards. Off by default:
+# recreating a view recomputes its data.
+MIGRATION_SUSPEND_MATERIALIZED_VIEWS = env("MIGRATION_SUSPEND_MATERIALIZED_VIEWS", False)
+
 # Default locale & timezone
 DEFAULT_LOCALE = env("APP_LOCALE", "en")
 SUPPORTED_LOCALES = ["en", "pt-BR", "es"]

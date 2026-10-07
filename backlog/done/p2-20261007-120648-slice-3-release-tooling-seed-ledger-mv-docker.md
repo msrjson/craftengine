@@ -9,7 +9,7 @@ max_attempts: 2
 attempts: 1
 claimed_by: qwen@qwen-code
 created_at: 2026-10-07T12:06:48Z
-updated_at: 2026-10-07T12:06:48Z
+updated_at: 2026-10-07T12:23:22Z
 source: .agents/plans/softpax-upstream-roadmap.md, Slice 3
 touches:
   - data/VERSION
@@ -50,16 +50,16 @@ found these items still missing or partial:
 
 ## Done when
 
-- [ ] `data/VERSION` holds the release identity and `release:status` reports it.
-- [ ] `release:sync` runs migrations + seeders under an advisory lock, records a
+- [x] `data/VERSION` holds the release identity and `release:status` reports it.
+- [x] `release:sync` runs migrations + seeders under an advisory lock, records a
   row in `release_syncs`, and refuses a stale code/`VERSION` mismatch;
   `release:status` prints the last sync.
-- [ ] A seeder can declare itself once-only and runs exactly once per node,
+- [x] A seeder can declare itself once-only and runs exactly once per node,
   proved by the `seed_ledger`.
-- [ ] The migration DSL can suspend and restore a materialized view (PostgreSQL).
-- [ ] `data/docker/entrypoint.sh` exists; `data/Dockerfile.prod` declares
+- [x] The migration DSL can suspend and restore a materialized view (PostgreSQL).
+- [x] `data/docker/entrypoint.sh` exists; `data/Dockerfile.prod` declares
   `HEALTHCHECK`, `tzdata` and a real `HOME`; `data/.dockerignore` exists.
-- [ ] Full suite green on SQLite and PostgreSQL in the framework container;
+- [x] Full suite green on SQLite and PostgreSQL in the framework container;
   ruff, engine-boundary and language gates clean.
 
 ## Verify
@@ -80,3 +80,4 @@ Craft standards (English, no hardcoded copy, tests in the container).
 
 - 2026-10-07T12:06:48Z created by qwen@qwen-code (source: .agents/plans/softpax-upstream-roadmap.md, Slice 3 gap survey)
 - 2026-10-07T12:06:48Z claimed by qwen@qwen-code (attempt 1)
+- 2026-10-07T12:23:22Z resolved by qwen@qwen-code (resolutions/p2-20261007-120648-slice-3-release-tooling-seed-ledger-mv-docker.resolution.md)

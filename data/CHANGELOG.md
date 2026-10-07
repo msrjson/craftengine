@@ -36,6 +36,13 @@ full policy (categories to use, what counts as security-relevant, how
   to be duplicated on the next `release:sync`; the declaration replaces that
   fragile assumption. New forward-only migration
   `2026_10_07_000003_create_seed_ledger_table.py`.
+- Opt-in materialized-view suspension in the migrator. PostgreSQL refuses to
+  alter a column a materialized view depends on, so a node whose views were
+  created outside the migrations cannot migrate. With
+  `MIGRATION_SUSPEND_MATERIALIZED_VIEWS=true` the migrator drops every
+  materialized view before the pending batch and recreates it afterwards,
+  indexes included, in dependency passes; off by default, because recreating a
+  view recomputes its data.
 
 ### Changed
 

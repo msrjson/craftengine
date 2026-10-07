@@ -20,12 +20,15 @@ References:
 from __future__ import annotations
 
 import importlib.util
+import logging
 import os
 import re
 from datetime import datetime, timezone
 from typing import Any, Callable, Dict, List, Optional
 
 from engine.migrations.safety import assert_disposable
+
+logger = logging.getLogger("craft")
 
 MIGRATION_FILE_RE = re.compile(r"^\d{4}_\d{2}_\d{2}_\d{6}_[\w]+\.py$")
 
@@ -284,15 +287,99 @@ class Migrator:
 
         batch = self.last_batch() + 1
         applied: List[str] = []
-        for migration in pending:
-            if pretend:
-                self.notes.append(f"[pretend] would migrate {migration.name}")
+        suspended = [] if pretend else self._suspend_materialized_views()
+        try:
+            for migration in pending:
+                if pretend:
+                    self.notes.append(f"[pretend] would migrate {migration.name}")
+                    applied.append(migration.name)
+                    continue
+                self._apply(migration, "up", batch)
+                self.notes.append(f"Migrated:  {migration.name}")
                 applied.append(migration.name)
-                continue
-            self._apply(migration, "up", batch)
-            self.notes.append(f"Migrated:  {migration.name}")
-            applied.append(migration.name)
+        finally:
+            # The views come back even when a migration stopped halfway.
+            self._restore_materialized_views(suspended)
         return applied
+
+    # -- dependent materialized views (opt-in) ---------------------------------
+    #
+    # PostgreSQL refuses `ALTER TABLE ... ALTER COLUMN TYPE` (and some drops) on
+    # a column a materialized view depends on, so an installation that carries
+    # views created outside the migrations cannot migrate. With
+    # `framework.MIGRATION_SUSPEND_MATERIALIZED_VIEWS` on, every materialized
+    # view is dropped before the pending batch and recreated - indexes included -
+    # afterwards. Off by default: recreating a view recomputes its data.
+
+    def _suspend_views_enabled(self) -> bool:
+        try:
+            return bool(self.app.make("config").get("framework.MIGRATION_SUSPEND_MATERIALIZED_VIEWS", False))
+        except Exception:
+            return False
+
+    def _snapshot_materialized_views(self) -> List[Dict[str, Any]]:
+        """Definition and indexes of every materialized view, to recreate later."""
+        views = self.db.statement(
+            "SELECT schemaname, matviewname, definition FROM pg_matviews "
+            "WHERE schemaname NOT IN ('pg_catalog', 'information_schema')",
+            read=True,
+        ).fetchall()
+        snapshot: List[Dict[str, Any]] = []
+        for view in views:
+            row = dict(view)
+            indexes = self.db.statement(
+                "SELECT indexdef FROM pg_indexes WHERE schemaname = ? AND tablename = ?",
+                [row["schemaname"], row["matviewname"]],
+                read=True,
+            ).fetchall()
+            row["indexes"] = [dict(index)["indexdef"] for index in indexes]
+            snapshot.append(row)
+        return snapshot
+
+    def _suspend_materialized_views(self) -> List[Dict[str, Any]]:
+        """Drop every materialized view and return what recreates it."""
+        try:
+            is_postgres = self.db.dialect.name == "postgresql"
+        except Exception:
+            is_postgres = False
+        if not is_postgres or not self._suspend_views_enabled():
+            return []
+        snapshot = self._snapshot_materialized_views()
+        for view in snapshot:
+            # CASCADE: one view may depend on another; the restore rebuilds the chain.
+            self.db.statement(
+                f'DROP MATERIALIZED VIEW IF EXISTS "{view["schemaname"]}"."{view["matviewname"]}" CASCADE'
+            )
+        if snapshot:
+            self.notes.append("Suspended views:  " + ", ".join(v["matviewname"] for v in snapshot))
+        return snapshot
+
+    def _recreate_view(self, view: Dict[str, Any]) -> None:
+        self.db.statement(
+            f'CREATE MATERIALIZED VIEW "{view["schemaname"]}"."{view["matviewname"]}" AS {view["definition"]}'
+        )
+        for indexdef in view["indexes"]:
+            self.db.statement(indexdef)
+
+    def _restore_materialized_views(self, snapshot: List[Dict[str, Any]]) -> None:
+        """Recreate what was suspended, in passes (catalog order is not dependency order).
+
+        Raises:
+            RuntimeError: `MIGRATION_VIEW_RESTORE_FAILED` - a view could not be recreated.
+        """
+        pending = list(snapshot)
+        while pending:
+            remaining = []
+            for view in pending:
+                try:
+                    self._recreate_view(view)
+                except Exception as error:  # a dependency may not exist yet; retried next pass
+                    logger.warning("view_restore_retry view=%s error=%s", view["matviewname"], error)
+                    remaining.append(view)
+            if len(remaining) == len(pending):
+                names = ", ".join(v["matviewname"] for v in pending)
+                raise RuntimeError(f"MIGRATION_VIEW_RESTORE_FAILED: {names}")
+            pending = remaining
 
     def _apply(self, migration: MigrationFile, direction: str, batch: int) -> None:
         """Run one migration and record it - as a single unit of work.
