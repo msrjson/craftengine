@@ -22,6 +22,11 @@ SECTION_HEADING = re.compile(r"^## \[(\d+)\.(\d+)\.(\d+)\]")
 #: Categories whose entries a project must read before it moves.
 ATTENTION_CATEGORIES = frozenset({"Removed", "Deprecated", "Security", "Changed"})
 
+#: A release opts in to the "project files to review" note with a line like
+#: `**Project files:** add `app/connectors` to `config/extensions.py``. Items are
+#: separated by `;`. Nothing is edited automatically; the operator reviews them.
+PROJECT_FILES = re.compile(r"^\*{0,2}project files:\*{0,2}\s*(.+?)\s*$", re.IGNORECASE)
+
 
 @dataclass
 class Section:
@@ -32,11 +37,14 @@ class Section:
         heading: The heading line as written.
         attention: First lines of entries under an attention category,
             prefixed with the category.
+        project_files: What the release asks the project to review, from a
+            `Project files:` line; empty when the release declares none.
     """
 
     version: Version
     heading: str
     attention: list[str] = field(default_factory=list)
+    project_files: list[str] = field(default_factory=list)
 
 
 def _split_sections(text: str) -> list[tuple[Version, list[str]]]:
@@ -63,6 +71,15 @@ def _attention_entries(lines: list[str]) -> list[str]:
     return entries
 
 
+def _project_files(lines: list[str]) -> list[str]:
+    """Return the project files a release asks the operator to review."""
+    for line in lines:
+        match = PROJECT_FILES.match(line.strip())
+        if match:
+            return [item.strip() for item in match.group(1).split(";") if item.strip()]
+    return []
+
+
 def sections_between(text: str, after: Version, upto: Version) -> list[Section]:
     """Return the sections of releases newer than `after` and not newer than `upto`.
 
@@ -75,7 +92,7 @@ def sections_between(text: str, after: Version, upto: Version) -> list[Section]:
         The crossed sections, newest first, as the changelog orders them.
     """
     return [
-        Section(version, lines[0], _attention_entries(lines[1:]))
+        Section(version, lines[0], _attention_entries(lines[1:]), _project_files(lines[1:]))
         for version, lines in _split_sections(text)
         if after < version <= upto
     ]
@@ -89,4 +106,4 @@ def crossed_sections(tree: Path, current: Release, target: Release) -> list[Sect
     return sections_between(changelog.read_text(encoding="utf-8"), current.version, target.version)
 
 
-__all__ = ["ATTENTION_CATEGORIES", "Section", "crossed_sections", "sections_between"]
+__all__ = ["ATTENTION_CATEGORIES", "PROJECT_FILES", "Section", "crossed_sections", "sections_between"]

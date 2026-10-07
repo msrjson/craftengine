@@ -87,7 +87,7 @@ def ensure_isolated_pgsql_database() -> None:
     """Create the isolated benchmark database when it is missing.
 
     Never touches a shared database: the name must start with `craft_`, and if
-    it already exists the helper leaves it alone (no drop, no truncate).
+    it already exists the helper leaves it alone — it never destroys data.
     """
     import psycopg2
 

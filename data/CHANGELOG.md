@@ -20,6 +20,11 @@ full policy (categories to use, what counts as security-relevant, how
 
 ### Added
 
+- `engine upgrade` and `engine update` print a "project files to review" note
+  when a release declares one, using a `Project files:` line in its changelog
+  section. A release that expects a project file changed (a new extension root, a
+  config key) is now visible to the operator instead of staying silent; nothing
+  is edited automatically.
 - `agent:scaffold` also generates the environment guard (`.agents/hooks/`), a
   pre-commit hook, a CI workflow and VS Code tasks/launch (Slice 6 of the
   upstream roadmap), so a fresh project starts with the same verification the

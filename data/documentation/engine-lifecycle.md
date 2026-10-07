@@ -78,6 +78,11 @@ python dev.py engine upgrade --to 4.5.0 --verify "python -m pytest tests -q"
 - `upgrade` moves across minors and majors. It refuses the same or an older
   version, and prints the changelog entries under `Removed`, `Deprecated`,
   `Security` and `Changed` for every release it crosses.
+- A release that expects a change in the *project* says so in its changelog with
+  a `Project files:` line, items separated by `;` — for example
+  `**Project files:** add `app/connectors` to `config/extensions.py``. The move
+  prints those under "project files to review" so a new default does not go
+  unnoticed. Nothing is edited automatically: the operator reviews them.
 - Any unregistered drift blocks the move.
 - Patches whose content the target already contains are retired. Patches on
   files the target did not touch are carried over. A patch on a file both

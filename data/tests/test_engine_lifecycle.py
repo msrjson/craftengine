@@ -351,3 +351,35 @@ class TestConsole:
         assert runner.invoke(cli, ["engine", "adopt", "v4.4.2-r00024"]).exit_code == 0
         status = runner.invoke(cli, ["engine", "status", "--offline"])
         assert status.exit_code == 0 and "v4.4.2-r00024" in status.output
+
+
+class TestProjectFilesNote:
+    """A release that needs a project file changed says so; the move shows it."""
+
+    CHANGELOG = (
+        "## [4.7.0] r00027 - 2026-10-06\n\n"
+        "### Changed\n"
+        "- something the project must read\n\n"
+        "**Project files:** add `app/connectors` to `config/extensions.py`; "
+        "register the connectors provider\n\n"
+        "## [4.6.0] r00026 - 2026-10-05\n\n"
+        "### Added\n"
+        "- an ordinary release without the note\n"
+    )
+
+    def test_a_project_files_line_is_parsed_into_items(self):
+        from engine.lifecycle.changelog import sections_between
+
+        sections = sections_between(self.CHANGELOG, (4, 6, 0), (4, 7, 0))
+        assert [section.version for section in sections] == [(4, 7, 0)]
+        assert sections[0].project_files == [
+            "add `app/connectors` to `config/extensions.py`",
+            "register the connectors provider",
+        ]
+
+    def test_a_release_without_the_line_declares_no_project_files(self):
+        from engine.lifecycle.changelog import sections_between
+
+        sections = sections_between(self.CHANGELOG, (4, 5, 0), (4, 6, 0))
+        assert sections[0].project_files == []
+

@@ -80,6 +80,10 @@ def _render_move(report: MoveReport) -> None:
         echo(section.heading, bold=True)
         for entry in section.attention:
             echo(f"  {entry}", "yellow")
+        if section.project_files:
+            echo("  project files to review:", "yellow")
+            for item in section.project_files:
+                echo(f"    {item}", "yellow")
     if report.applied:
         echo("Next: rebuild or reinstall the engine where it is packaged, then run `migrate`.", "cyan")
 
