@@ -91,6 +91,35 @@ booleans and `None`. Model instances are not; cache `model.to_dict()` instead.
 python dev.py cache clear
 ```
 
+### Flushing by prefix
+
+`Cache.flush()` empties the whole store. To drop one family of keys and keep
+the rest, name the keys with a shared prefix and flush that prefix:
+
+```python
+Cache.put("page:1", first_page, ttl=300)
+Cache.put("page:2", second_page, ttl=300)
+
+Cache.flush_prefix("page:")   # page:1 and page:2 are gone; other keys stay
+```
+
+`flush_prefix` is implemented for the array, file and redis stores.
+
+## Bounding the in-memory store
+
+The array store holds at most `CACHE_MEMORY_MAX_ENTRIES` entries (default
+`1000`), read from `cache.stores.memory.max_entries` in `config/cache.py`. When
+a write goes over the bound, expired entries are dropped first and then the
+oldest ones, so a long-lived worker that caches per key cannot grow without
+limit. An evicted entry is a cache miss, never an error.
+
+```ini
+CACHE_MEMORY_MAX_ENTRIES=1000   # 0 = unbounded
+```
+
+Constructing the store directly takes the same bound:
+`ArrayStore(max_entries=500)`; without the argument it is unbounded.
+
 ## In tests
 
 The array store is the default under `pytest`, and each `CacheManager` holds its

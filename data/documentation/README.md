@@ -47,10 +47,10 @@ scaling from a blog to multi-tenant, and what is not implemented yet? That is
 | [Security](security.md) | Authentication, authorization, WAF/firewall, honeypot, audit logs, sessions, CSRF |
 | [Authorization (RBAC)](authorization.md) | Roles, permissions, the Gate fallback, `role:`/`permission:` middleware |
 | [Sessions](sessions.md) | Drivers, flash data, CSRF tokens |
-| [Cache](cache.md) | Stores, TTL, `remember` |
+| [Cache](cache.md) | Stores, TTL, `remember`, prefix flush, idempotent writes |
 | [Queues and events](queues_events.md) | Jobs, workers, listeners |
 | [Extensions](extensions.md) | Modules, plugins, themes and connectors: manifest, lifecycle, forward updates, fault isolation, scaffolding |
-| [Plugins](plugins.md) | Plugin extensions, and moving a legacy `plugins/` plugin |
+| [Plugins](plugins.md) | Plugin extensions, the official plugins (QR code, PIX BR Code, document seal, mutual TLS, privacy kit, SEO, Brazil validator), and moving a legacy `plugins/` plugin |
 | [Engine lifecycle](engine-lifecycle.md) | `craft-engine.lock`: pin, drift, patches, hotfix, update and upgrade |
 | [Internal proxy](internal-proxy.md) | Module-to-module calls in memory, never through the HTTP kernel |
 | [API resources](resources.md) | Shaping JSON output |

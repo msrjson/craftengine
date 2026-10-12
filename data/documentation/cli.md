@@ -33,9 +33,12 @@ Colon-separated commands work, and so does the plain form: `migrate:status` and
 | `db show` | Connection, driver, host, database |
 | `db tables` | List tables |
 | `db ping` | Verify the connection; non-zero exit on failure |
-| `db wipe --force` | Drop every table *(Banned in persistence-first & automated agent workflows)* |
+| `db wipe --force` | Refused under absolute data persistence |
 
-`db wipe` refuses to run without `--force`.
+`db wipe` exits 1 without `--force`, and with it the migrator refuses the
+operation (`DATABASE_DESTRUCTIVE_OPERATION_REFUSED`) in every environment. No
+database name, `_test` suffix or in-memory database authorizes a wipe, and
+`config/database.py` carries no allowlist key for it.
 
 ## Generators
 
@@ -101,6 +104,25 @@ The table shows the ordered global middleware stack plus each route's declared
 middleware. `--json` returns `global_middleware` and a `routes` array with
 `method`, `uri`, `name`, and `middleware` fields for tooling and agents.
 
+```bash
+python dev.py route check
+python dev.py route check --json
+```
+
+`route:check` resolves every route's middleware aliases and action, and exits 1
+when one is broken, so it composes in a CI job:
+
+| Finding | Level | Meaning |
+|---|---|---|
+| `ROUTE_MIDDLEWARE_INVALID` | error | A route names a middleware alias the kernel cannot resolve |
+| `ROUTE_ACTION_NOT_FOUND` | error | A route points at a controller method that does not exist |
+| `ROUTE_NAME_DUPLICATE` | warning | Two routes share a name, so `url_for()` resolves to whichever registered last |
+
+The command takes the kernel from the container (`app.make("kernel")`, bound in
+`bootstrap/app.py`). A project that does not bind it still gets the action and
+name checks, but its middleware aliases are not resolved. `python dev.py doctor`
+runs the same route checks along with the rest of the project's wiring.
+
 ## Data
 
 ```bash
@@ -165,7 +187,7 @@ Craft Engine is optimized for autonomous AI coding agents (Cursor, Claude Code, 
 
 | Command | What it does |
 |---|---|
-| `agent:scaffold [-f]` | Bootstrap AI context files (`.cursorrules`, `llms.txt`, `llms-full.txt`, `.agents/mcp.json`) and install the whole agent catalog into `.agents/` |
+| `agent:scaffold [-f]` | Bootstrap AI context files (`AGENTS.md`, `.cursorrules`, `llms.txt`, `llms-full.txt`, `.agents/rules/AGENTS.md`), install the whole agent catalog into `.agents/`, and generate the coordination kit, environment guard, pre-commit hook, CI workflow and VS Code files |
 | `agent:rules` | Alias for `agent:scaffold` |
 | `agent:list [--kind K]` | List catalog entries: `agent`, `skill`, `command`, `reference` |
 | `agent:install NAME... [-f]` | Install named agents, skills or commands (shared references always come along) |
@@ -178,7 +200,19 @@ python dev.py agent:install code-reviewer test-driven-development ship
 ```
 
 Installs refuse to overwrite an existing entry without `--force`, and check every
-conflict before writing anything. See [AI Agents](ai_agents.md#development-agent-catalog).
+conflict before writing anything. Both commands write to `.agents/` and keep
+`.claude` a symlink to it; a project that still has a physical `.claude/`
+directory is refused (`AGENT_LEGACY_DIRECTORY`) until its contents are moved.
+See [AI Agents](ai_agents.md#development-agent-catalog).
+
+## Release
+
+| Command | What it does |
+|---|---|
+| `release:status` | Print the running identity, the `VERSION` file and the last recorded sync |
+| `release:sync` | Apply pending migrations, run the release seeders and record the release |
+
+See [Release synchronization](release.md).
 
 ## Application
 
@@ -188,6 +222,7 @@ conflict before writing anything. See [AI Agents](ai_agents.md#development-agent
 | `serve` | Development server (`--host`, `--port`, `--no-reload`) |
 | `tinker` | Interactive shell with the app booted |
 | `about` | Environment, debug, Python, database, cache, queue |
+| `doctor [--json]` | Check the project's wiring (routes, identity models, templates, tables, translations) and print each mistake with its fix; exits 1 on an error |
 | `key:generate` | Generate `APP_KEY` and write it to `.env` |
 
 `tinker` gives you `app`, `db` and the facades:

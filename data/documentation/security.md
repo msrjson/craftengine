@@ -23,6 +23,29 @@ if Auth.check():
     Auth.logout()
 ```
 
+### The user model
+
+A model used as the authentication subject mixes in `AuthenticatableMixin`,
+which hashes the `password` attribute on the way to the database. The mixin
+comes **before** `Model`:
+
+```python
+from craft.auth.models import AuthenticatableMixin
+from craft.orm.model import Model
+
+
+class User(AuthenticatableMixin, Model):
+    __table__ = "users"
+    fillable = ["name", "email", "password"]
+    hidden = ["password", "remember_token"]
+```
+
+`class User(Model, AuthenticatableMixin)` raises `TypeError` when the class is
+created. In that order `Model.force_create()` and `Model.save()` win the method
+resolution order, the hashing hook never runs and the column keeps the
+plaintext - while a login still succeeds. `SoftDeletes` and `TenantScoped`
+carry the same base-order guard.
+
 ---
 
 ## User Roles & Types
@@ -265,6 +288,23 @@ if Auth.attempt(
 ):
     return redirect(route="dashboard")
 ```
+
+### Hash-Chained Sign-In Audit Log
+Every row written to `auth_audit_logs` is linked to the row before it. The row
+stores the previous row's digest in `previous_hash` and its own in `chain_hash`:
+a SHA-256 over the previous hash, IP address, username, user agent, result,
+reason and creation time, joined with a NUL byte. The first row points at 64
+zeros. Editing, reordering or removing a sign-in record changes a digest the
+next row no longer matches, so recomputing the chain from the first row proves
+the log was not altered.
+
+The columns come from the forward-only migration
+`2026_10_07_000006_add_hash_chain_to_auth_audit_logs.py`; run
+`python dev.py migrate` on an existing database. Until it has run, audit rows
+are still written, unchained, and the chain starts with the first row written
+afterwards. The chain assumes one writer at a time: two sign-in attempts
+recorded at the same instant can read the same `previous_hash`, which a
+recomputation reports as a fork.
 
 ---
 

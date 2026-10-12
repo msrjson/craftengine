@@ -99,6 +99,19 @@ Not to be confused with `scoped()`, which registers a request-scoped binding.
 | `module`, `plugin`, `setting`, `schedule` | Framework subsystems |
 | `pqc`, `captcha` | Security utilities |
 
+The application binds one more key itself. `bootstrap/app.py` (and the project
+`craft new` generates) registers the HTTP kernel right after building it:
+
+```python
+kernel = Kernel(app)
+app.instance("kernel", kernel)
+```
+
+The engine reaches the kernel through `app.make("kernel")` and never imports
+`bootstrap.app`. `python dev.py route check` uses it to resolve route
+middleware aliases; a project created before this binding existed needs the
+`app.instance` line added, or that command checks actions and names only.
+
 ## Service providers
 
 Providers register bindings and then boot them. `register()` runs for every

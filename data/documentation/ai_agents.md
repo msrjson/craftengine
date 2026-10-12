@@ -33,13 +33,19 @@ Craft Engine is designed from the ground up to be **AI-Native** and exceptionall
 
 Craft Engine is born **100% pre-configured** with all skills, rules, and agents necessary for a developer and autonomous AI agents:
 - `.agents/rules/AGENTS.md` — Strict AI contributor contract (forward-only migrations, absolute data persistence, English codebase, zero hardcoded strings, zero guessing).
-- `.agents/skills/` — 25 complete development skills (spec-driven, TDD, security hardening, performance, incremental implementation).
-- `.agents/agents/` — 4 specialized agent roles (`code-reviewer`, `security-auditor`, `test-engineer`, `web-performance-auditor`).
-- `.agents/commands/` — 8 workflow commands (`/spec`, `/build`, `/test`, `/ship`, `/review-change`, `/code-simplify`, `/constraints`, `/webperf`).
+- `.agents/skills/` — 27 complete development skills (spec-driven, TDD, security hardening, performance, incremental implementation).
+- `.agents/agents/` — 4 specialized agent roles from the catalog (`code-reviewer`, `security-auditor`, `test-engineer`, `web-performance-auditor`), plus the `team-lead` coordination agent.
+- `.agents/commands/` — 9 workflow commands (`/spec`, `/plan-tasks`, `/build`, `/test`, `/ship`, `/review-change`, `/code-simplify`, `/constraints`, `/webperf`).
 - `.cursorrules` & `llms.txt` / `llms-full.txt` — Zero-friction context indexing.
 
 `.agents/` is the single physical agent directory; `.claude` is a symlink to it,
-so a harness that insists on its own path still finds the files.
+so a harness that insists on its own path still finds the files. Both
+`agent:scaffold` and `agent:install` create that link. A project that still
+carries a physical `.claude/` directory is refused with `AGENT_LEGACY_DIRECTORY`
+before anything is written: move its contents into `.agents/`, replace `.claude`
+with a symlink to `.agents`, and run the command again. On a filesystem without
+symlink support the catalog still lands in `.agents/` and only the link is
+skipped.
 
 If you ever need to re-scaffold or re-sync agent rules and context, run:
 
@@ -51,8 +57,37 @@ This generates or refreshes:
 - `.cursorrules` — Directives for Cursor and IDE assistants, setting guidelines for file paths, facades, validation rules, and database safety.
 - `llms.txt` — Standard high-density overview of Craft Engine for LLMs.
 - `llms-full.txt` — Full API contracts and code examples.
+- `AGENTS.md` — Short, tool-neutral entry point at the project root.
 - `.agents/rules/AGENTS.md` — Canonical AI governance contract.
 - `.agents/agents/`, `.agents/skills/`, `.agents/commands/`, `.agents/references/` — The full development agent catalog.
+
+It also generates the files several agents and sessions need to work on one
+project without sharing memory, and the verification a fresh project starts
+with:
+
+| File | Purpose |
+|---|---|
+| `.agents/team/board.md` | Append-only team board: claims, releases, blockers, findings |
+| `.agents/lessons.md` | One line per mistake worth not repeating |
+| `.agents/handoffs/` | Where one agent leaves work for the next |
+| `.agents/multi-session-coordination.md` | The coordination rules in short |
+| `.agents/journeys/smoke.json` | A smoke journey: `GET /health` expects `200` |
+| `.agents/validation.json` | The container, the suite command and the journeys to run |
+| `.agents/agents/team-lead.md` | The `team-lead` agent, which coordinates through the board and handoffs |
+| `.agents/hooks/environment_guard.sh` | Exits 1 outside a container, so the suite only counts where the real database is |
+| `.githooks/pre-commit` | Runs the guard and the suite; enable once with `git config core.hooksPath .githooks` |
+| `.github/workflows/ci.yml` | Installs the project with the `dev` extra and runs the suite on push and pull request |
+| `.vscode/tasks.json`, `.vscode/launch.json` | A default `test` task and a launch entry for the current test file |
+
+Without `--force` the command stops at the first of `.cursorrules`, `llms.txt`,
+`llms-full.txt` or a catalog entry that already exists. The coordination and
+verification files above, and both `AGENTS.md` files, are kept when present and
+rewritten only with `--force` - which then also resets the board and the
+lessons file to their initial content, so keep them under version control.
+
+> The smoke journey calls `/health`, which answers only when
+> `HEALTH_ROUTES_ENABLED=true`. `validation.json` names the container `app`;
+> edit it to match the project's own container name.
 
 ---
 
@@ -114,6 +149,13 @@ agents and skills link to them. Agents never call other agents; commands orchest
 `planning-and-task-breakdown`, `security-and-hardening`, `shipping-and-launch`,
 `source-driven-development`, `spec-driven-development`, `test-driven-development`,
 `using-agent-catalog` (start here: it routes an intent to the right skill, agent or command).
+
+Two skills are specific to Craft Engine:
+
+| Skill | What it enforces |
+|---|---|
+| `tests-in-container` | A test result counts as evidence only when it comes from the application container |
+| `craft-engine-pitfalls` | The recurring traps: assuming parity with another framework, forward-only data, relations as methods, the engine boundary, and `.agents/` |
 
 ---
 

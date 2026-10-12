@@ -291,7 +291,8 @@ bootstrap/app.py         Container, providers, global middleware pipeline
 config/                  app, auth, cache, database, logging, queue, session
 database/                migrations/ seeders/ factories/
 engine/                  THE FRAMEWORK (published as craft.*)
-plugins/                 Legacy plugins (deprecated; extensions live in app/)
+plugins/                 Official plugins on the legacy loader (brazil_validator, document_seal,
+                         mtls, pix, privacy, qrcode, seo); new extensions live in app/
 public/index.py          ASGI entry point (`application = asgi_app`)
 resources/views/         Forge templates
 routes/                  web.py, api.py, console.py

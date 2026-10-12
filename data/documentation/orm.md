@@ -159,6 +159,12 @@ post = Post.find("post-uuid")
 author = post.user().first()
 ```
 
+A relation is a method, never a loaded attribute. Reading through it without
+calling it - `post.user.name` - raises `AttributeError` with the code
+`MODEL_RELATION_NOT_CALLED`, naming the relation and the two correct forms:
+call it (`post.user().first()`, or `.get()` for many) or eager load it
+(`Post.query().with_("user")`).
+
 ### Many-to-Many (`belongs_to_many`)
 
 ```python

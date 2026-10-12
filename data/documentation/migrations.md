@@ -87,6 +87,34 @@ Execute seeders by running:
 python dev.py db seed
 ```
 
+### Seeding once (`SEED_ONCE`)
+
+A seeder that checks for a row before inserting it is idempotent only while
+that row stays as it was seeded. Once someone edits the row, the check no
+longer finds it and the next run inserts a second copy. A seeder that must
+never run twice declares `SEED_ONCE`:
+
+```python
+from craft.seeding import Seeder
+
+
+class PlatformCatalogSeeder(Seeder):
+    SEED_ONCE = "platform_catalog"   # a stable key; or True to key on the module and class name
+
+    def run(self):
+        ...
+```
+
+`db seed`, `release:sync` and `Seeder.call()` look the key up in the
+`seed_ledger` table before running the seeder, skip it when the key is there,
+and record the key after a successful run. The ledger is append-only.
+
+- The table comes from the migration
+  `2026_10_07_000003_create_seed_ledger_table.py`. Before it has run there is
+  no ledger: a once-only seeder runs and is **not** recorded, so migrate first.
+- Renaming a seeder declared with `SEED_ONCE = True` changes its key and it
+  runs again. Use a string when the class may move.
+
 ---
 
 ## Factories
@@ -134,3 +162,26 @@ Partial, expression, GIN/GiST/HNSW and `CONCURRENTLY` indexes, `CHECK` and
 `EXCLUDE` constraints, declarative partitioning, managed extensions and
 row-level security policies are covered in
 [PostgreSQL](postgres.md#schema).
+
+### Materialized views that block a migration (PostgreSQL only)
+
+PostgreSQL refuses to alter a column a materialized view depends on, so a
+database whose views were created outside the migrations cannot migrate. Opt in
+to have the migrator step around them:
+
+```ini
+MIGRATION_SUSPEND_MATERIALIZED_VIEWS=true
+```
+
+With the flag on (`framework.MIGRATION_SUSPEND_MATERIALIZED_VIEWS`, default
+`false`), `migrate` drops every materialized view before the pending batch and
+recreates each one afterwards with its indexes, retrying in passes so a view
+that depends on another comes back in the right order. The views are restored
+even when a migration in the batch fails; `migrate --pretend` suspends nothing.
+
+- Recreating a view recomputes its data, which is why this is off by default.
+  On a large view the migration takes as long as the refresh.
+- A view that cannot be recreated - its definition no longer matches the
+  migrated schema - stops the run with `MIGRATION_VIEW_RESTORE_FAILED` and the
+  names of the views still missing.
+- On other drivers the flag does nothing.

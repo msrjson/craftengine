@@ -21,6 +21,38 @@ print(response.content)
 
 ---
 
+## Drivers
+
+`AI_DEFAULT_DRIVER` selects the driver (`ai.default` in `config/ai.py`). The
+engine ships three: `gemini`, `openai` and `mock`. The default is `mock`, whose
+answers are fabricated for development and tests.
+
+```ini
+AI_DEFAULT_DRIVER=gemini
+GEMINI_API_KEY=...
+```
+
+Any other name raises `MisconfigurationError` with the code `AI_DRIVER_UNKNOWN`
+and the names found under `ai.drivers` - the engine never answers from the mock
+in place of a provider it does not know. That includes the `claude` and `ollama`
+blocks present in `config/ai.py`: they hold settings for a driver the
+application supplies, and they appear in the error's list even though selecting
+them raises. Register a driver instance under the name before it is first used:
+
+```python
+from craft.ai.contracts import AIDriver
+from craft.facades import AI
+
+
+class OllamaDriver(AIDriver):
+    ...
+
+
+AI.set_driver("ollama", OllamaDriver())
+```
+
+---
+
 ## 🤖 Autonomous Agents & Tool-Calling
 
 Create autonomous agents that reason and execute multi-step tools dynamically:

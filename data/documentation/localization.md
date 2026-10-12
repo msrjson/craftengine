@@ -86,6 +86,15 @@ With no tenant bound only the global rows are read, so a single-tenant request
 pays nothing for the override. The request-level bundle is cached per tenant as
 well as per locale, so one tenant never reads another's copy.
 
+Uniqueness is enforced by two partial unique indexes: one global row per
+`(key, locale)`, and one row per `(tenant_id, key, locale)`. On a database
+created before they existed, `python dev.py migrate` adds them
+(`2026_10_07_000001_unique_index_on_translations.py`, then
+`2026_10_07_000004_add_tenant_id_to_translations.py`). If the table already
+holds two rows for the same `(key, locale)`, the first migration stops with a
+reconciliation message and deletes nothing: decide which value is correct,
+resolve the duplicate, and migrate again.
+
 Seed them in `database/seeders/TranslationSeeder.py`:
 
 ```bash

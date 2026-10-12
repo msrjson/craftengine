@@ -52,6 +52,19 @@ only, drops privileges to a non-root `dev` user, and serves through Gunicorn.
 docker compose -f docker-compose.prod.yml up -d --build
 ```
 
+The image synchronizes its own release. Its entrypoint, `docker/entrypoint.sh`,
+runs `python dev.py release:sync` and then starts the server, so every
+container migrates and seeds before it serves (see
+[Migrations on deploy](#migrations-on-deploy)). When the sync is refused - a
+`VERSION` file that disagrees with the code, for example - the container exits
+instead of serving. Set `RELEASE_SYNC_ON_BOOT=false` to skip the step when a
+separate job runs the sync.
+
+The image also declares a `HEALTHCHECK` that requests `/health` every 30
+seconds, and sets `HEALTH_ROUTES_ENABLED=true` for it. Overriding that variable
+to `false` makes every container report unhealthy. `.dockerignore` keeps
+secrets, tests and local caches out of the build context.
+
 Set through the environment, not a committed `.env`:
 
 ```yaml

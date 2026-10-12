@@ -206,10 +206,27 @@ Checkpoint, nothing pushed yet:
   `data/CONTRIBUTING.md` and the rehearsal script header; the two documents also
   pointed at `.claude/scripts/`, now `.agents/scripts/`.
 
-Still open at this checkpoint: the whole framework suite on SQLite and
-PostgreSQL (running, UNVERIFIED), the framework documentation audit against the
-4.8.0 changelog, the demo README rewrite, the push of `master` and `main`, the
-demo pin to `v4.8.0-r00028` and the first push of the demo repository.
+Second checkpoint, still nothing pushed:
+
+- The first full run failed 4 tests in `tests/test_release_sync.py` on SQLite:
+  `data/VERSION` still said 4.7.0-r00027. Bumped to 4.8.0-r00028; the
+  PostgreSQL pass of the same run, which read the fixed file, ended with 2230
+  passed and 5 skipped. A full rerun on both databases is in progress
+  (UNVERIFIED until it ends).
+- Framework guides audited against all 36 entries of the 4.8.0 changelog: 12
+  guides and `CRAFT_ENGINE.md` updated (official plugins, `route:check`,
+  `agent:scaffold`, seed ledger, materialized view suspension, the sign-in
+  audit log, cache bounds, AI drivers and more). `docs:check` reports 43 pages
+  and no broken links; the language gate is clean.
+- Demo (`data-demo/`, its own repository): the README describes the
+  WordPress-style admin and its 18 extensions; `/tickets` and `/invoices` were
+  served to guests and now sit behind `auth`, with a guest-redirect test (red
+  before, 29 passed in the file after, in the `craftengine-demo` container);
+  the visible application name and the theme panel title no longer say CRM, in
+  the three locales.
+
+Still open: the full rerun result, the push of `master` and `main`, the demo
+pin to `v4.8.0-r00028` and the first push of the demo repository.
 
 **Found along the way:**
 
@@ -217,6 +234,18 @@ demo pin to `v4.8.0-r00028` and the first push of the demo repository.
   `.agents/rules/CRAFT_ENGINEERING_GOVERNANCE.md` with `.claude/rules/` paths,
   against the 2026-10-07 ruling. The committed versions were restored; the
   global kit that the hook copies from is outdated and will do it again.
+- The module scaffolder emits its index route with no middleware, which is how
+  the two demo screens ended up public. Owner decision pending in
+  `backlog/pending/` (generated-module-screen-has-no-auth).
+- Reported by the documentation audit and left alone: the official plugins are
+  not in the package list or the project skeleton, so how a generated project
+  receives them is undefined; `config/ai.py` lists `claude` and `ollama` blocks
+  the engine has no driver for; the sign-in audit hash chain has no verifier;
+  `documentation/market_evaluation.md` names third-party products;
+  `documentation/ai_agents.md` and `engine/cli/agent_scaffolder.py:70,193`
+  still show `Validator.make`, which does not exist; `engine/cli/app.py:1987`
+  help text still says `.claude/`; `CRAFT_ENGINE.md:33,68` lists refused
+  migrator commands and an old test count.
 - `data-website/site.json` has an uncommitted change that moves the announced
   version backwards (4.3.0 to 4.1.0), and the site still announces 4.3.0. Other
   context: reported, not touched.
