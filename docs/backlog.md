@@ -189,9 +189,9 @@ its absence.
 
 ## 🤖 Done automatically
 
-**2026-10-12 (release 4.8.0 r00028 and the WordPress-style demo, owner request - in progress):**
+**2026-10-12 (release 4.8.0 r00028 and the WordPress-style demo, owner request):**
 
-Tracked by `backlog/processing/p1-20261012-113637-release-4-8-0-and-wordpress-demo.md`.
+Tracked by `backlog/done/p1-20261012-113637-release-4-8-0-and-wordpress-demo.md`.
 Checkpoint, nothing pushed yet:
 
 - Version cut to 4.8.0 r00028: `[Unreleased]` promoted in `data/CHANGELOG.md`,
@@ -225,8 +225,17 @@ Second checkpoint, still nothing pushed:
   the visible application name and the theme panel title no longer say CRM, in
   the three locales.
 
-Still open: the full rerun result, the push of `master` and `main`, the demo
-pin to `v4.8.0-r00028` and the first push of the demo repository.
+Closed the same day:
+
+- Full rerun on the candidate: 2169 passed on SQLite, 2232 on PostgreSQL; demo
+  rehearsal 109 passed on both.
+- `master` and `main` pushed at 01482f5; CI created the release
+  `v4.8.0-r00028`.
+- Demo pinned to `v4.8.0-r00028` with `engine upgrade --to 4.8.0`, image
+  rebuilt, suite green in its container, and pushed to
+  `msrjson/craftengine-demo` for the first time (1f60655).
+
+Evidence: `backlog/resolutions/p1-20261012-113637-release-4-8-0-and-wordpress-demo.resolution.md`.
 
 **Found along the way:**
 
