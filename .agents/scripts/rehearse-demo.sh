@@ -1,5 +1,6 @@
 #!/bin/sh
-# Pre-release gate: rehearse the CRM demo against the release candidate in data/.
+# Pre-release gate: rehearse the demo application (a WordPress-style admin built
+# only from extensions) against the release candidate in data/.
 #
 # The demo consumes only published tags, so a framework defect would otherwise
 # surface after the release. This builds the candidate from data/ (read-only),
@@ -9,7 +10,7 @@
 # in memory (tmpfs). Nothing is written to data/ or data-demo/, and both
 # throwaway containers and their network are removed at the end.
 #
-#   sh .claude/scripts/rehearse-demo.sh     # exits non-zero when anything fails
+#   sh .agents/scripts/rehearse-demo.sh     # exits non-zero when anything fails
 set -eu
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
 NET=crm-rehearsal-net

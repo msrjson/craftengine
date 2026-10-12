@@ -32,13 +32,13 @@ path and is ignored. The migration is recorded in `backlog/`.
 The workspace holds three products that never share code (owner ruling
 2026-10-05). Each has its own directory, repository and test container.
 Validating one never starts, tests or edits another: an agent checking the
-framework does not spend a minute on the CRM demo.
+framework does not spend a minute on the demo application.
 
 | Context | Directory | Repository | Container | Port | Validate with |
 |---|---|---|---|---|---|
 | Framework (slim) | `data/` | `msrjson/craftengine` (this one) | `framework` (+ `framework-db` 5499) | 9000 | `docker exec framework sh -lc 'cd /app && python -m pytest tests -q'` |
 | Landing page | `data-website/` | `msrjson/craftengine.org` (private, ignored here) | `craftengine-website` | 8090 | the site's own build (`build.py`) |
-| Demo (CRM) | `data-demo/` | `msrjson/craftengine-demo` (public, ignored here) | `craftengine-demo` (+ its own database 5500) | 9002 | the demo's own suite, in its container |
+| Demo (WordPress-style admin) | `data-demo/` | `msrjson/craftengine-demo` (public, ignored here) | `craftengine-demo` (+ its own database 5500) | 9002 | the demo's own suite, in its container |
 
 - A change under `data/` is verified in `framework` only. `craftengine-skeleton`
   (9001) is the project `craft new` generates; it belongs to the framework

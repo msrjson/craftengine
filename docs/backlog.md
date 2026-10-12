@@ -189,6 +189,38 @@ its absence.
 
 ## 🤖 Done automatically
 
+**2026-10-12 (release 4.8.0 r00028 and the WordPress-style demo, owner request - in progress):**
+
+Tracked by `backlog/processing/p1-20261012-113637-release-4-8-0-and-wordpress-demo.md`.
+Checkpoint, nothing pushed yet:
+
+- Version cut to 4.8.0 r00028: `[Unreleased]` promoted in `data/CHANGELOG.md`,
+  `data/pyproject.toml`, `data/engine/__init__.py` and `data/CRAFT_ENGINE.md` in sync.
+- Static gates clean on the candidate: `ruff check engine`, the engine boundary
+  (0 new findings, run from the host because it needs Git), forward migration
+  and seeder safety, and both language passes.
+- Demo rehearsal against the candidate (`sh .agents/scripts/rehearse-demo.sh`):
+  107 passed on SQLite and on PostgreSQL.
+- The demo is named for what it is now - a WordPress-style admin built only from
+  extensions, kept to validate the isolation architecture - in `AGENTS.md`,
+  `data/CONTRIBUTING.md` and the rehearsal script header; the two documents also
+  pointed at `.claude/scripts/`, now `.agents/scripts/`.
+
+Still open at this checkpoint: the whole framework suite on SQLite and
+PostgreSQL (running, UNVERIFIED), the framework documentation audit against the
+4.8.0 changelog, the demo README rewrite, the push of `master` and `main`, the
+demo pin to `v4.8.0-r00028` and the first push of the demo repository.
+
+**Found along the way:**
+
+- The session provisioning hook rewrote `.agents/rules/AGENTS.md` and
+  `.agents/rules/CRAFT_ENGINEERING_GOVERNANCE.md` with `.claude/rules/` paths,
+  against the 2026-10-07 ruling. The committed versions were restored; the
+  global kit that the hook copies from is outdated and will do it again.
+- `data-website/site.json` has an uncommitted change that moves the announced
+  version backwards (4.3.0 to 4.1.0), and the site still announces 4.3.0. Other
+  context: reported, not touched.
+
 **2026-10-06 (dependency review, owner request):**
 
 - A framework comparison surfaced a workaround in password hashing: `pyproject.toml`

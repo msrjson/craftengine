@@ -18,6 +18,8 @@ full policy (categories to use, what counts as security-relevant, how
 
 ## [Unreleased]
 
+## [4.8.0] r00028 — 2026-10-12
+
 ### Added
 
 - The QR code plugin ships: `plugins/qrcode/`. `QrCode` generates real, scannable
