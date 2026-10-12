@@ -9,7 +9,7 @@ max_attempts: 2
 attempts: 1
 claimed_by: claude@claude-code
 created_at: 2026-10-12T11:36:37Z
-updated_at: 2026-10-12T11:44:59Z
+updated_at: 2026-10-12T11:49:45Z
 source: owner request in chat, 2026-10-12
 touches:
   - data/CHANGELOG.md
@@ -69,3 +69,4 @@ by hand. The website (`data-website/`) is a separate context and is not touched.
 - 2026-10-12T11:37:36Z owner ruling: the owner asked in chat for this release, the documentation update and the publication of framework and demo; claimed by claude@claude-code (attempt 1)
 - 2026-10-12T11:40:36Z checkpoint by claude@claude-code: version cut to 4.8.0 r00028, static gates clean, demo rehearsal 107 passed on SQLite and PostgreSQL; framework suite still running, nothing pushed
 - 2026-10-12T11:44:59Z checkpoint by claude@claude-code: data/VERSION bumped after 4 release-sync failures; framework guides audited against the 36 changelog entries (docs:check 43 pages, no broken links); demo README rewritten, /tickets and /invoices put behind auth with a test, visible CRM naming removed; scope widened to data-demo/app, data-demo/tests, data-demo/resources and data-demo/docker-compose.yml for those fixes; full rerun in progress, nothing pushed
+- 2026-10-12T11:49:45Z candidate verified by claude@claude-code: framework suite 2169 passed / 68 skipped on SQLite and 2232 passed / 5 skipped on PostgreSQL (framework container, local .env moved aside); demo rehearsal 109 passed on both; pushing master and main under the owner's request
